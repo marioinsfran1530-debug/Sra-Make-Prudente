@@ -1,12 +1,79 @@
+"use client";
+
+import { useEffect, useState, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+import { Search } from "lucide-react";
+import { ProductCard } from "@/components/ProductCard";
+import { EmptyState } from "@/components/EmptyState";
+import type { PublicProduct } from "@/lib/data";
+
+function BuscaContent() {
+  const searchParams = useSearchParams();
+  const initialQ = searchParams.get("q") ?? "";
+  const [query, setQuery] = useState(initialQ);
+  const [products, setProducts] = useState<PublicProduct[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const q = query.trim();
+    if (!q) {
+      setProducts([]);
+      return;
+    }
+    setLoading(true);
+    const timeout = setTimeout(() => {
+      fetch(`/api/products?q=${encodeURIComponent(q)}`)
+        .then((r) => r.json())
+        .then((data) => setProducts(data.products))
+        .finally(() => setLoading(false));
+    }, 300);
+    return () => clearTimeout(timeout);
+  }, [query]);
+
+  return (
+    <main className="pt-3">
+      <div className="px-4 pb-2">
+        <div className="flex items-center gap-2 rounded-full px-4 py-2.5 bg-creme">
+          <Search size={18} className="text-rosa-profundo" />
+          <input
+            autoFocus
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Buscar produto, marca ou categoria..."
+            className="bg-transparent outline-none text-sm flex-1 text-texto"
+          />
+        </div>
+      </div>
+
+      {!query.trim() ? (
+        <div className="px-4 pt-8 text-center">
+          <Search size={30} className="text-cinza mx-auto mb-2" />
+          <p className="text-sm text-cinza">Digite o nome do produto, marca ou categoria.</p>
+        </div>
+      ) : (
+        <div className="pb-6">
+          <p className="px-4 text-xs mb-2 text-cinza">
+            {loading ? "Buscando..." : `${products.length} resultados para "${query}"`}
+          </p>
+          {!loading && products.length === 0 ? (
+            <EmptyState />
+          ) : (
+            <div className="grid grid-cols-2 gap-3 px-4">
+              {products.map((p) => (
+                <ProductCard key={p.id} product={p} />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </main>
+  );
+}
+
 export default function BuscaPage() {
   return (
-    <main className="p-6">
-      <h1 className="font-serif font-bold text-xl text-texto">Buscar</h1>
-      <p className="text-sm text-cinza mt-2">
-        Fase 2 do plano: campo de busca por nome, marca, categoria e
-        subcategoria, com estado &quot;não encontrou&quot; levando ao
-        WhatsApp.
-      </p>
-    </main>
+    <Suspense fallback={null}>
+      <BuscaContent />
+    </Suspense>
   );
 }

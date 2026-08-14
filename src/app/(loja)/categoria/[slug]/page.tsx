@@ -1,17 +1,33 @@
-export default function CategoriaPage({
+import { notFound } from "next/navigation";
+import { getCategoryBySlug, getProducts, getBrands } from "@/lib/data";
+import { ProductListClient } from "@/components/ProductListClient";
+
+export const revalidate = 60;
+
+export default async function CategoriaPage({
   params,
 }: {
   params: { slug: string };
 }) {
+  const category = await getCategoryBySlug(params.slug);
+  if (!category) notFound();
+
+  const [products, brands] = await Promise.all([
+    getProducts({ categorySlug: params.slug }),
+    getBrands(),
+  ]);
+
   return (
-    <main className="p-6">
-      <h1 className="font-serif font-bold text-xl text-texto">
-        Categoria: {params.slug}
-      </h1>
-      <p className="text-sm text-cinza mt-2">
-        Fase 2 do plano: listar produtos desta categoria/subcategoria a
-        partir de <code>GET /api/products?category={params.slug}</code>.
-      </p>
+    <main>
+      <div className="px-4 pt-4 pb-1">
+        <p className="font-serif font-bold text-xl text-texto">{category.name}</p>
+      </div>
+      <ProductListClient
+        initialProducts={products}
+        categorySlug={params.slug}
+        subcategories={category.subcategories}
+        brands={brands}
+      />
     </main>
   );
 }

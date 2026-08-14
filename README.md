@@ -44,7 +44,7 @@ src/
 ## Roadmap (fases do plano)
 
 - [x] **Fase 1 — Fundação**: Next.js, Tailwind, Prisma, Supabase Auth wiring, estrutura de pastas
-- [ ] **Fase 2 — Catálogo**: categorias, produtos, variantes, imagens, busca (leitura pública)
+- [x] **Fase 2 — Catálogo**: categorias, produtos, variantes, busca — consumindo o banco via `src/lib/data.ts` e `/api/categories` `/api/products`. Banco já populado com 4 categorias, 20 subcategorias e 20 produtos de demonstração.
 - [ ] **Fase 3 — Carrinho**: adicionar/remover/quantidade, persistência local
 - [ ] **Fase 4 — Pedido**: checkout, validação server-side, criação de Order/OrderItem, WhatsApp
 - [ ] **Fase 5 — Admin**: dashboard, CRUD produtos/categorias, upload de imagens, pedidos
