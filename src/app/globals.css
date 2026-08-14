@@ -1,0 +1,20 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-rosa: #e4127b;
+  --color-rosa-profundo: #a6157a;
+  --color-roxo: #6e1e8c;
+  --color-navy: #131b33;
+  --color-dourado: #c9972e;
+  --color-creme: #fff6fa;
+  --color-vermelho: #e11d2e;
+  --color-texto: #23142a;
+  --color-cinza: #7a6c7f;
+}
+
+body {
+  background-color: var(--color-creme);
+  color: var(--color-texto);
+}
