@@ -1,0 +1,93 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-playfair), Georgia, serif;
+
+  /* Sra Make — paleta da marca */
+  --color-rosa: #e4127b;
+  --color-rosa-profundo: #a6157a;
+  --color-roxo: #6e1e8c;
+  --color-navy: #131b33;
+  --color-dourado: #c9972e;
+  --color-creme: #fff6fa;
+  --color-vermelho: #e11d2e;
+  --color-texto: #23142a;
+  --color-cinza: #7a6c7f;
+  --color-borda: #f1e4ec;
+
+  --shadow-card: 0 2px 14px rgba(35, 20, 42, 0.08);
+  --shadow-soft: 0 2px 14px rgba(35, 20, 42, 0.06);
+  --shadow-float: 0 8px 30px rgba(35, 20, 42, 0.16);
+}
+
+html {
+  background-color: var(--color-creme);
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  font-family: var(--font-sans);
+  color: var(--color-texto);
+  background-color: var(--color-creme);
+}
+
+/* esconde a scrollbar de carrosséis horizontais */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* animações sutis de entrada */
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes toast-up {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 12px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-sheet-up {
+  animation: sheet-up 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.animate-fade-in {
+  animation: fade-in 0.25s ease-out;
+}
+.animate-toast-up {
+  animation: toast-up 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.animate-rise {
+  animation: rise 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
