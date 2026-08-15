@@ -1,25 +1,47 @@
 "use client";
 
+import {
+  Clock,
+  Instagram,
+  MapPin,
+  MessageCircle,
+} from "lucide-react";
 import { trackEvent } from "@/lib/analytics";
 
+type InfoRowIcon = "location" | "whatsapp" | "instagram" | "clock";
+
+const icons = {
+  location: MapPin,
+  whatsapp: MessageCircle,
+  instagram: Instagram,
+  clock: Clock,
+};
+
 export function InfoRow({
-  icon: Icon,
+  icon,
   title,
   text,
   action,
   whatsapp,
   trackKind,
 }: {
-  icon: React.ComponentType<{ size?: number; className?: string }>;
+  icon: InfoRowIcon;
   title: string;
   text: string;
   action?: { label: string; href: string };
   whatsapp?: boolean;
   trackKind?: "whatsapp" | "location";
 }) {
+  const Icon = icons[icon];
+
   function handleClick() {
-    if (trackKind === "whatsapp") trackEvent("whatsapp_click", { context: "store_page" });
-    if (trackKind === "location") trackEvent("store_location_click", {});
+    if (trackKind === "whatsapp") {
+      trackEvent("whatsapp_click", { context: "store_page" });
+    }
+
+    if (trackKind === "location") {
+      trackEvent("store_location_click", {});
+    }
   }
 
   return (
@@ -30,9 +52,11 @@ export function InfoRow({
       <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-creme">
         <Icon size={18} className="text-rosa-profundo" />
       </div>
+
       <div className="flex-1">
         <p className="text-xs font-bold text-texto">{title}</p>
         <p className="text-xs mt-0.5 text-cinza">{text}</p>
+
         {action && (
           <a
             href={action.href}

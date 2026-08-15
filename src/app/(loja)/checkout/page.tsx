@@ -257,7 +257,7 @@ function ToggleCard({
 }: {
   active: boolean;
   onClick: () => void;
-  icon: React.ComponentType<{ size?: number; className?: string }>;
+  icon: React.ComponentType<{ size?: string | number; className?: string }>;
   label: string;
 }) {
   return (
