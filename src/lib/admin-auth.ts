@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { createSupabaseServerClient } from "@/lib/supabase";
+import { createSupabaseServerClient } from "@/lib/supabase-server";
 
 export type AdminSession = {
   id: string;

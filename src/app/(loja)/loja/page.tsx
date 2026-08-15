@@ -1,4 +1,4 @@
-import { MapPin, MessageCircle, Instagram, Clock } from "lucide-react";
+
 import { getStoreSettings } from "@/lib/data";
 import { waLink } from "@/lib/whatsapp";
 import { InfoRow } from "@/components/InfoRow";
@@ -29,14 +29,14 @@ export default async function LojaInfoPage() {
 
       <div className="flex flex-col gap-3">
         <InfoRow
-          icon={MapPin}
+          icon="location"
           title="Endereço"
           text={settings?.address ?? "—"}
           action={mapsUrl ? { label: "Como chegar", href: mapsUrl } : undefined}
           trackKind="location"
         />
         <InfoRow
-          icon={MessageCircle}
+          icon="whatsapp"
           title="WhatsApp"
           text="(18) 99124-8713"
           action={{ label: "Conversar", href: waLink("Oi! Vim pelo catálogo da Sra Make Prudente.") }}
@@ -44,12 +44,12 @@ export default async function LojaInfoPage() {
           trackKind="whatsapp"
         />
         <InfoRow
-          icon={Instagram}
+          icon="instagram"
           title="Instagram"
           text={settings?.instagram ?? "@sramakeprudente"}
           action={{ label: "Seguir", href: `https://instagram.com/${(settings?.instagram ?? "sramakeprudente").replace("@", "")}` }}
         />
-        <InfoRow icon={Clock} title="Horário" text="Cadastre o horário de funcionamento no painel administrativo." />
+        <InfoRow icon="clock" title="Horário" text="Cadastre o horário de funcionamento no painel administrativo." />
       </div>
     </main>
   );
