@@ -7,7 +7,12 @@ import { createServerClient } from "@supabase/ssr";
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (!pathname.startsWith("/admin") || pathname.startsWith("/admin/login")) {
+  // /admin/login e /admin/reset-password ficam fora da checagem: o link de
+  // recuperação de senha do Supabase chega com o token no #hash da URL, que
+  // o servidor NUNCA vê (só o navegador) — bloquear aqui criaria um loop de
+  // redirecionamento antes do supabase-js conseguir ler o token no client.
+  const PUBLIC_ADMIN_PATHS = ["/admin/login", "/admin/reset-password"];
+  if (!pathname.startsWith("/admin") || PUBLIC_ADMIN_PATHS.some((p) => pathname.startsWith(p))) {
     return NextResponse.next();
   }
 
