@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { ChevronRight, Palette, Eye, Hand, ShoppingBag, type LucideIcon } from "lucide-react";
 import { getCategories } from "@/lib/data";
