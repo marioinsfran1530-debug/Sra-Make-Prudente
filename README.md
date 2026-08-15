@@ -47,7 +47,8 @@ src/
 - [x] **Fase 2 — Catálogo**: categorias, produtos, variantes, busca — consumindo o banco via `src/lib/data.ts` e `/api/categories` `/api/products`. Banco já populado com 4 categorias, 20 subcategorias e 20 produtos de demonstração.
 - [x] **Fase 3 — Carrinho**: `CartProvider` (Context + `localStorage`), adicionar/remover/quantidade, contador no header e no bottom nav, sem exigir login
 - [x] **Fase 4 — Pedido**: checkout (dados, retirada/entrega, pagamento, observação), `POST /api/orders` valida produtos/preços no servidor e grava `Order`/`OrderItem`, mensagem final via `lib/whatsapp.ts` e redirecionamento para o WhatsApp
-- [ ] **Fase 5 — Admin**: dashboard, CRUD produtos/categorias, upload de imagens, pedidos
+- [x] **Fase 5 — Admin**: login (Supabase Auth) + `AdminProfile` com roles, dashboard com métricas reais, CRUD de produtos (com variantes), categorias, lista/detalhe de pedidos com troca de status
+  - Upload de imagem para o Supabase Storage ainda não incluído (produtos usam o placeholder ilustrado); pode ser adicionado depois como extensão da Fase 5
 - [ ] **Fase 6 — Estoque**: `stockQty` como fonte da verdade, confirmação transacional
 - [ ] **Fase 7 — Tracking**: UTM + sessionId
 - [ ] **Fase 8 — PWA + SEO + produção**: manifest, metadata, sitemap, domínio, deploy
