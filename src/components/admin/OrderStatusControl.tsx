@@ -18,21 +18,39 @@ export function OrderStatusControl({ orderId, status }: { orderId: string; statu
   const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [value, setValue] = useState(status);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleChange(newStatus: string) {
+    setError(null);
+
     if (newStatus === "CONFIRMADO") {
       const ok = window.confirm(
-        "A confirmação com desconto automático de estoque será ativada na Fase 6. Por enquanto isso só marca o status. Continuar?"
+        "Confirmar este pedido vai descontar o estoque dos produtos agora. Continuar?"
       );
       if (!ok) return;
     }
+    if (newStatus === "CANCELADO" && (status === "CONFIRMADO" || status === "SEPARANDO" || status === "PRONTO_RETIRADA" || status === "SAIU_ENTREGA")) {
+      const ok = window.confirm(
+        "Cancelar este pedido vai devolver o estoque descontado na confirmação. Continuar?"
+      );
+      if (!ok) return;
+    }
+
     setSaving(true);
-    setValue(newStatus);
-    await fetch(`/api/admin/orders/${orderId}/status`, {
+    const res = await fetch(`/api/admin/orders/${orderId}/status`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: newStatus }),
     });
+    const data = await res.json();
+
+    if (!res.ok) {
+      setError(data.error ?? "Não foi possível atualizar o pedido.");
+      setSaving(false);
+      return;
+    }
+
+    setValue(newStatus);
     setSaving(false);
     router.refresh();
   }
@@ -52,6 +70,12 @@ export function OrderStatusControl({ orderId, status }: { orderId: string; statu
           </option>
         ))}
       </select>
+      {error && <p className="text-xs text-vermelho mt-2">{error}</p>}
+      {value === "CONFIRMADO" && (
+        <p className="text-[11px] text-cinza mt-2">
+          Estoque já descontado na confirmação deste pedido.
+        </p>
+      )}
     </div>
   );
 }

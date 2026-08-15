@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin-auth";
+import { confirmOrder, cancelOrder, OrderError } from "@/lib/order-transactions";
 
 const VALID_STATUSES = [
   "NOVO",
@@ -13,10 +14,6 @@ const VALID_STATUSES = [
   "CANCELADO",
 ];
 
-// NOTA (plano seção 7 / Fase 6): a transição para CONFIRMADO ainda vai
-// ganhar a lógica transacional de desconto de estoque na Fase 6
-// (prisma.$transaction, com lock de linha e reversão em CANCELADO).
-// Por enquanto, esta rota só troca o status — sem mexer em estoque.
 export async function PATCH(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -29,10 +26,28 @@ export async function PATCH(
     return NextResponse.json({ error: "Status inválido." }, { status: 400 });
   }
 
-  const order = await prisma.order.update({
-    where: { id: params.id },
-    data: { status: body.status },
-  });
+  try {
+    // Fase 6: CONFIRMADO e CANCELADO passam por transações que
+    // descontam/devolvem estoque de forma atômica (plano seção 7).
+    if (body.status === "CONFIRMADO") {
+      const order = await confirmOrder(params.id);
+      return NextResponse.json({ order });
+    }
 
-  return NextResponse.json({ order });
+    if (body.status === "CANCELADO") {
+      const order = await cancelOrder(params.id);
+      return NextResponse.json({ order });
+    }
+
+    const order = await prisma.order.update({
+      where: { id: params.id },
+      data: { status: body.status },
+    });
+    return NextResponse.json({ order });
+  } catch (err) {
+    if (err instanceof OrderError) {
+      return NextResponse.json({ error: err.message }, { status: 409 });
+    }
+    return NextResponse.json({ error: "Erro ao atualizar o pedido." }, { status: 500 });
+  }
 }

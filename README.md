@@ -49,7 +49,7 @@ src/
 - [x] **Fase 4 — Pedido**: checkout (dados, retirada/entrega, pagamento, observação), `POST /api/orders` valida produtos/preços no servidor e grava `Order`/`OrderItem`, mensagem final via `lib/whatsapp.ts` e redirecionamento para o WhatsApp
 - [x] **Fase 5 — Admin**: login (Supabase Auth) + `AdminProfile` com roles, dashboard com métricas reais, CRUD de produtos (com variantes), categorias, lista/detalhe de pedidos com troca de status
   - Upload de imagem para o Supabase Storage ainda não incluído (produtos usam o placeholder ilustrado); pode ser adicionado depois como extensão da Fase 5
-- [ ] **Fase 6 — Estoque**: `stockQty` como fonte da verdade, confirmação transacional
+- [x] **Fase 6 — Estoque**: `stockQty` como fonte da verdade, confirmação transacional (`prisma.$transaction` + `FOR UPDATE`), reversão automática de estoque em cancelamento após confirmação
 - [ ] **Fase 7 — Tracking**: UTM + sessionId
 - [ ] **Fase 8 — PWA + SEO + produção**: manifest, metadata, sitemap, domínio, deploy
 
