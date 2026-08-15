@@ -3,6 +3,7 @@ import { ShoppingCart } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
 import { CartProvider } from "@/components/CartProvider";
 import { CartCountBadge } from "@/components/CartCountBadge";
+import { TrackingInit } from "@/components/TrackingInit";
 
 export default function LojaLayout({
   children,
@@ -11,6 +12,7 @@ export default function LojaLayout({
 }) {
   return (
     <CartProvider>
+      <TrackingInit />
       <div className="min-h-screen max-w-md mx-auto bg-creme relative">
         <div className="sticky top-0 z-20 bg-white border-b border-rosa/10">
           <div className="flex items-center gap-3 px-4 pt-4 pb-3">

@@ -4,6 +4,7 @@ import { ProductCard } from "@/components/ProductCard";
 import { getCategories, getProducts, getStoreSettings } from "@/lib/data";
 import { MessageCircle, Camera, Package, Truck, Search, MapPin } from "lucide-react";
 import { waLink } from "@/lib/whatsapp";
+import { WhatsAppLink, LocationLink } from "@/components/TrackedLink";
 import Link from "next/link";
 
 export const revalidate = 60;
@@ -43,14 +44,13 @@ export default async function HomePage() {
             >
               Ver produtos
             </Link>
-            <a
+            <WhatsAppLink
               href={waLink("Oi! Vim pelo catálogo da Sra Make Prudente e preciso de ajuda para escolher um produto.")}
-              target="_blank"
-              rel="noopener noreferrer"
+              context="home_help"
               className="px-4 py-2.5 rounded-full text-sm font-bold border border-white/70 text-white"
             >
               Preciso de ajuda
-            </a>
+            </WhatsAppLink>
           </div>
         </div>
       </div>
@@ -91,15 +91,14 @@ export default async function HomePage() {
           <p className="text-white/70 text-xs mb-2">
             Manda o nome ou uma foto do produto e a gente confirma se temos disponível.
           </p>
-          <a
+          <WhatsAppLink
             href={waLink("Oi! Preciso repor um material e queria confirmar disponibilidade. Vim pelo catálogo da Sra Make Prudente.")}
-            target="_blank"
-            rel="noopener noreferrer"
+            context="home_reposicao"
             className="inline-flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full"
             style={{ backgroundColor: "#C9972E", color: "#131B33" }}
           >
             <Camera size={13} /> Mandar no WhatsApp
-          </a>
+          </WhatsAppLink>
         </div>
       </div>
 
@@ -124,23 +123,20 @@ export default async function HomePage() {
           <p className="font-serif font-bold text-sm mb-1 text-texto">Prefere retirar?</p>
           <p className="text-xs mb-3 text-cinza">{settings.address}</p>
           <div className="flex gap-2">
-            <a
+            <LocationLink
               href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(settings.address ?? "")}`}
-              target="_blank"
-              rel="noopener noreferrer"
               className="flex-1 text-center text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-1 bg-creme text-rosa-profundo"
             >
               <MapPin size={14} /> Como chegar
-            </a>
-            <a
+            </LocationLink>
+            <WhatsAppLink
               href={waLink("Oi! Vim pelo catálogo da Sra Make Prudente.")}
-              target="_blank"
-              rel="noopener noreferrer"
+              context="home_location"
               className="flex-1 text-center text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-1 text-white"
               style={{ backgroundColor: "#25D366" }}
             >
               <MessageCircle size={14} /> WhatsApp
-            </a>
+            </WhatsAppLink>
           </div>
         </div>
       )}

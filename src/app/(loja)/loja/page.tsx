@@ -1,6 +1,7 @@
 import { MapPin, MessageCircle, Instagram, Clock } from "lucide-react";
 import { getStoreSettings } from "@/lib/data";
 import { waLink } from "@/lib/whatsapp";
+import { InfoRow } from "@/components/InfoRow";
 
 export const revalidate = 60;
 
@@ -27,13 +28,20 @@ export default async function LojaInfoPage() {
       </div>
 
       <div className="flex flex-col gap-3">
-        <InfoRow icon={MapPin} title="Endereço" text={settings?.address ?? "—"} action={mapsUrl ? { label: "Como chegar", href: mapsUrl } : undefined} />
+        <InfoRow
+          icon={MapPin}
+          title="Endereço"
+          text={settings?.address ?? "—"}
+          action={mapsUrl ? { label: "Como chegar", href: mapsUrl } : undefined}
+          trackKind="location"
+        />
         <InfoRow
           icon={MessageCircle}
           title="WhatsApp"
           text="(18) 99124-8713"
           action={{ label: "Conversar", href: waLink("Oi! Vim pelo catálogo da Sra Make Prudente.") }}
           whatsapp
+          trackKind="whatsapp"
         />
         <InfoRow
           icon={Instagram}
@@ -44,42 +52,5 @@ export default async function LojaInfoPage() {
         <InfoRow icon={Clock} title="Horário" text="Cadastre o horário de funcionamento no painel administrativo." />
       </div>
     </main>
-  );
-}
-
-function InfoRow({
-  icon: Icon,
-  title,
-  text,
-  action,
-  whatsapp,
-}: {
-  icon: React.ComponentType<{ size?: number; className?: string }>;
-  title: string;
-  text: string;
-  action?: { label: string; href: string };
-  whatsapp?: boolean;
-}) {
-  return (
-    <div className="rounded-2xl p-4 flex items-start gap-3 bg-white" style={{ boxShadow: "0 2px 14px rgba(35,20,42,0.06)" }}>
-      <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-creme">
-        <Icon size={18} className="text-rosa-profundo" />
-      </div>
-      <div className="flex-1">
-        <p className="text-xs font-bold text-texto">{title}</p>
-        <p className="text-xs mt-0.5 text-cinza">{text}</p>
-        {action && (
-          <a
-            href={action.href}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-block mt-2 text-xs font-bold px-3 py-1.5 rounded-full"
-            style={whatsapp ? { backgroundColor: "#25D366", color: "#fff" } : { backgroundColor: "#FFF6FA", color: "#A6157A" }}
-          >
-            {action.label}
-          </a>
-        )}
-      </div>
-    </div>
   );
 }

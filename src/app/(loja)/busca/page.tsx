@@ -6,6 +6,7 @@ import { Search } from "lucide-react";
 import { ProductCard } from "@/components/ProductCard";
 import { EmptyState } from "@/components/EmptyState";
 import type { PublicProduct } from "@/lib/data";
+import { trackEvent } from "@/lib/analytics";
 
 function BuscaContent() {
   const searchParams = useSearchParams();
@@ -24,7 +25,10 @@ function BuscaContent() {
     const timeout = setTimeout(() => {
       fetch(`/api/products?q=${encodeURIComponent(q)}`)
         .then((r) => r.json())
-        .then((data) => setProducts(data.products))
+        .then((data) => {
+          setProducts(data.products);
+          trackEvent("search", { query: q, resultCount: data.products.length });
+        })
         .finally(() => setLoading(false));
     }, 300);
     return () => clearTimeout(timeout);

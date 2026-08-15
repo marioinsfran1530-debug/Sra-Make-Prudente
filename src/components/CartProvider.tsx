@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import type { CartItem } from "@/lib/cart-types";
+import { trackEvent } from "@/lib/analytics";
 
 const STORAGE_KEY = "sra-make-cart";
 
@@ -54,6 +55,13 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       }
       return [...prev, { ...item, qty }];
     });
+    trackEvent("add_to_cart", {
+      productId: item.productId,
+      variantId: item.variantId,
+      name: item.name,
+      qty,
+      price: item.price,
+    });
   }, []);
 
   const updateQty = useCallback(
@@ -76,6 +84,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setItems((prev) =>
       prev.filter((i) => !(i.productId === productId && i.variantId === variantId))
     );
+    trackEvent("remove_from_cart", { productId, variantId });
   }, []);
 
   const clear = useCallback(() => setItems([]), []);

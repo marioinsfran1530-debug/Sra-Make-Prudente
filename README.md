@@ -50,7 +50,7 @@ src/
 - [x] **Fase 5 — Admin**: login (Supabase Auth) + `AdminProfile` com roles, dashboard com métricas reais, CRUD de produtos (com variantes), categorias, lista/detalhe de pedidos com troca de status
   - Upload de imagem para o Supabase Storage ainda não incluído (produtos usam o placeholder ilustrado); pode ser adicionado depois como extensão da Fase 5
 - [x] **Fase 6 — Estoque**: `stockQty` como fonte da verdade, confirmação transacional (`prisma.$transaction` + `FOR UPDATE`), reversão automática de estoque em cancelamento após confirmação
-- [ ] **Fase 7 — Tracking**: UTM + sessionId
+- [x] **Fase 7 — Tracking**: `sessionId` anônimo + captura de UTM/referrer na primeira visita (`lib/tracking.ts`), eventos padronizados (`lib/analytics.ts`) em add_to_cart, remove_from_cart, begin_checkout, order_created, whatsapp_click, store_location_click, product_view, category_view e search
 - [ ] **Fase 8 — PWA + SEO + produção**: manifest, metadata, sitemap, domínio, deploy
 
 Continue a implementação fase por fase — não pedir "construa tudo" de uma vez (ver seção 15 do plano).

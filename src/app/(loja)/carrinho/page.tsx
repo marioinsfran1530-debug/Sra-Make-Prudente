@@ -5,6 +5,7 @@ import { ShoppingCart, Plus, Minus, X } from "lucide-react";
 import { useCart } from "@/components/CartProvider";
 import { ProductImage } from "@/components/ProductImage";
 import { money } from "@/lib/money";
+import { trackEvent } from "@/lib/analytics";
 
 export default function CarrinhoPage() {
   const router = useRouter();
@@ -84,7 +85,10 @@ export default function CarrinhoPage() {
           <span className="font-extrabold text-lg text-rosa-profundo">{money(subtotal)}</span>
         </div>
         <button
-          onClick={() => router.push("/checkout")}
+          onClick={() => {
+            trackEvent("begin_checkout", { itemCount: items.length, subtotal });
+            router.push("/checkout");
+          }}
           className="w-full py-3.5 rounded-full font-bold text-sm text-white"
           style={{ backgroundColor: "#E4127B" }}
         >

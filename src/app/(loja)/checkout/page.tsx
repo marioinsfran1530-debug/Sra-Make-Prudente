@@ -6,6 +6,8 @@ import { Store, Truck, Send } from "lucide-react";
 import { useCart } from "@/components/CartProvider";
 import { money } from "@/lib/money";
 import { waLink, buildOrderMessage } from "@/lib/whatsapp";
+import { getTrackingPayload } from "@/lib/tracking";
+import { trackEvent } from "@/lib/analytics";
 
 const PAYMENT_OPTIONS: { value: string; label: string }[] = [
   { value: "PIX", label: "Pix" },
@@ -64,6 +66,7 @@ export default function CheckoutPage() {
           address: deliveryType === "ENTREGA" ? address : undefined,
           payment,
           notes: notes || undefined,
+          ...getTrackingPayload(),
         }),
       });
 
@@ -88,6 +91,8 @@ export default function CheckoutPage() {
       });
 
       clear();
+      trackEvent("order_created", { orderNumber: data.orderNumber, total: data.total });
+      trackEvent("whatsapp_click", { context: "checkout", orderNumber: data.orderNumber });
       window.open(waLink(message), "_blank");
       router.push("/");
     } catch {

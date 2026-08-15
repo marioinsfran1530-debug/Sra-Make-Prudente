@@ -4,6 +4,8 @@ import { getProductById } from "@/lib/data";
 import { ProductImage } from "@/components/ProductImage";
 import { Badge, StockLabel } from "@/components/Badges";
 import { AddToCartBox } from "@/components/AddToCartBox";
+import { ProductViewTracker } from "@/components/ViewTrackers";
+import { WhatsAppLink } from "@/components/TrackedLink";
 import { money } from "@/lib/money";
 import { waLink } from "@/lib/whatsapp";
 
@@ -17,6 +19,7 @@ export default async function ProdutoPage({ params }: { params: { id: string } }
 
   return (
     <main>
+      <ProductViewTracker productId={product.id} name={product.name} />
       <ProductImage name={product.name} imageUrl={mainImage} className="w-full h-72" />
 
       <div className="p-5">
@@ -55,15 +58,14 @@ export default async function ProdutoPage({ params }: { params: { id: string } }
           <p className="text-xs mb-2 text-cinza">
             Ficou em dúvida sobre qual escolher? Fale com a gente.
           </p>
-          <a
+          <WhatsAppLink
             href={waLink(`Oi! Tenho uma dúvida sobre o produto "${product.name}" do catálogo da Sra Make Prudente.`)}
-            target="_blank"
-            rel="noopener noreferrer"
+            context="product_help"
             className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-full text-white"
             style={{ backgroundColor: "#25D366" }}
           >
             <MessageCircle size={14} /> Falar com a Sra Make no WhatsApp
-          </a>
+          </WhatsAppLink>
         </div>
       </div>
     </main>
