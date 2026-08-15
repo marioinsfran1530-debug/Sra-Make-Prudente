@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import { MessageCircle } from "lucide-react";
 import { getProductById } from "@/lib/data";
 import { ProductImage } from "@/components/ProductImage";
@@ -10,6 +11,25 @@ import { money } from "@/lib/money";
 import { waLink } from "@/lib/whatsapp";
 
 export const revalidate = 60;
+
+export async function generateMetadata({
+  params,
+}: {
+  params: { id: string };
+}): Promise<Metadata> {
+  const product = await getProductById(params.id);
+  if (!product) return {};
+
+  const description =
+    product.description ??
+    `${product.name} da ${product.brand} no catálogo da Sra Make Prudente.`;
+
+  return {
+    title: `${product.name} — ${product.brand}`,
+    description,
+    openGraph: { title: product.name, description },
+  };
+}
 
 export default async function ProdutoPage({ params }: { params: { id: string } }) {
   const product = await getProductById(params.id);

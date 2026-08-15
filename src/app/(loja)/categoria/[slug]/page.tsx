@@ -1,9 +1,23 @@
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import { getCategoryBySlug, getProducts, getBrands } from "@/lib/data";
 import { ProductListClient } from "@/components/ProductListClient";
 import { CategoryViewTracker } from "@/components/ViewTrackers";
 
 export const revalidate = 60;
+
+export async function generateMetadata({
+  params,
+}: {
+  params: { slug: string };
+}): Promise<Metadata> {
+  const category = await getCategoryBySlug(params.slug);
+  if (!category) return {};
+  return {
+    title: category.name,
+    description: `${category.name} no catálogo da Sra Make Prudente — escolha pelo catálogo e confirme pelo WhatsApp.`,
+  };
+}
 
 export default async function CategoriaPage({
   params,

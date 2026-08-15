@@ -1,6 +1,11 @@
 import { redirect } from "next/navigation";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase";
+
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+};
 
 // Regra do plano (seção 3): o middleware já protege /admin/*, mas cada
 // camada valida a sessão de novo no servidor — nunca confiar só na
