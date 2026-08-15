@@ -45,8 +45,8 @@ src/
 
 - [x] **Fase 1 — Fundação**: Next.js, Tailwind, Prisma, Supabase Auth wiring, estrutura de pastas
 - [x] **Fase 2 — Catálogo**: categorias, produtos, variantes, busca — consumindo o banco via `src/lib/data.ts` e `/api/categories` `/api/products`. Banco já populado com 4 categorias, 20 subcategorias e 20 produtos de demonstração.
-- [ ] **Fase 3 — Carrinho**: adicionar/remover/quantidade, persistência local
-- [ ] **Fase 4 — Pedido**: checkout, validação server-side, criação de Order/OrderItem, WhatsApp
+- [x] **Fase 3 — Carrinho**: `CartProvider` (Context + `localStorage`), adicionar/remover/quantidade, contador no header e no bottom nav, sem exigir login
+- [x] **Fase 4 — Pedido**: checkout (dados, retirada/entrega, pagamento, observação), `POST /api/orders` valida produtos/preços no servidor e grava `Order`/`OrderItem`, mensagem final via `lib/whatsapp.ts` e redirecionamento para o WhatsApp
 - [ ] **Fase 5 — Admin**: dashboard, CRUD produtos/categorias, upload de imagens, pedidos
 - [ ] **Fase 6 — Estoque**: `stockQty` como fonte da verdade, confirmação transacional
 - [ ] **Fase 7 — Tracking**: UTM + sessionId

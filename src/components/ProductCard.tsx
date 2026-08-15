@@ -1,12 +1,41 @@
+"use client";
+
 import Link from "next/link";
+import { useState } from "react";
+import { Plus, Check } from "lucide-react";
 import { ProductImage } from "@/components/ProductImage";
 import { Badge, StockLabel } from "@/components/Badges";
+import { useCart } from "@/components/CartProvider";
 import { money } from "@/lib/money";
 import type { PublicProduct } from "@/lib/data";
 
 export function ProductCard({ product }: { product: PublicProduct }) {
+  const { addItem } = useCart();
+  const [justAdded, setJustAdded] = useState(false);
   const disabled = product.stock === "INDISPONIVEL";
+  const hasVariants = product.variants.length > 0;
   const mainImage = product.images[0]?.url ?? null;
+
+  function handleQuickAdd(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (disabled || hasVariants) return;
+    addItem(
+      {
+        productId: product.id,
+        variantId: null,
+        variantName: null,
+        name: product.name,
+        brand: product.brand,
+        sku: product.sku,
+        price: product.promoPrice ?? product.price,
+        imageUrl: mainImage,
+      },
+      1
+    );
+    setJustAdded(true);
+    setTimeout(() => setJustAdded(false), 1200);
+  }
 
   return (
     <Link
@@ -23,9 +52,7 @@ export function ProductCard({ product }: { product: PublicProduct }) {
         <p className="text-[11px] font-semibold uppercase tracking-wide text-cinza">
           {product.brand}
         </p>
-        <p className="text-sm font-bold leading-snug line-clamp-2 text-texto">
-          {product.name}
-        </p>
+        <p className="text-sm font-bold leading-snug line-clamp-2 text-texto">{product.name}</p>
         <div className="mt-1 flex items-baseline gap-2">
           {product.promoPrice ? (
             <>
@@ -42,15 +69,29 @@ export function ProductCard({ product }: { product: PublicProduct }) {
         </div>
         <StockLabel stock={product.stock} />
         <div className="mt-2">
-          <span
-            className="w-full block text-center py-2 rounded-xl text-sm font-bold"
+          <button
+            onClick={handleQuickAdd}
+            disabled={disabled}
+            className="w-full flex items-center justify-center gap-1 text-center py-2 rounded-xl text-sm font-bold disabled:opacity-40"
             style={{
-              backgroundColor: disabled ? "#E9D9E4" : "#E4127B",
-              color: disabled ? "#7A6C7F" : "#fff",
+              backgroundColor: justAdded ? "#A6157A" : "#E4127B",
+              color: "#fff",
             }}
           >
-            {disabled ? "Indisponível" : product.variants.length > 0 ? "Escolher" : "Ver produto"}
-          </span>
+            {disabled ? (
+              "Indisponível"
+            ) : hasVariants ? (
+              "Escolher"
+            ) : justAdded ? (
+              <>
+                <Check size={14} /> Adicionado
+              </>
+            ) : (
+              <>
+                <Plus size={14} /> Adicionar
+              </>
+            )}
+          </button>
         </div>
       </div>
     </Link>

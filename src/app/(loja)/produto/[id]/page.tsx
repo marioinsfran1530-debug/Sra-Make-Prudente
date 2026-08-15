@@ -3,6 +3,7 @@ import { MessageCircle } from "lucide-react";
 import { getProductById } from "@/lib/data";
 import { ProductImage } from "@/components/ProductImage";
 import { Badge, StockLabel } from "@/components/Badges";
+import { AddToCartBox } from "@/components/AddToCartBox";
 import { money } from "@/lib/money";
 import { waLink } from "@/lib/whatsapp";
 
@@ -47,32 +48,7 @@ export default async function ProdutoPage({ params }: { params: { id: string } }
           <p className="text-sm mt-3 leading-relaxed text-texto">{product.description}</p>
         )}
 
-        {product.variants.length > 0 && (
-          <div className="mt-4">
-            <p className="text-xs font-bold mb-2 text-texto">Variantes</p>
-            <div className="flex gap-2 flex-wrap">
-              {product.variants.map((v) => (
-                <span
-                  key={v.id}
-                  className="px-3 py-1.5 rounded-full text-xs font-semibold border"
-                  style={{
-                    borderColor: v.stock === "INDISPONIVEL" ? "#E9D9E4" : "#E4127B",
-                    color: v.stock === "INDISPONIVEL" ? "#7A6C7F" : "#23142A",
-                    opacity: v.stock === "INDISPONIVEL" ? 0.5 : 1,
-                  }}
-                >
-                  {v.name}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div className="mt-6 rounded-2xl p-4 bg-creme text-center">
-          <p className="text-xs text-cinza">
-            O carrinho e a adição de produtos serão ligados na Fase 3 do plano.
-          </p>
-        </div>
+        <AddToCartBox product={product} />
 
         <div className="mt-6 rounded-2xl p-4 bg-creme">
           <p className="text-xs font-bold mb-1 text-texto">Precisa de ajuda?</p>
