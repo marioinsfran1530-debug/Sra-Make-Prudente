@@ -44,8 +44,9 @@ export default function AdminLoginPage() {
     });
     setLoading(false);
     if (error) {
-      setError("Não foi possível enviar o link. Confira o e-mail e tente de novo.");
-      return;
+  console.error("ERRO SUPABASE RESET:", error);
+  setError(`Erro: ${error.message}`);
+  return;
     }
     setInfo("Se esse e-mail estiver cadastrado, enviamos um link de redefinição de senha.");
   }
