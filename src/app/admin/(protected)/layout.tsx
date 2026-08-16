@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ExternalLink } from "lucide-react";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
+import { getAdminSession } from "@/lib/admin-auth";
 import { LogoutButton } from "@/components/admin/LogoutButton";
 
 export const metadata: Metadata = {
@@ -24,6 +25,12 @@ export default async function AdminLayout({
     redirect("/admin/login");
   }
 
+  const adminSession = await getAdminSession();
+
+  if (!adminSession) {
+    redirect("/admin/login");
+  }
+
   const email = session.user.email ?? "";
 
   return (
@@ -37,6 +44,10 @@ export default async function AdminLayout({
 
             <p className="text-[10px] text-cinza mt-1">
               {email}
+            </p>
+
+            <p className="text-[10px] text-cinza mt-0.5">
+              {adminSession.role === "ADMIN" ? "Administrador" : "Editor"}
             </p>
           </div>
 
@@ -55,7 +66,7 @@ export default async function AdminLayout({
           </div>
         </div>
 
-        <nav className="flex gap-4 mt-4 text-xs font-bold text-cinza">
+        <nav className="flex flex-wrap gap-4 mt-4 text-xs font-bold text-cinza">
           <Link
             href="/admin"
             className="hover:text-rosa-profundo"
@@ -83,6 +94,15 @@ export default async function AdminLayout({
           >
             Pedidos
           </Link>
+
+          {adminSession.role === "ADMIN" && (
+            <Link
+              href="/admin/usuarios"
+              className="hover:text-rosa-profundo"
+            >
+              Usuários
+            </Link>
+          )}
         </nav>
       </header>
 
