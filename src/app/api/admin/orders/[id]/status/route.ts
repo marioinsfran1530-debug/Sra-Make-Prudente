@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin-auth";
 import { confirmOrder, cancelOrder, OrderError } from "@/lib/order-transactions";
+import { notifyOrderStatus } from "@/lib/order-push";
 
 const VALID_STATUSES = [
   "NOVO",
@@ -31,11 +32,29 @@ export async function PATCH(
     // descontam/devolvem estoque de forma atômica (plano seção 7).
     if (body.status === "CONFIRMADO") {
       const order = await confirmOrder(params.id);
+
+      await notifyOrderStatus({
+        number: order.number,
+        customerName: order.customerName,
+        customerPhone: order.customerPhone,
+        sessionId: order.sessionId,
+        status: order.status,
+      });
+
       return NextResponse.json({ order });
     }
 
     if (body.status === "CANCELADO") {
       const order = await cancelOrder(params.id);
+
+      await notifyOrderStatus({
+        number: order.number,
+        customerName: order.customerName,
+        customerPhone: order.customerPhone,
+        sessionId: order.sessionId,
+        status: order.status,
+      });
+
       return NextResponse.json({ order });
     }
 
@@ -43,6 +62,15 @@ export async function PATCH(
       where: { id: params.id },
       data: { status: body.status },
     });
+
+    await notifyOrderStatus({
+      number: order.number,
+      customerName: order.customerName,
+      customerPhone: order.customerPhone,
+      sessionId: order.sessionId,
+      status: order.status,
+    });
+
     return NextResponse.json({ order });
   } catch (err) {
     if (err instanceof OrderError) {

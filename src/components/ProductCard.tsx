@@ -17,9 +17,15 @@ export function ProductCard({ product }: { product: PublicProduct }) {
   const mainImage = product.images[0]?.url ?? null;
 
   function handleQuickAdd(e: React.MouseEvent) {
+    // Produtos com variantes precisam abrir a página do produto
+    // para o cliente escolher a opção antes de adicionar ao carrinho.
+    if (hasVariants) return;
+
     e.preventDefault();
     e.stopPropagation();
-    if (disabled || hasVariants) return;
+
+    if (disabled) return;
+
     addItem(
       {
         productId: product.id,
@@ -81,7 +87,7 @@ export function ProductCard({ product }: { product: PublicProduct }) {
             {disabled ? (
               "Indisponível"
             ) : hasVariants ? (
-              "Escolher"
+              "Escolher opção"
             ) : justAdded ? (
               <>
                 <Check size={14} /> Adicionado

@@ -2,18 +2,20 @@
 
 import {
   Clock,
+  Facebook,
   Instagram,
   MapPin,
   MessageCircle,
 } from "lucide-react";
 import { trackEvent } from "@/lib/analytics";
 
-type InfoRowIcon = "location" | "whatsapp" | "instagram" | "clock";
+type InfoRowIcon = "location" | "whatsapp" | "instagram" | "facebook" | "clock";
 
 const icons = {
   location: MapPin,
   whatsapp: MessageCircle,
   instagram: Instagram,
+  facebook: Facebook,
   clock: Clock,
 };
 

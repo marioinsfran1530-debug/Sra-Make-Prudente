@@ -1,7 +1,9 @@
 export const WHATSAPP_NUMBER = "5518991248713";
 
-export function waLink(message: string) {
-  return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
+export function waLink(message: string, number = WHATSAPP_NUMBER) {
+  const normalizedNumber = number.replace(/\D/g, "");
+
+  return `https://wa.me/${normalizedNumber}?text=${encodeURIComponent(message)}`;
 }
 
 export type OrderMessageItem = {

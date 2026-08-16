@@ -126,6 +126,20 @@ export async function POST(request: NextRequest) {
     },
   });
 
+  // Vincula o aparelho que ativou notificações ao cliente/pedido.
+  if (body.sessionId) {
+    await prisma.pushSubscription.updateMany({
+      where: {
+        sessionId: body.sessionId,
+        active: true,
+      },
+      data: {
+        phone: body.customerPhone.trim(),
+        lastSeenAt: new Date(),
+      },
+    });
+  }
+
   // Não desconta estoque aqui — só na confirmação pelo admin (Fase 6, transacional).
 
   return NextResponse.json({

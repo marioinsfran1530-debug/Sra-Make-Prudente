@@ -5,6 +5,17 @@ import { money } from "@/lib/money";
 import { waLink } from "@/lib/whatsapp";
 import { OrderStatusControl } from "@/components/admin/OrderStatusControl";
 
+const STATUS_LABEL: Record<string, string> = {
+  NOVO: "Novo",
+  EM_CONFIRMACAO: "Em confirmação",
+  CONFIRMADO: "Confirmado",
+  SEPARANDO: "Separando",
+  PRONTO_RETIRADA: "Pronto para retirada",
+  SAIU_ENTREGA: "Saiu para entrega",
+  FINALIZADO: "Finalizado",
+  CANCELADO: "Cancelado",
+};
+
 export default async function AdminPedidoDetailPage({ params }: { params: { id: string } }) {
   const order = await prisma.order.findUnique({
     where: { id: params.id },
@@ -24,7 +35,10 @@ export default async function AdminPedidoDetailPage({ params }: { params: { id: 
         <p className="text-sm font-bold text-texto">{order.customerName}</p>
         <p className="text-xs text-cinza mb-2">{order.customerPhone}</p>
         <a
-          href={waLink(`Oi ${order.customerName}! Sobre o seu pedido #${order.number} na Sra Make Prudente...`)}
+          href={waLink(
+            `Oi ${order.customerName}! Atualização do seu pedido #${order.number} na Sra Make Prudente:\n\nStatus atual: ${STATUS_LABEL[order.status] ?? order.status}\n\nQualquer dúvida, estamos à disposição.`,
+            order.customerPhone
+          )}
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full text-white"

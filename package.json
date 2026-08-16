@@ -15,6 +15,8 @@
     "@prisma/client": "^5.20.0",
     "@supabase/ssr": "^0.5.1",
     "@supabase/supabase-js": "^2.45.4",
+    "firebase": "^12.17.1",
+    "firebase-admin": "^14.2.0",
     "lucide-react": "^0.446.0",
     "next": "14.2.13",
     "react": "^18.3.1",

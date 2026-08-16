@@ -31,61 +31,100 @@ export async function generateMetadata({
   };
 }
 
-export default async function ProdutoPage({ params }: { params: { id: string } }) {
+export default async function ProdutoPage({
+  params,
+}: {
+  params: { id: string };
+}) {
   const product = await getProductById(params.id);
   if (!product) notFound();
 
   const mainImage = product.images[0]?.url ?? null;
 
   return (
-    <main>
+    <main className="px-4 py-4 lg:px-6 lg:py-4">
       <ProductViewTracker productId={product.id} name={product.name} />
-      <ProductImage name={product.name} imageUrl={mainImage} className="w-full h-72" />
 
-      <div className="p-5">
-        <div className="flex items-center gap-1 mb-2">
-          {product.isNew && <Badge tone="dourado">Novidade</Badge>}
-          {product.bestSeller && <Badge tone="navy">Mais vendido</Badge>}
-        </div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-cinza">{product.brand}</p>
-        <h1 className="font-serif font-bold text-xl mb-2 text-texto">{product.name}</h1>
+      <div className="mx-auto w-full max-w-6xl">
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-[0.9fr_1.1fr] lg:gap-6 lg:items-start">
+          {/* IMAGEM */}
+          <div className="overflow-hidden rounded-3xl border border-rosa/10 bg-white">
+            <ProductImage
+              name={product.name}
+              imageUrl={mainImage}
+              className="w-full aspect-square lg:h-[calc(100vh-150px)] lg:max-h-[620px]"
+            />
+          </div>
 
-        <div className="flex items-baseline gap-2 mb-2">
-          {product.promoPrice ? (
-            <>
-              <span className="text-2xl font-extrabold text-rosa-profundo">
-                {money(product.promoPrice)}
-              </span>
-              <span className="text-sm line-through text-cinza">{money(product.price)}</span>
-            </>
-          ) : (
-            <span className="text-2xl font-extrabold text-rosa-profundo">
-              {money(product.price)}
-            </span>
-          )}
-        </div>
+          {/* INFORMAÇÕES */}
+          <div className="rounded-3xl border border-rosa/10 bg-white p-5 lg:p-5">
+            <div className="flex items-center gap-1 mb-3">
+              {product.isNew && <Badge tone="dourado">Novidade</Badge>}
+              {product.bestSeller && (
+                <Badge tone="navy">Mais vendido</Badge>
+              )}
+            </div>
 
-        <StockLabel stock={product.stock} />
+            <p className="text-xs font-semibold uppercase tracking-wide text-cinza">
+              {product.brand}
+            </p>
 
-        {product.description && (
-          <p className="text-sm mt-3 leading-relaxed text-texto">{product.description}</p>
-        )}
+            <h1 className="font-serif font-bold text-2xl lg:text-2xl mt-1 mb-2 text-texto">
+              {product.name}
+            </h1>
 
-        <AddToCartBox product={product} />
+            <div className="flex items-baseline gap-2 mb-3">
+              {product.promoPrice ? (
+                <>
+                  <span className="text-2xl lg:text-2xl font-extrabold text-rosa-profundo">
+                    {money(product.promoPrice)}
+                  </span>
 
-        <div className="mt-6 rounded-2xl p-4 bg-creme">
-          <p className="text-xs font-bold mb-1 text-texto">Precisa de ajuda?</p>
-          <p className="text-xs mb-2 text-cinza">
-            Ficou em dúvida sobre qual escolher? Fale com a gente.
-          </p>
-          <WhatsAppLink
-            href={waLink(`Oi! Tenho uma dúvida sobre o produto "${product.name}" do catálogo da Sra Make Prudente.`)}
-            context="product_help"
-            className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-full text-white"
-            style={{ backgroundColor: "#25D366" }}
-          >
-            <MessageCircle size={14} /> Falar com a Sra Make no WhatsApp
-          </WhatsAppLink>
+                  <span className="text-sm line-through text-cinza">
+                    {money(product.price)}
+                  </span>
+                </>
+              ) : (
+                <span className="text-2xl lg:text-2xl font-extrabold text-rosa-profundo">
+                  {money(product.price)}
+                </span>
+              )}
+            </div>
+
+            <StockLabel stock={product.stock} />
+
+            {product.description && (
+              <p className="text-sm mt-3 leading-relaxed text-texto">
+                {product.description}
+              </p>
+            )}
+
+            <div className="mt-4 border-t border-rosa/10 pt-4">
+              <AddToCartBox product={product} />
+            </div>
+
+            <div className="mt-4 rounded-2xl p-3 bg-creme">
+              <p className="text-xs font-bold mb-1 text-texto">
+                Precisa de ajuda?
+              </p>
+
+              <p className="text-xs mb-3 text-cinza">
+                Ficou em dúvida sobre qual escolher? Fale com a gente.
+              </p>
+
+              <WhatsAppLink
+                href={waLink(
+                  `Oi! Tenho uma dúvida sobre o produto "${product.name}" do catálogo da Sra Make Prudente.`
+                )}
+                context="product_help"
+                className="inline-flex items-center gap-1.5 text-xs font-bold px-4 py-2.5 rounded-xl text-white"
+                style={{ backgroundColor: "#25D366" }}
+              >
+                <MessageCircle size={14} />
+                Falar com a Sra Make no WhatsApp
+              </WhatsAppLink>
+            </div>
+          </div>
         </div>
       </div>
     </main>

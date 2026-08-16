@@ -29,14 +29,15 @@ model Category {
 }
 
 model Subcategory {
-  id         String   @id @default(cuid())
+  id         String    @id @default(cuid())
   name       String
   slug       String
   categoryId String
-  category   Category @relation(fields: [categoryId], references: [id])
+  active     Boolean   @default(true)
+  category   Category  @relation(fields: [categoryId], references: [id])
   products   Product[]
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   @@unique([categoryId, slug])
 }
@@ -44,34 +45,34 @@ model Subcategory {
 // ---------- Produtos ----------
 
 model Product {
-  id            String           @id @default(cuid())
-  name          String
-  brand         String
-  sku           String?
-  description   String?
-  price         Decimal          @db.Decimal(10, 2)
-  promoPrice    Decimal?         @db.Decimal(10, 2)
+  id          String   @id @default(cuid())
+  name        String
+  brand       String
+  sku         String?
+  description String?
+  price       Decimal  @db.Decimal(10, 2)
+  promoPrice  Decimal? @db.Decimal(10, 2)
 
   // Estoque: fonte da verdade é a quantidade. StockStatus é sempre CALCULADO
   // no código (>5 disponível, 1-5 últimas, 0 indisponível) — nunca editado
   // diretamente pelo admin. Usado quando o produto NÃO tem variantes.
-  stockQty      Int              @default(0)
+  stockQty Int @default(0)
 
-  featured      Boolean          @default(false)
-  isNew         Boolean          @default(false)
-  bestSeller    Boolean          @default(false)
-  active        Boolean          @default(true)
+  featured   Boolean @default(false)
+  isNew      Boolean @default(false)
+  bestSeller Boolean @default(false)
+  active     Boolean @default(true)
 
   categoryId    String
-  category      Category         @relation(fields: [categoryId], references: [id])
+  category      Category     @relation(fields: [categoryId], references: [id])
   subcategoryId String?
-  subcategory   Subcategory?     @relation(fields: [subcategoryId], references: [id])
+  subcategory   Subcategory? @relation(fields: [subcategoryId], references: [id])
 
-  images        ProductImage[]
-  variants      ProductVariant[]
+  images   ProductImage[]
+  variants ProductVariant[]
 
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model ProductImage {
@@ -87,7 +88,7 @@ model ProductImage {
 
 model ProductVariant {
   id         String   @id @default(cuid())
-  name       String   // ex: "Bege Médio"
+  name       String // ex: "Bege Médio"
   sku        String?
   price      Decimal? @db.Decimal(10, 2)
   promoPrice Decimal? @db.Decimal(10, 2)
@@ -125,42 +126,42 @@ enum order_status {
 }
 
 model Order {
-  id            String        @id @default(cuid())
-  number        Int           @unique @default(autoincrement())
+  id            String @id @default(cuid())
+  number        Int    @unique @default(autoincrement())
   customerName  String
   customerPhone String
 
-  subtotal      Decimal       @db.Decimal(10, 2)
-  deliveryFee   Decimal       @default(0) @db.Decimal(10, 2)
-  total         Decimal       @db.Decimal(10, 2)
+  subtotal    Decimal @db.Decimal(10, 2)
+  deliveryFee Decimal @default(0) @db.Decimal(10, 2)
+  total       Decimal @db.Decimal(10, 2)
 
-  deliveryType  delivery_type
-  address       String?
-  payment       payment_method
-  notes         String?
+  deliveryType delivery_type
+  address      String?
+  payment      payment_method
+  notes        String?
 
-  origin        String?
-  referrer      String?
-  landingPage   String?
-  utmSource     String?
-  utmMedium     String?
-  utmCampaign   String?
-  utmContent    String?
-  sessionId     String?
+  origin      String?
+  referrer    String?
+  landingPage String?
+  utmSource   String?
+  utmMedium   String?
+  utmCampaign String?
+  utmContent  String?
+  sessionId   String?
 
-  status        order_status   @default(NOVO)
-  items         OrderItem[]
+  status order_status @default(NOVO)
+  items  OrderItem[]
 
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model OrderItem {
-  id          String  @id @default(cuid())
-  orderId     String
-  order       Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  productId   String
-  variantId   String?
+  id        String  @id @default(cuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  variantId String?
 
   // snapshot no momento da compra — nunca muda mesmo se o produto mudar depois
   name        String
@@ -168,9 +169,9 @@ model OrderItem {
   sku         String?
   variantName String?
 
-  qty         Int
-  unitPrice   Decimal @db.Decimal(10, 2)
-  subtotal    Decimal @db.Decimal(10, 2)
+  qty       Int
+  unitPrice Decimal @db.Decimal(10, 2)
+  subtotal  Decimal @db.Decimal(10, 2)
 }
 
 // ---------- Administração ----------
@@ -182,13 +183,13 @@ enum admin_role {
 
 // id igual ao id do usuário em auth.users (Supabase Auth)
 model AdminProfile {
-  id        String    @id
-  email     String    @unique
+  id        String     @id
+  email     String     @unique
   name      String?
   role      admin_role @default(EDITOR)
-  active    Boolean   @default(true)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  active    Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
 }
 
 model StoreSettings {
@@ -196,8 +197,28 @@ model StoreSettings {
   storeName       String
   whatsapp        String
   instagram       String?
+  facebook        String?
   address         String?
+  googleMapsUrl   String?
+  businessHours   String?
   deliveryEnabled Boolean  @default(true)
   pickupEnabled   Boolean  @default(true)
   updatedAt       DateTime @updatedAt
+}
+
+// ---------- Notificações Push ----------
+
+model PushSubscription {
+  id         String   @id @default(cuid())
+  deviceId   String   @unique
+  token      String   @unique
+  phone      String?
+  sessionId  String?
+  active     Boolean  @default(true)
+  lastSeenAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([phone])
+  @@index([sessionId])
 }

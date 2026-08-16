@@ -95,6 +95,13 @@ export default async function AdminLayout({
             Pedidos
           </Link>
 
+          <Link
+            href="/admin/loja"
+            className="hover:text-rosa-profundo"
+          >
+            Loja
+          </Link>
+
           {adminSession.role === "ADMIN" && (
             <Link
               href="/admin/usuarios"
