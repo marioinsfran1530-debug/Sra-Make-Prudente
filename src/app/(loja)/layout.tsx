@@ -1,3 +1,4 @@
+import { StoreAccountButton } from "@/components/StoreAccountButton";
 import Link from "next/link";
 import { ShoppingCart } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
@@ -39,13 +40,16 @@ export default function LojaLayout({
                 </div>
               </Link>
 
-              <Link
-                href="/carrinho"
-                className="relative p-2 rounded-full bg-creme"
-              >
-                <ShoppingCart size={20} className="text-rosa-profundo" />
-                <CartCountBadge />
-              </Link>
+             <StoreAccountButton />
+
+<Link
+  href="/carrinho"
+  className="relative p-2 rounded-full bg-creme"
+>
+  <ShoppingCart size={20} className="text-rosa-profundo" />
+  <CartCountBadge />
+</Link>    
+       
             </div>
           </div>
 

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ExternalLink } from "lucide-react";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { LogoutButton } from "@/components/admin/LogoutButton";
 
@@ -28,7 +29,7 @@ export default async function AdminLayout({
   return (
     <div className="min-h-screen bg-creme">
       <header className="px-6 py-4 border-b border-rosa/20 bg-white">
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex items-start justify-between gap-4">
           <div>
             <p className="font-serif font-bold text-texto">
               Sra Make — Painel administrativo
@@ -39,7 +40,19 @@ export default async function AdminLayout({
             </p>
           </div>
 
-          <LogoutButton />
+          <div className="flex items-center gap-2">
+            <Link
+              href="/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 rounded-full border border-rosa/20 px-4 py-2 text-xs font-bold text-rosa-profundo hover:bg-creme transition"
+            >
+              Ver catálogo
+              <ExternalLink size={14} />
+            </Link>
+
+            <LogoutButton />
+          </div>
         </div>
 
         <nav className="flex gap-4 mt-4 text-xs font-bold text-cinza">
