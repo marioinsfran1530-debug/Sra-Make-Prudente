@@ -64,7 +64,7 @@ export default async function HomePage() {
         <CategoryGrid categories={categories} />
       </div>
 
-      <div className="mt-6 px-4 grid grid-cols-2 gap-3">
+      <div className="mt-6 px-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
         <div className="rounded-2xl p-4 bg-creme">
           <p className="text-xs font-bold text-rosa-profundo">Para você</p>
           <p className="text-xs mt-1 text-texto">

@@ -18,8 +18,8 @@ export function BottomNav() {
   const { count } = useCart();
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-rosa/10 max-w-md mx-auto">
-      <div className="flex justify-around items-center py-2">
+    <div className="fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-rosa/10">
+  <div className="mx-auto flex w-full max-w-7xl justify-around items-center py-2 px-4">
         {ITEMS.map((item) => {
           const active =
             item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
