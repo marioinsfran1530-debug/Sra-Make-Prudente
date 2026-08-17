@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Grid2X2, List } from "lucide-react";
 
 type Subcategory = {
   id: string;
@@ -26,6 +27,12 @@ export function CategoriesManager({
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
 
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [viewMode, setViewMode] = useState<"list" | "grid">("list");
+  const [perPage, setPerPage] = useState(10);
+  const [page, setPage] = useState(1);
+
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   const [editingCategoryName, setEditingCategoryName] = useState("");
 
@@ -37,6 +44,38 @@ export function CategoriesManager({
   const [editingSubcategoryName, setEditingSubcategoryName] = useState("");
 
   const [error, setError] = useState<string | null>(null);
+
+  const filteredCategories = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+
+    return categories.filter((category) => {
+      const matchesQuery =
+        !normalizedQuery ||
+        category.name.toLowerCase().includes(normalizedQuery) ||
+        category.subcategories.some((subcategory) =>
+          subcategory.name.toLowerCase().includes(normalizedQuery)
+        );
+
+      const matchesStatus =
+        !statusFilter ||
+        (statusFilter === "active" && category.active) ||
+        (statusFilter === "inactive" && !category.active);
+
+      return matchesQuery && matchesStatus;
+    });
+  }, [categories, query, statusFilter]);
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredCategories.length / perPage)
+  );
+
+  const safePage = Math.min(page, totalPages);
+
+  const visibleCategories = filteredCategories.slice(
+    (safePage - 1) * perPage,
+    safePage * perPage
+  );
 
   async function apiRequest(url: string, options: RequestInit) {
     const res = await fetch(url, options);
@@ -244,8 +283,106 @@ export function CategoriesManager({
         </p>
       )}
 
-      <div className="flex flex-col gap-3">
-        {categories.map((cat) => {
+      <div className="flex flex-col gap-3 mb-4">
+        <div className="flex flex-col sm:flex-row gap-2">
+          <input
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setPage(1);
+            }}
+            placeholder="Buscar categoria ou subcategoria..."
+            className="flex-1 rounded-xl border border-rosa/20 px-4 py-2.5 text-sm outline-none bg-white"
+          />
+
+          <select
+            value={statusFilter}
+            onChange={(e) => {
+              setStatusFilter(e.target.value);
+              setPage(1);
+            }}
+            className="rounded-xl border border-rosa/20 px-3 py-2.5 text-xs bg-white"
+          >
+            <option value="">Ativas e inativas</option>
+            <option value="active">Ativas</option>
+            <option value="inactive">Inativas</option>
+          </select>
+        </div>
+
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <select
+              value={perPage}
+              onChange={(e) => {
+                setPerPage(Number(e.target.value));
+                setPage(1);
+              }}
+              className="rounded-xl border border-rosa/20 px-3 py-2 text-xs bg-white"
+            >
+              <option value={10}>10 por página</option>
+              <option value={30}>30 por página</option>
+              <option value={50}>50 por página</option>
+            </select>
+
+            <button
+              type="button"
+              onClick={() => setViewMode("list")}
+              className={`w-10 h-9 rounded-xl border flex items-center justify-center ${
+                viewMode === "list"
+                  ? "border-rosa-profundo text-rosa-profundo bg-rosa/5"
+                  : "border-rosa/20 text-cinza bg-white"
+              }`}
+              title="Visualização em lista"
+            >
+              <List size={16} />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setViewMode("grid")}
+              className={`w-10 h-9 rounded-xl border flex items-center justify-center ${
+                viewMode === "grid"
+                  ? "border-rosa-profundo text-rosa-profundo bg-rosa/5"
+                  : "border-rosa/20 text-cinza bg-white"
+              }`}
+              title="Visualização em grade"
+            >
+              <Grid2X2 size={16} />
+            </button>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <p className="text-[11px] text-cinza">
+              {filteredCategories.length} categoria
+              {filteredCategories.length === 1 ? "" : "s"} encontrada
+              {filteredCategories.length === 1 ? "" : "s"}
+            </p>
+
+            {(query || statusFilter) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setQuery("");
+                  setStatusFilter("");
+                  setPage(1);
+                }}
+                className="text-[11px] font-bold text-rosa-profundo"
+              >
+                Limpar filtros
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div
+        className={
+          viewMode === "grid"
+            ? "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3"
+            : "flex flex-col gap-3"
+        }
+      >
+        {visibleCategories.map((cat) => {
           const expanded = expandedCategoryId === cat.id;
 
           return (
@@ -432,7 +569,53 @@ export function CategoriesManager({
             </div>
           );
         })}
+
+        {visibleCategories.length === 0 && (
+          <div className="rounded-xl bg-white p-6">
+            <p className="text-xs text-cinza">
+              Nenhuma categoria encontrada com esses filtros.
+            </p>
+          </div>
+        )}
       </div>
+
+      {filteredCategories.length > 0 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-5">
+          <p className="text-[11px] text-cinza">
+            Página {safePage} de {totalPages}
+          </p>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={safePage <= 1}
+              onClick={() =>
+                setPage((current) => Math.max(1, current - 1))
+              }
+              className="text-xs font-bold px-3 py-2 rounded-xl border border-rosa/20 disabled:opacity-40"
+            >
+              Anterior
+            </button>
+
+            <span className="text-xs font-bold text-texto px-2">
+              {safePage}
+            </span>
+
+            <button
+              type="button"
+              disabled={safePage >= totalPages}
+              onClick={() =>
+                setPage((current) =>
+                  Math.min(totalPages, current + 1)
+                )
+              }
+              className="text-xs font-bold px-3 py-2 rounded-xl border border-rosa/20 disabled:opacity-40"
+            >
+              Próxima
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

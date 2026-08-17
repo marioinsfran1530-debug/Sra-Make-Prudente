@@ -19,7 +19,7 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const { error, status } = await requireAdmin("ADMIN");
+  const { error, status } = await requireAdmin("EDITOR");
   if (error) return NextResponse.json({ error }, { status });
 
   const body = await request.json();

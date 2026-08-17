@@ -11,6 +11,7 @@ export default async function AdminProdutosPage() {
     id: p.id,
     name: p.name,
     brand: p.brand,
+    sku: p.sku,
     price: Number(p.price),
     promoPrice: p.promoPrice ? Number(p.promoPrice) : null,
     stockQty: p.stockQty,
