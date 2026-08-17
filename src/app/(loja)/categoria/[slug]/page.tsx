@@ -1,8 +1,14 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { getCategoryBySlug, getProducts, getBrands } from "@/lib/data";
+import {
+  getCategoryBySlug,
+  getProducts,
+  getBrands,
+  getCategories,
+} from "@/lib/data";
 import { ProductListClient } from "@/components/ProductListClient";
 import { CategoryViewTracker } from "@/components/ViewTrackers";
+import { CatalogCategoryNav } from "@/components/CatalogCategoryNav";
 
 export const revalidate = 60;
 
@@ -27,18 +33,32 @@ export default async function CategoriaPage({
   const category = await getCategoryBySlug(params.slug);
   if (!category) notFound();
 
-  const [products, brands] = await Promise.all([
+  const [products, brands, categories] = await Promise.all([
     getProducts({ categorySlug: params.slug }),
     getBrands(),
+    getCategories(),
   ]);
 
   return (
     <main>
       <CategoryViewTracker categorySlug={params.slug} />
-      <div className="px-4 pt-4 pb-1">
-        <p className="font-serif font-bold text-xl text-texto">{category.name}</p>
+      <div className="px-4 pt-4 pb-3">
+        <p className="text-[11px] font-bold uppercase tracking-widest text-rosa-profundo">
+          Categoria
+        </p>
+
+        <p className="font-serif font-bold text-2xl text-texto mt-1">
+          {category.name}
+        </p>
       </div>
+
+      <CatalogCategoryNav
+        categories={categories}
+        activeCategory={params.slug}
+      />
+
       <ProductListClient
+        key={params.slug}
         initialProducts={products}
         categorySlug={params.slug}
         subcategories={category.subcategories}

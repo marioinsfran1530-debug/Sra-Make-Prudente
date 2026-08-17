@@ -36,6 +36,8 @@ export function ProductsTable({ products }: { products: Row[] }) {
   const [perPage, setPerPage] = useState(10);
   const [page, setPage] = useState(1);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [openVitrineId, setOpenVitrineId] = useState<string | null>(null);
+  const [togglingVitrine, setTogglingVitrine] = useState<string | null>(null);
 
   const categories = useMemo(() => {
     const map = new Map<string, string>();
@@ -120,6 +122,35 @@ export function ProductsTable({ products }: { products: Row[] }) {
     }
   }
 
+  async function toggleVitrine(
+    product: Row,
+    field: "featured" | "isNew" | "bestSeller"
+  ) {
+    const currentValue = product[field];
+    const operationId = `${product.id}-${field}`;
+
+    setTogglingVitrine(operationId);
+
+    try {
+      const response = await fetch(`/api/admin/products/${product.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          [field]: !currentValue,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Não foi possível atualizar a vitrine.");
+      }
+
+      router.refresh();
+    } finally {
+      setTogglingVitrine(null);
+    }
+  }
+
+
   return (
     <div>
       <div className="flex flex-col gap-3 mb-4">
@@ -188,7 +219,7 @@ export function ProductsTable({ products }: { products: Row[] }) {
             <option value="">Todos os tipos</option>
             <option value="featured">Destaques</option>
             <option value="new">Novidades</option>
-            <option value="bestSeller">Mais vendidos</option>
+            <option value="bestSeller">Mais procurados</option>
           </select>
 
           <div className="flex gap-2">
@@ -296,7 +327,7 @@ export function ProductsTable({ products }: { products: Row[] }) {
 
                   {product.bestSeller && (
                     <span className="text-[9px] font-bold rounded-full bg-navy/5 text-texto px-2 py-1">
-                      Mais vendido
+                      Mais procurado
                     </span>
                   )}
                 </div>
@@ -331,6 +362,74 @@ export function ProductsTable({ products }: { products: Row[] }) {
                     : "flex gap-2"
                 }
               >
+
+
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setOpenVitrineId(
+                        openVitrineId === product.id
+                          ? null
+                          : product.id
+                      )
+                    }
+                    className={`text-xs font-bold px-3 py-2 rounded-xl border whitespace-nowrap ${
+                      product.featured ||
+                      product.isNew ||
+                      product.bestSeller
+                        ? "border-rosa-profundo bg-rosa/10 text-rosa-profundo"
+                        : "border-rosa/20 bg-white text-texto"
+                    }`}
+                  >
+                    Vitrine ▾
+                  </button>
+
+                  {openVitrineId === product.id && (
+                    <div className="absolute right-0 bottom-full mb-2 z-30 w-52 rounded-2xl bg-white border border-rosa/10 shadow-xl p-2">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-cinza px-2 py-1">
+                        Exibir produto em
+                      </p>
+
+                      <VitrineOption
+                        label="Destaque"
+                        checked={product.featured}
+                        loading={
+                          togglingVitrine ===
+                          `${product.id}-featured`
+                        }
+                        onClick={() =>
+                          toggleVitrine(product, "featured")
+                        }
+                      />
+
+                      <VitrineOption
+                        label="Novidade"
+                        checked={product.isNew}
+                        loading={
+                          togglingVitrine ===
+                          `${product.id}-isNew`
+                        }
+                        onClick={() =>
+                          toggleVitrine(product, "isNew")
+                        }
+                      />
+
+                      <VitrineOption
+                        label="Mais procurado"
+                        checked={product.bestSeller}
+                        loading={
+                          togglingVitrine ===
+                          `${product.id}-bestSeller`
+                        }
+                        onClick={() =>
+                          toggleVitrine(product, "bestSeller")
+                        }
+                      />
+                    </div>
+                  )}
+                </div>
+
                 <button
                   type="button"
                   onClick={() => toggleActive(product)}
@@ -399,5 +498,41 @@ export function ProductsTable({ products }: { products: Row[] }) {
         </div>
       )}
     </div>
+  );
+}
+
+
+function VitrineOption({
+  label,
+  checked,
+  loading,
+  onClick,
+}: {
+  label: string;
+  checked: boolean;
+  loading: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={loading}
+      className="w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl hover:bg-rosa/5 transition disabled:opacity-50"
+    >
+      <span className="text-xs font-semibold text-texto">
+        {label}
+      </span>
+
+      <span
+        className={`w-5 h-5 rounded-md border flex items-center justify-center text-[11px] font-bold ${
+          checked
+            ? "bg-rosa-profundo border-rosa-profundo text-white"
+            : "bg-white border-rosa/30 text-transparent"
+        }`}
+      >
+        {loading ? "…" : "✓"}
+      </span>
+    </button>
   );
 }

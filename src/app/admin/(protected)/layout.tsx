@@ -66,38 +66,38 @@ export default async function AdminLayout({
           </div>
         </div>
 
-        <nav className="flex flex-wrap gap-4 mt-4 text-xs font-bold text-cinza">
+        <nav className="flex flex-wrap gap-2 mt-4 rounded-2xl border border-rosa/15 bg-white px-3 py-2 shadow-md text-xs font-bold text-cinza">
           <Link
             href="/admin"
-            className="hover:text-rosa-profundo"
+            className="rounded-xl px-3 py-2 hover:bg-rosa/5 hover:text-rosa-profundo transition"
           >
             Dashboard
           </Link>
 
           <Link
             href="/admin/produtos"
-            className="hover:text-rosa-profundo"
+            className="rounded-xl px-3 py-2 hover:bg-rosa/5 hover:text-rosa-profundo transition"
           >
             Produtos
           </Link>
 
           <Link
             href="/admin/categorias"
-            className="hover:text-rosa-profundo"
+            className="rounded-xl px-3 py-2 hover:bg-rosa/5 hover:text-rosa-profundo transition"
           >
             Categorias
           </Link>
 
           <Link
             href="/admin/pedidos"
-            className="hover:text-rosa-profundo"
+            className="rounded-xl px-3 py-2 hover:bg-rosa/5 hover:text-rosa-profundo transition"
           >
             Pedidos
           </Link>
 
           <Link
             href="/admin/loja"
-            className="hover:text-rosa-profundo"
+            className="rounded-xl px-3 py-2 hover:bg-rosa/5 hover:text-rosa-profundo transition"
           >
             Loja
           </Link>
@@ -105,7 +105,7 @@ export default async function AdminLayout({
           {adminSession.role === "ADMIN" && (
             <Link
               href="/admin/usuarios"
-              className="hover:text-rosa-profundo"
+              className="rounded-xl px-3 py-2 hover:bg-rosa/5 hover:text-rosa-profundo transition"
             >
               Usuários
             </Link>

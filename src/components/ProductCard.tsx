@@ -46,20 +46,22 @@ export function ProductCard({ product }: { product: PublicProduct }) {
   return (
     <Link
       href={`/produto/${product.id}`}
-      className="rounded-2xl overflow-hidden bg-white flex flex-col"
+      className="rounded-2xl overflow-hidden bg-white flex flex-col h-full min-h-[360px] transition hover:-translate-y-0.5 hover:shadow-lg"
       style={{ boxShadow: "0 2px 14px rgba(35,20,42,0.08)" }}
     >
       <ProductImage name={product.name} imageUrl={mainImage} className="w-full aspect-square" />
       <div className="p-3 flex flex-col gap-1 flex-1">
-        <div className="flex items-center gap-1 flex-wrap">
+        <div className="flex items-center gap-1 flex-wrap min-h-[24px]">
           {product.isNew && <Badge tone="dourado">Novidade</Badge>}
           {product.bestSeller && <Badge tone="navy">Mais vendido</Badge>}
         </div>
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-cinza">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-cinza min-h-[16px] line-clamp-1">
           {product.brand}
         </p>
-        <p className="text-sm font-bold leading-snug line-clamp-2 text-texto">{product.name}</p>
-        <div className="mt-1 flex items-baseline gap-2">
+        <p className="text-sm font-bold leading-snug line-clamp-2 text-texto min-h-[40px]">
+          {product.name}
+        </p>
+        <div className="mt-1 flex items-baseline gap-2 min-h-[24px]">
           {product.promoPrice ? (
             <>
               <span className="text-base font-extrabold text-rosa-profundo">
@@ -73,8 +75,11 @@ export function ProductCard({ product }: { product: PublicProduct }) {
             </span>
           )}
         </div>
-        <StockLabel stock={product.stock} />
-        <div className="mt-2">
+        <div className="min-h-[20px]">
+          <StockLabel stock={product.stock} />
+        </div>
+
+        <div className="mt-auto pt-2">
           <button
             onClick={handleQuickAdd}
             disabled={disabled}

@@ -1,6 +1,6 @@
 import { SearchBar } from "@/components/SearchBar";
 import { CategoryGrid } from "@/components/CategoryGrid";
-import { ProductCard } from "@/components/ProductCard";
+import { ProductCarousel } from "@/components/ProductCarousel";
 import { getCategories, getProducts, getStoreSettings } from "@/lib/data";
 import { MessageCircle, Camera, Package, Truck, Search, MapPin, Clock, Instagram, Facebook } from "lucide-react";
 import { waLink } from "@/lib/whatsapp";
@@ -10,8 +10,9 @@ import Link from "next/link";
 export const revalidate = 60;
 
 export default async function HomePage() {
-  const [categories, bestSellers, news, settings] = await Promise.all([
+  const [categories, featured, bestSellers, news, settings] = await Promise.all([
     getCategories(),
+    getProducts({ featured: true }),
     getProducts({ bestSeller: true }),
     getProducts({ isNew: true }),
     getStoreSettings(),
@@ -52,7 +53,7 @@ export default async function HomePage() {
           <div className="flex gap-2">
             <Link
               href="/categoria"
-              className="px-4 py-2.5 rounded-full text-sm font-bold bg-white text-rosa-profundo"
+              className="px-4 py-2.5 rounded-full text-sm font-bold bg-white text-rosa-profundo shadow-md border border-white/80 transition hover:-translate-y-0.5 hover:shadow-lg"
             >
               Ver produtos
             </Link>
@@ -62,7 +63,7 @@ export default async function HomePage() {
                 whatsappNumber
               )}
               context="home_help"
-              className="px-4 py-2.5 rounded-full text-sm font-bold border border-white/70 text-white"
+              className="px-4 py-2.5 rounded-full text-sm font-bold border border-white text-white shadow-md transition hover:-translate-y-0.5 hover:shadow-lg hover:bg-white/10"
             >
               Preciso de ajuda
             </WhatsAppLink>
@@ -94,10 +95,17 @@ export default async function HomePage() {
         </div>
       </div>
 
+      {featured.length > 0 && (
+        <Section title="Destaques" products={featured} />
+      )}
+
       {bestSellers.length > 0 && (
         <Section title="Mais procurados" products={bestSellers} />
       )}
-      {news.length > 0 && <Section title="Novidades" products={news} />}
+
+      {news.length > 0 && (
+        <Section title="Novidades" products={news} />
+      )}
 
       <div className="mt-8 mx-4 rounded-2xl p-5 flex items-center gap-4 bg-navy">
         <Package size={30} className="flex-shrink-0" style={{ color: "#C9972E" }} />
@@ -112,7 +120,7 @@ export default async function HomePage() {
               whatsappNumber
             )}
             context="home_reposicao"
-            className="inline-flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full"
+            className="inline-flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full shadow-md border border-white/20 transition hover:-translate-y-0.5 hover:shadow-lg"
             style={{ backgroundColor: "#C9972E", color: "#131B33" }}
           >
             <Camera size={13} /> Mandar no WhatsApp
@@ -196,7 +204,7 @@ export default async function HomePage() {
                       settings.address
                     )}`
                   }
-                  className="mt-5 w-full lg:max-w-[420px] text-center text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-1 bg-creme text-rosa-profundo"
+                  className="mt-5 w-full lg:max-w-[420px] text-center text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-1 bg-creme text-rosa-profundo border border-rosa/20 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                 >
                   <MapPin size={14} />
                   Como chegar
@@ -219,7 +227,7 @@ export default async function HomePage() {
                   whatsappNumber
                 )}
                 context="home_location"
-                className="w-full text-center text-sm font-bold py-3 rounded-xl flex items-center justify-center gap-2 text-white"
+                className="w-full text-center text-sm font-bold py-3 rounded-xl flex items-center justify-center gap-2 text-white shadow-md transition hover:-translate-y-0.5 hover:shadow-lg"
                 style={{ backgroundColor: "#25D366" }}
               >
                 <MessageCircle size={17} />
@@ -232,7 +240,7 @@ export default async function HomePage() {
                     href={`https://instagram.com/${instagramHandle}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-xs font-bold px-3 py-3 rounded-xl flex items-center justify-center gap-2 bg-creme text-rosa-profundo"
+                    className="text-xs font-bold px-3 py-3 rounded-xl flex items-center justify-center gap-2 bg-creme text-rosa-profundo border border-rosa/20 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                   >
                     <Instagram size={16} />
                     Instagram
@@ -244,7 +252,7 @@ export default async function HomePage() {
                     href={facebookHref}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-xs font-bold px-3 py-3 rounded-xl flex items-center justify-center gap-2 bg-creme text-rosa-profundo"
+                    className="text-xs font-bold px-3 py-3 rounded-xl flex items-center justify-center gap-2 bg-creme text-rosa-profundo border border-rosa/20 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                   >
                     <Facebook size={16} />
                     Facebook
@@ -269,13 +277,7 @@ function Section({
   return (
     <div className="mt-8">
       <p className="font-serif font-bold text-lg mb-3 px-4 text-texto">{title}</p>
-      <div className="flex gap-3 overflow-x-auto px-4 pb-1">
-        {products.map((p) => (
-          <div key={p.id} className="w-40 flex-shrink-0">
-            <ProductCard product={p} />
-          </div>
-        ))}
-      </div>
+      <ProductCarousel products={products} />
     </div>
   );
 }
