@@ -62,10 +62,13 @@ export function ProductsTable({ products }: { products: Row[] }) {
       const matchesCategory =
         !categoryId || product.categoryId === categoryId;
 
+      const stockStatus = computeStockStatus(product.stockQty);
+
       const matchesStatus =
         !status ||
         (status === "active" && product.active) ||
-        (status === "inactive" && !product.active);
+        (status === "inactive" && !product.active) ||
+        status === stockStatus;
 
       const matchesTag =
         !tag ||
@@ -166,9 +169,12 @@ export function ProductsTable({ products }: { products: Row[] }) {
             }}
             className="rounded-xl border border-rosa/20 px-3 py-2 text-xs bg-white"
           >
-            <option value="">Ativos e inativos</option>
+            <option value="">Todas as situações</option>
             <option value="active">Ativos</option>
             <option value="inactive">Inativos</option>
+            <option value="DISPONIVEL">Disponível</option>
+            <option value="ULTIMAS">Últimas unidades</option>
+            <option value="INDISPONIVEL">Sem estoque</option>
           </select>
 
           <select

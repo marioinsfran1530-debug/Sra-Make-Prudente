@@ -22,7 +22,30 @@ export async function PATCH(
   const { error, status } = await requireAdmin("EDITOR");
   if (error) return NextResponse.json({ error }, { status });
 
+  const currentOrder = await prisma.order.findUnique({
+    where: { id: params.id },
+    select: { status: true },
+  });
+
+  if (!currentOrder) {
+    return NextResponse.json(
+      { error: "Pedido não encontrado." },
+      { status: 404 }
+    );
+  }
+
+  if (
+    currentOrder.status === "FINALIZADO" ||
+    currentOrder.status === "CANCELADO"
+  ) {
+    return NextResponse.json(
+      { error: "Este pedido já foi encerrado e não pode mais ser alterado." },
+      { status: 409 }
+    );
+  }
+
   const body = await request.json();
+
   if (!VALID_STATUSES.includes(body.status)) {
     return NextResponse.json({ error: "Status inválido." }, { status: 400 });
   }
