@@ -456,8 +456,23 @@ export function ProductForm({
           Variantes (ex: tonalidades, cores) — opcional
         </p>
 
+        {variants.length > 0 && (
+          <div className="grid grid-cols-[minmax(0,1fr)_110px_auto] gap-2 mb-2 px-1">
+            <span className="text-[10px] font-bold uppercase tracking-wide text-cinza">
+              Nome
+            </span>
+            <span className="text-[10px] font-bold uppercase tracking-wide text-cinza">
+              Estoque
+            </span>
+            <span />
+          </div>
+        )}
+
         {variants.map((v, idx) => (
-          <div key={idx} className="flex gap-2 mb-2">
+          <div
+            key={v.id ?? `new-${idx}`}
+            className="grid grid-cols-[minmax(0,1fr)_110px_auto] gap-2 mb-2 items-center"
+          >
             <input
               value={v.name}
               onChange={(e) => {
@@ -468,12 +483,13 @@ export function ProductForm({
                 };
                 setVariants(next);
               }}
-              placeholder="Nome da variante"
-              className="input flex-1"
+              placeholder="Ex: Bege claro"
+              className="input min-w-0"
             />
 
             <input
               type="number"
+              min="0"
               value={v.stockQty}
               onChange={(e) => {
                 const next = [...variants];
@@ -485,8 +501,8 @@ export function ProductForm({
 
                 setVariants(next);
               }}
-              placeholder="Estoque"
-              className="input w-24"
+              placeholder="0"
+              className="input min-w-0"
             />
 
             <button
@@ -494,7 +510,7 @@ export function ProductForm({
               onClick={() =>
                 setVariants(variants.filter((_, i) => i !== idx))
               }
-              className="text-xs font-bold text-vermelho px-2"
+              className="text-xs font-bold text-vermelho px-2 whitespace-nowrap"
             >
               Remover
             </button>

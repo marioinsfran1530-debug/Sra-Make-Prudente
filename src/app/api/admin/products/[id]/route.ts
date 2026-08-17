@@ -16,8 +16,9 @@ export async function PUT(
   if (error) return NextResponse.json({ error }, { status });
 
   const body = await request.json();
+  const variantsProvided = Array.isArray(body.variants);
 
-  const variants: VariantInput[] = Array.isArray(body.variants)
+  const variants: VariantInput[] = variantsProvided
     ? body.variants
         .map((variant: VariantInput) => ({
           id: variant.id,
@@ -31,61 +32,97 @@ export async function PUT(
     const updatedProduct = await tx.product.update({
       where: { id: params.id },
       data: {
-        name: body.name,
-        brand: body.brand,
-        sku: body.sku || null,
-        description: body.description || null,
-        price: Number(body.price),
-        promoPrice:
-          body.promoPrice === null ||
-          body.promoPrice === undefined ||
-          body.promoPrice === ""
-            ? null
-            : Number(body.promoPrice),
-        stockQty: Number(body.stockQty ?? 0),
-        featured: !!body.featured,
-        isNew: !!body.isNew,
-        bestSeller: !!body.bestSeller,
-        active: body.active ?? true,
-        categoryId: body.categoryId,
-        subcategoryId: body.subcategoryId || null,
+        ...(body.name !== undefined && { name: body.name }),
+        ...(body.brand !== undefined && { brand: body.brand }),
+
+        ...(body.sku !== undefined && {
+          sku: body.sku || null,
+        }),
+
+        ...(body.description !== undefined && {
+          description: body.description || null,
+        }),
+
+        ...(body.price !== undefined && {
+          price: Number(body.price),
+        }),
+
+        ...(body.promoPrice !== undefined && {
+          promoPrice:
+            body.promoPrice === null || body.promoPrice === ""
+              ? null
+              : Number(body.promoPrice),
+        }),
+
+        ...(body.stockQty !== undefined && {
+          stockQty: Number(body.stockQty),
+        }),
+
+        ...(body.featured !== undefined && {
+          featured: !!body.featured,
+        }),
+
+        ...(body.isNew !== undefined && {
+          isNew: !!body.isNew,
+        }),
+
+        ...(body.bestSeller !== undefined && {
+          bestSeller: !!body.bestSeller,
+        }),
+
+        ...(body.active !== undefined && {
+          active: !!body.active,
+        }),
+
+        ...(body.categoryId !== undefined && {
+          categoryId: body.categoryId,
+        }),
+
+        ...(body.subcategoryId !== undefined && {
+          subcategoryId: body.subcategoryId || null,
+        }),
       },
     });
 
-    const receivedIds = variants
-      .map((variant) => variant.id)
-      .filter((id): id is string => Boolean(id));
+    if (variantsProvided) {
+      const receivedIds = variants
+        .map((variant) => variant.id)
+        .filter((id): id is string => Boolean(id));
 
-    await tx.productVariant.deleteMany({
-      where: {
-        productId: params.id,
-        ...(receivedIds.length > 0
-          ? {
-              id: {
-                notIn: receivedIds,
-              },
-            }
-          : {}),
-      },
-    });
+      await tx.productVariant.deleteMany({
+        where: {
+          productId: params.id,
+          ...(receivedIds.length > 0
+            ? {
+                id: {
+                  notIn: receivedIds,
+                },
+              }
+            : {}),
+        },
+      });
 
-    for (const variant of variants) {
-      if (variant.id) {
-        await tx.productVariant.update({
-          where: { id: variant.id },
-          data: {
-            name: variant.name,
-            stockQty: variant.stockQty,
-          },
-        });
-      } else {
-        await tx.productVariant.create({
-          data: {
-            productId: params.id,
-            name: variant.name,
-            stockQty: variant.stockQty,
-          },
-        });
+      for (const variant of variants) {
+        if (variant.id) {
+          await tx.productVariant.update({
+            where: {
+              id: variant.id,
+              productId: params.id,
+            },
+            data: {
+              name: variant.name,
+              stockQty: variant.stockQty,
+            },
+          });
+        } else {
+          await tx.productVariant.create({
+            data: {
+              productId: params.id,
+              name: variant.name,
+              stockQty: variant.stockQty,
+            },
+          });
+        }
       }
     }
 
