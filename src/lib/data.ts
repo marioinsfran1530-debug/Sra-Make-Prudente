@@ -2,22 +2,6 @@ import { prisma } from "@/lib/prisma";
 import { cache } from "react";
 import { productStockStatus, type StockStatus } from "@/lib/stock";
 
-async function measure<T>(
-  label: string,
-  operation: () => Promise<T>
-): Promise<T> {
-  const start = performance.now();
-
-  try {
-    return await operation();
-  } finally {
-    const duration = performance.now() - start;
-
-    console.log(
-      `[PERF] ${label}: ${duration.toFixed(0)} ms`
-    );
-  }
-}
 
 // Camada de leitura pública. Regra do plano (seção 3): o Prisma não passa
 // pelas policies de RLS do Supabase, então TODO filtro de "ativo" precisa
@@ -78,28 +62,24 @@ function mapProduct<
 }
 
 export async function getCategories() {
-  return measure("getCategories", () =>
-    prisma.category.findMany({
-      where: { active: true },
-      orderBy: { order: "asc" },
-      include: {
-        subcategories: { orderBy: { name: "asc" } },
-      },
-    })
-  );
+  return prisma.category.findMany({
+    where: { active: true },
+    orderBy: { order: "asc" },
+    include: {
+      subcategories: { orderBy: { name: "asc" } },
+    },
+  });
 }
 
 export const getCategoryBySlug = cache(async (slug: string) => {
-  return measure(`getCategoryBySlug(${slug})`, () =>
-    prisma.category.findFirst({
-      where: { slug, active: true },
-      include: {
-        subcategories: {
-          orderBy: { name: "asc" },
-        },
+  return prisma.category.findFirst({
+    where: { slug, active: true },
+    include: {
+      subcategories: {
+        orderBy: { name: "asc" },
       },
-    })
-  );
+    },
+  });
 });
 
 export type ProductFilters = {
@@ -141,47 +121,35 @@ export async function getProducts(filters: ProductFilters = {}) {
     ];
   }
 
-  const products = await measure(
-    `getProducts(${JSON.stringify(filters)})`,
-    () =>
-      prisma.product.findMany({
-        where,
-        include: PRODUCT_INCLUDE,
-        orderBy: { createdAt: "desc" },
-      })
-  );
+  const products = await prisma.product.findMany({
+    where,
+    include: PRODUCT_INCLUDE,
+    orderBy: { createdAt: "desc" },
+  });
 
   return products.map(mapProduct);
 }
 
 export const getProductById = cache(async (id: string) => {
-  const product = await measure(
-    `getProductById(${id})`,
-    () =>
-      prisma.product.findFirst({
-        where: { id, active: true },
-        include: PRODUCT_INCLUDE,
-      })
-  );
+  const product = await prisma.product.findFirst({
+    where: { id, active: true },
+    include: PRODUCT_INCLUDE,
+  });
 
   return product ? mapProduct(product) : null;
 });
 
 export async function getStoreSettings() {
-  return measure("getStoreSettings", () =>
-    prisma.storeSettings.findFirst()
-  );
+  return prisma.storeSettings.findFirst();
 }
 
 export async function getBrands() {
-  const rows = await measure("getBrands", () =>
-    prisma.product.findMany({
-      where: { active: true },
-      select: { brand: true },
-      distinct: ["brand"],
-      orderBy: { brand: "asc" },
-    })
-  );
+  const rows = await prisma.product.findMany({
+    where: { active: true },
+    select: { brand: true },
+    distinct: ["brand"],
+    orderBy: { brand: "asc" },
+  });
 
   return rows.map((r) => r.brand);
 }
