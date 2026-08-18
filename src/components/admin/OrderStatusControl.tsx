@@ -2,17 +2,57 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, XCircle } from "lucide-react";
+import {
+  CheckCircle2,
+  XCircle,
+} from "lucide-react";
 
-const STATUSES: { value: string; label: string }[] = [
-  { value: "NOVO", label: "Novo" },
-  { value: "CONFIRMADO", label: "Confirmado" },
-  { value: "SEPARANDO", label: "Separando" },
-  { value: "PRONTO_RETIRADA", label: "Pronto para retirada" },
-  { value: "SAIU_ENTREGA", label: "Saiu para entrega" },
-  { value: "FINALIZADO", label: "Finalizado" },
-  { value: "CANCELADO", label: "Cancelado" },
-];
+const STATUS_LABEL: Record<string, string> = {
+  NOVO: "Novo",
+  EM_CONFIRMACAO: "Em confirmação",
+  CONFIRMADO: "Confirmado",
+  SEPARANDO: "Separando",
+  PRONTO_RETIRADA: "Pronto para retirada",
+  SAIU_ENTREGA: "Saiu para entrega",
+  FINALIZADO: "Finalizado",
+  CANCELADO: "Cancelado",
+};
+
+function getAllowedStatuses(
+  status: string
+): string[] {
+  switch (status) {
+    case "NOVO":
+      return [
+        "CONFIRMADO",
+        "CANCELADO",
+      ];
+
+    case "CONFIRMADO":
+      return [
+        "FINALIZADO",
+        "CANCELADO",
+      ];
+
+    // Compatibilidade com pedidos antigos
+    case "EM_CONFIRMACAO":
+      return [
+        "CONFIRMADO",
+        "CANCELADO",
+      ];
+
+    case "SEPARANDO":
+    case "PRONTO_RETIRADA":
+    case "SAIU_ENTREGA":
+      return [
+        "FINALIZADO",
+        "CANCELADO",
+      ];
+
+    default:
+      return [];
+  }
+}
 
 export function OrderStatusControl({
   orderId,
@@ -22,15 +62,26 @@ export function OrderStatusControl({
   status: string;
 }) {
   const router = useRouter();
-  const [saving, setSaving] = useState(false);
-  const [value, setValue] = useState(status);
-  const [error, setError] = useState<string | null>(null);
+
+  const [saving, setSaving] =
+    useState(false);
+
+  const [value, setValue] =
+    useState(status);
+
+  const [error, setError] =
+    useState<string | null>(null);
 
   const closed =
     value === "FINALIZADO" ||
     value === "CANCELADO";
 
-  async function handleChange(newStatus: string) {
+  const visibleStatuses =
+    getAllowedStatuses(value);
+
+  async function handleChange(
+    newStatus: string
+  ) {
     setError(null);
 
     if (closed) return;
@@ -39,7 +90,7 @@ export function OrderStatusControl({
 
     if (newStatus === "CONFIRMADO") {
       const ok = window.confirm(
-        "Confirmar este pedido vai descontar o estoque dos produtos. Continuar?"
+        "Confirmar este pedido vai baixar o estoque dos produtos. Deseja continuar?"
       );
 
       if (!ok) return;
@@ -47,7 +98,7 @@ export function OrderStatusControl({
 
     if (newStatus === "FINALIZADO") {
       const ok = window.confirm(
-        "Finalizar este pedido encerra definitivamente a venda e lança o valor como vendido no Dashboard. Deseja finalizar?"
+        "Finalizar este pedido confirma a venda e lança o valor no Dashboard. Deseja continuar?"
       );
 
       if (!ok) return;
@@ -55,7 +106,7 @@ export function OrderStatusControl({
 
     if (newStatus === "CANCELADO") {
       const ok = window.confirm(
-        "Cancelar este pedido encerra definitivamente o pedido. Se o estoque já foi descontado, ele será devolvido. Deseja cancelar?"
+        "Cancelar este pedido encerrará a operação. Se o estoque já tiver sido baixado, ele será devolvido. Deseja continuar?"
       );
 
       if (!ok) return;
@@ -69,7 +120,8 @@ export function OrderStatusControl({
         {
           method: "PATCH",
           headers: {
-            "Content-Type": "application/json",
+            "Content-Type":
+              "application/json",
           },
           body: JSON.stringify({
             status: newStatus,
@@ -77,7 +129,8 @@ export function OrderStatusControl({
         }
       );
 
-      const data = await res.json();
+      const data =
+        await res.json();
 
       if (!res.ok) {
         setError(
@@ -88,14 +141,20 @@ export function OrderStatusControl({
       }
 
       setValue(newStatus);
+
       router.refresh();
+    } catch {
+      setError(
+        "Não foi possível atualizar o pedido."
+      );
     } finally {
       setSaving(false);
     }
   }
 
   if (closed) {
-    const finalized = value === "FINALIZADO";
+    const finalized =
+      value === "FINALIZADO";
 
     return (
       <div
@@ -132,42 +191,54 @@ export function OrderStatusControl({
             </p>
 
             <p className="text-[11px] text-cinza mt-0.5">
-              Este pedido foi encerrado e não pode mais ser alterado.
+              {finalized
+                ? "Venda concluída e registrada no Dashboard."
+                : "Este pedido foi encerrado."}
             </p>
           </div>
         </div>
-
-        {error && (
-          <p className="text-xs text-red-600 mt-2">
-            {error}
-          </p>
-        )}
       </div>
     );
   }
 
   return (
     <div>
-      <p className="text-xs font-bold text-texto mb-2">
-        Status do pedido
-      </p>
+      <div className="mb-3">
+        <p className="text-xs font-bold text-texto">
+          Status do pedido
+        </p>
+
+        <p className="text-[11px] text-cinza mt-0.5">
+          Confirme após validar o pedido com a cliente pelo WhatsApp.
+        </p>
+      </div>
 
       <select
-        value={value}
+        value=""
         disabled={saving}
-        onChange={(e) =>
-          handleChange(e.target.value)
-        }
-        className="w-full rounded-xl border border-rosa/20 px-3 py-2 text-sm bg-white disabled:opacity-50"
+        onChange={(e) => {
+          if (e.target.value) {
+            handleChange(e.target.value);
+          }
+        }}
+        className="w-full rounded-xl border border-rosa/20 px-3 py-2.5 text-sm bg-white disabled:opacity-50"
       >
-        {STATUSES.map((statusOption) => (
-          <option
-            key={statusOption.value}
-            value={statusOption.value}
-          >
-            {statusOption.label}
-          </option>
-        ))}
+        <option value="" disabled>
+          Status atual: {STATUS_LABEL[value] ?? value}
+        </option>
+
+        {visibleStatuses.map(
+          (statusOption) => (
+            <option
+              key={statusOption}
+              value={statusOption}
+            >
+              {STATUS_LABEL[
+                statusOption
+              ] ?? statusOption}
+            </option>
+          )
+        )}
       </select>
 
       {saving && (

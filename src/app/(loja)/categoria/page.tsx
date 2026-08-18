@@ -7,6 +7,7 @@ import {
 } from "@/lib/data";
 import { ProductListClient } from "@/components/ProductListClient";
 import { CatalogCategoryNav } from "@/components/CatalogCategoryNav";
+import { SearchBar } from "@/components/SearchBar";
 
 export const revalidate = 60;
 
@@ -31,6 +32,10 @@ export default async function CategoriasIndexPage() {
         <p className="text-xs text-cinza mt-1">
           Encontre produtos por categoria, marca ou faixa de preço.
         </p>
+      </div>
+
+      <div className="mb-3">
+        <SearchBar />
       </div>
 
       <CatalogCategoryNav categories={categories} />

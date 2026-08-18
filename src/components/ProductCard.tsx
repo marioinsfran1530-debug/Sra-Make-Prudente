@@ -46,14 +46,14 @@ export function ProductCard({ product }: { product: PublicProduct }) {
   return (
     <Link
       href={`/produto/${product.id}`}
-      className="rounded-2xl overflow-hidden bg-white flex flex-col h-full min-h-[360px] transition hover:-translate-y-0.5 hover:shadow-lg"
+      className="rounded-2xl overflow-hidden bg-white flex flex-col h-full min-h-[340px] transition hover:-translate-y-0.5 hover:shadow-lg"
       style={{ boxShadow: "0 2px 14px rgba(35,20,42,0.08)" }}
     >
       <ProductImage name={product.name} imageUrl={mainImage} className="w-full aspect-square" />
       <div className="p-3 flex flex-col gap-1 flex-1">
         <div className="flex items-center gap-1 flex-wrap min-h-[24px]">
           {product.isNew && <Badge tone="dourado">Novidade</Badge>}
-          {product.bestSeller && <Badge tone="navy">Mais vendido</Badge>}
+          {product.bestSeller && <Badge tone="navy">Mais procurado</Badge>}
         </div>
         <p className="text-[11px] font-semibold uppercase tracking-wide text-cinza min-h-[16px] line-clamp-1">
           {product.brand}
@@ -83,11 +83,20 @@ export function ProductCard({ product }: { product: PublicProduct }) {
           <button
             onClick={handleQuickAdd}
             disabled={disabled}
-            className="w-full flex items-center justify-center gap-1 text-center py-2 rounded-xl text-sm font-bold disabled:opacity-40"
-            style={{
-              backgroundColor: justAdded ? "#A6157A" : "#E4127B",
-              color: "#fff",
-            }}
+            className={`w-full flex items-center justify-center gap-1 text-center py-2 rounded-xl text-sm font-bold transition disabled:opacity-40 ${
+              hasVariants
+                ? "border border-rosa-profundo bg-white text-rosa-profundo hover:bg-rosa/5"
+                : "text-white hover:shadow-md"
+            }`}
+            style={
+              hasVariants
+                ? undefined
+                : {
+                    backgroundColor: justAdded
+                      ? "#A6157A"
+                      : "#E4127B",
+                  }
+            }
           >
             {disabled ? (
               "Indisponível"

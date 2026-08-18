@@ -77,7 +77,10 @@ export default async function AdminPedidoDetailPage({ params }: { params: { id: 
       </div>
 
       <div className="bg-white rounded-2xl p-4" style={{ boxShadow: "0 2px 10px rgba(35,20,42,0.06)" }}>
-        <OrderStatusControl orderId={order.id} status={order.status} />
+        <OrderStatusControl
+          orderId={order.id}
+          status={order.status}
+        />
       </div>
     </div>
   );

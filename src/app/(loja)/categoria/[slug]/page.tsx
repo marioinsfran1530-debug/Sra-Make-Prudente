@@ -9,6 +9,7 @@ import {
 import { ProductListClient } from "@/components/ProductListClient";
 import { CategoryViewTracker } from "@/components/ViewTrackers";
 import { CatalogCategoryNav } from "@/components/CatalogCategoryNav";
+import { SearchBar } from "@/components/SearchBar";
 
 export const revalidate = 60;
 
@@ -50,6 +51,10 @@ export default async function CategoriaPage({
         <p className="font-serif font-bold text-2xl text-texto mt-1">
           {category.name}
         </p>
+      </div>
+
+      <div className="mb-3">
+        <SearchBar />
       </div>
 
       <CatalogCategoryNav

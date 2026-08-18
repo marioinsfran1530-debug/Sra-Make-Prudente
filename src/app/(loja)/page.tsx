@@ -18,6 +18,28 @@ export default async function HomePage() {
     getStoreSettings(),
   ]);
 
+  // Organização das vitrines da home:
+  // Destaques têm prioridade, depois Mais procurados e depois Novidades.
+  // O mesmo produto não aparece repetido entre as três seções.
+  const featuredHome = featured.slice(0, 8);
+
+  const featuredIds = new Set(
+    featuredHome.map((product) => product.id)
+  );
+
+  const bestSellersHome = bestSellers
+    .filter((product) => !featuredIds.has(product.id))
+    .slice(0, 8);
+
+  const usedIds = new Set([
+    ...featuredIds,
+    ...bestSellersHome.map((product) => product.id),
+  ]);
+
+  const newsHome = news
+    .filter((product) => !usedIds.has(product.id))
+    .slice(0, 8);
+
   const whatsappNumber = settings?.whatsapp ?? "5518991248713";
 
   const instagramHandle = settings?.instagram
@@ -71,40 +93,69 @@ export default async function HomePage() {
         </div>
       </div>
 
-      <div className="mx-4 mt-3 px-3 py-2 rounded-xl text-[11px] bg-[#FBEFF4] text-rosa-profundo">
-        Catálogo de demonstração — produtos ilustrativos para teste do aplicativo.
-      </div>
-
       <div className="mt-6 px-4">
         <p className="font-serif font-bold text-lg mb-3 text-texto">O que você procura hoje?</p>
         <CategoryGrid categories={categories} />
       </div>
 
-      <div className="mt-6 px-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-        <div className="rounded-2xl p-4 bg-creme">
-          <p className="text-xs font-bold text-rosa-profundo">Para você</p>
-          <p className="text-xs mt-1 text-texto">
-            Encontre seu próximo produto de beleza sem complicação.
+      <div className="mt-6 px-4 grid grid-cols-2 gap-3">
+        <Link
+          href="/categoria/make"
+          className="group rounded-2xl p-4 bg-creme border border-rosa/10 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+        >
+          <p className="text-[10px] font-bold uppercase tracking-wider text-rosa-profundo">
+            Para você
           </p>
-        </div>
-        <div className="rounded-2xl p-4" style={{ backgroundColor: "#F1ECF7" }}>
-          <p className="text-xs font-bold text-roxo">Para seu trabalho</p>
-          <p className="text-xs mt-1 text-texto">
-            Precisa repor material? Encontre rápido e confirme no WhatsApp.
+
+          <p className="font-serif font-bold text-sm mt-1 text-texto">
+            Maquiagem para o dia a dia
           </p>
-        </div>
+
+          <p className="text-xs mt-1 text-cinza">
+            Encontre bases, batons, máscaras, pós e muito mais.
+          </p>
+
+          <p className="text-[11px] font-bold text-rosa-profundo mt-3 group-hover:underline">
+            Ver maquiagem →
+          </p>
+        </Link>
+
+        <Link
+          href="/categoria"
+          className="group rounded-2xl p-4 border border-roxo/10 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+          style={{ backgroundColor: "#F1ECF7" }}
+        >
+          <p className="text-[10px] font-bold uppercase tracking-wider text-roxo">
+            Para seu trabalho
+          </p>
+
+          <p className="font-serif font-bold text-sm mt-1 text-texto">
+            Materiais profissionais
+          </p>
+
+          <p className="text-xs mt-1 text-cinza">
+            Lash, nail e produtos para facilitar sua reposição.
+          </p>
+
+          <p className="text-[11px] font-bold text-roxo mt-3 group-hover:underline">
+            Ver materiais →
+          </p>
+        </Link>
       </div>
 
-      {featured.length > 0 && (
-        <Section title="Destaques" products={featured} />
+      {featuredHome.length > 0 && (
+        <Section title="Destaques" products={featuredHome} />
       )}
 
-      {bestSellers.length > 0 && (
-        <Section title="Mais procurados" products={bestSellers} />
+      {bestSellersHome.length > 0 && (
+        <Section
+          title="Mais procurados"
+          products={bestSellersHome}
+        />
       )}
 
-      {news.length > 0 && (
-        <Section title="Novidades" products={news} />
+      {newsHome.length > 0 && (
+        <Section title="Novidades" products={newsHome} />
       )}
 
       <div className="mt-8 mx-4 rounded-2xl p-5 flex items-center gap-4 bg-navy">
@@ -129,47 +180,86 @@ export default async function HomePage() {
       </div>
 
       <div className="mt-8 px-4">
-        <p className="font-serif font-bold text-lg mb-3 text-texto">Comprar ficou mais fácil.</p>
-        <div className="flex gap-3">
-          {[
-            { icon: Search, text: "Você escolhe" },
-            { icon: MessageCircle, text: "A gente confirma" },
-            { icon: Truck, text: "Você recebe ou retira" },
-          ].map((s, i) => (
-            <div key={i} className="flex-1 rounded-2xl p-3 text-center bg-creme">
-              <s.icon size={20} className="text-rosa-profundo mx-auto mb-1" />
-              <p className="text-[11px] font-semibold text-texto">{s.text}</p>
-            </div>
-          ))}
+        <div className="rounded-2xl border border-rosa/10 bg-white shadow-sm p-4">
+          <p className="font-serif font-bold text-base text-texto">
+            Comprar ficou mais fácil
+          </p>
+
+          <p className="text-xs text-cinza mt-1 mb-4">
+            Escolha no catálogo e finalize do jeito que preferir.
+          </p>
+
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              {
+                icon: Search,
+                title: "Escolha",
+                text: "Encontre o produto",
+              },
+              {
+                icon: MessageCircle,
+                title: "Confirme",
+                text: "Fale com a gente",
+              },
+              {
+                icon: Truck,
+                title: "Receba",
+                text: "Entrega ou retirada",
+              },
+            ].map((step, index) => (
+              <div
+                key={step.title}
+                className="relative rounded-xl bg-creme px-2 py-3 text-center"
+              >
+                <div className="w-8 h-8 mx-auto rounded-full bg-white flex items-center justify-center shadow-sm mb-2">
+                  <step.icon
+                    size={16}
+                    className="text-rosa-profundo"
+                  />
+                </div>
+
+                <p className="text-[11px] font-bold text-texto">
+                  {index + 1}. {step.title}
+                </p>
+
+                <p className="text-[10px] text-cinza mt-0.5 leading-tight">
+                  {step.text}
+                </p>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
       {settings && (
-        <div className="mt-8 mx-4 rounded-2xl p-5 border border-rosa/20 bg-white">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-10">
-            <div>
-              <p className="text-[11px] font-bold uppercase tracking-widest text-rosa-profundo">
+        <div className="mt-8 mx-4 mb-6 rounded-3xl border border-rosa/15 bg-white shadow-sm overflow-hidden">
+          <div className="grid grid-cols-1 lg:grid-cols-2">
+            {/* LOJA */}
+            <div className="p-5 lg:p-6">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-rosa-profundo">
                 Nossa loja
               </p>
 
-              <p className="font-serif font-bold text-lg mt-1 mb-5 text-texto">
+              <p className="font-serif font-bold text-lg mt-1 text-texto">
                 {settings.storeName}
               </p>
 
-              <div className="flex flex-col gap-4">
+              <div className="mt-5 flex flex-col gap-4">
                 {settings.address && (
-                  <div className="flex items-start gap-2">
-                    <MapPin
-                      size={17}
-                      className="text-rosa-profundo mt-0.5 flex-shrink-0"
-                    />
+                  <div className="flex items-start gap-3">
+                    <div className="w-9 h-9 rounded-full bg-creme flex items-center justify-center flex-shrink-0">
+                      <MapPin
+                        size={16}
+                        className="text-rosa-profundo"
+                      />
+                    </div>
 
-                    <div>
+                    <div className="min-w-0">
                       <p className="text-xs font-bold text-texto">
                         Endereço
                       </p>
 
-                      <p className="text-xs text-cinza">
+                      <p className="text-xs text-cinza mt-0.5 leading-relaxed">
                         {settings.address}
                       </p>
                     </div>
@@ -177,18 +267,20 @@ export default async function HomePage() {
                 )}
 
                 {settings.businessHours && (
-                  <div className="flex items-start gap-2">
-                    <Clock
-                      size={17}
-                      className="text-rosa-profundo mt-0.5 flex-shrink-0"
-                    />
+                  <div className="flex items-start gap-3">
+                    <div className="w-9 h-9 rounded-full bg-creme flex items-center justify-center flex-shrink-0">
+                      <Clock
+                        size={16}
+                        className="text-rosa-profundo"
+                      />
+                    </div>
 
-                    <div>
+                    <div className="min-w-0">
                       <p className="text-xs font-bold text-texto">
                         Horário
                       </p>
 
-                      <p className="text-xs text-cinza whitespace-pre-line">
+                      <p className="text-xs text-cinza mt-0.5 whitespace-pre-line leading-relaxed">
                         {settings.businessHours}
                       </p>
                     </div>
@@ -204,21 +296,26 @@ export default async function HomePage() {
                       settings.address
                     )}`
                   }
-                  className="mt-5 w-full lg:max-w-[420px] text-center text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-1 bg-creme text-rosa-profundo border border-rosa/20 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                  className="mt-5 w-full text-center text-xs font-bold py-3 rounded-xl flex items-center justify-center gap-2 bg-creme text-rosa-profundo border border-rosa/20 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                 >
-                  <MapPin size={14} />
+                  <MapPin size={15} />
                   Como chegar
                 </LocationLink>
               )}
             </div>
 
-            <div className="lg:border-l lg:border-rosa/10 lg:pl-8 flex flex-col">
-              <p className="text-[11px] font-bold uppercase tracking-widest text-rosa-profundo">
+            {/* CONTATO */}
+            <div className="p-5 lg:p-6 border-t lg:border-t-0 lg:border-l border-rosa/10 bg-[#FFF9FC]">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-rosa-profundo">
                 Fale com a gente
               </p>
 
-              <p className="text-sm font-bold text-texto mt-1 mb-4">
-                Estamos também nas redes sociais
+              <p className="font-serif font-bold text-lg mt-1 text-texto">
+                Precisa de ajuda?
+              </p>
+
+              <p className="text-xs text-cinza mt-1 mb-5">
+                Tire dúvidas, consulte disponibilidade ou fale com nossa equipe.
               </p>
 
               <WhatsAppLink
@@ -234,35 +331,44 @@ export default async function HomePage() {
                 Falar no WhatsApp
               </WhatsAppLink>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
-                {instagramHandle && (
-                  <a
-                    href={`https://instagram.com/${instagramHandle}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs font-bold px-3 py-3 rounded-xl flex items-center justify-center gap-2 bg-creme text-rosa-profundo border border-rosa/20 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-                  >
-                    <Instagram size={16} />
-                    Instagram
-                  </a>
-                )}
+              {(instagramHandle || facebookHref) && (
+                <div className="mt-5">
+                  <p className="text-[10px] uppercase tracking-wider font-bold text-cinza mb-2">
+                    Redes sociais
+                  </p>
 
-                {facebookHref && (
-                  <a
-                    href={facebookHref}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs font-bold px-3 py-3 rounded-xl flex items-center justify-center gap-2 bg-creme text-rosa-profundo border border-rosa/20 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-                  >
-                    <Facebook size={16} />
-                    Facebook
-                  </a>
-                )}
-              </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {instagramHandle && (
+                      <a
+                        href={`https://instagram.com/${instagramHandle}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs font-bold px-3 py-3 rounded-xl flex items-center justify-center gap-2 bg-white text-rosa-profundo border border-rosa/20 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                      >
+                        <Instagram size={16} />
+                        Instagram
+                      </a>
+                    )}
+
+                    {facebookHref && (
+                      <a
+                        href={facebookHref}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs font-bold px-3 py-3 rounded-xl flex items-center justify-center gap-2 bg-white text-rosa-profundo border border-rosa/20 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                      >
+                        <Facebook size={16} />
+                        Facebook
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
       )}
+
     </main>
   );
 }
@@ -275,9 +381,21 @@ function Section({
   products: Awaited<ReturnType<typeof getProducts>>;
 }) {
   return (
-    <div className="mt-8">
-      <p className="font-serif font-bold text-lg mb-3 px-4 text-texto">{title}</p>
+    <section className="mt-8">
+      <div className="px-4 mb-3 flex items-center justify-between gap-3">
+        <h2 className="font-serif font-bold text-lg text-texto">
+          {title}
+        </h2>
+
+        <Link
+          href="/categoria"
+          className="text-xs font-bold text-rosa-profundo px-3 py-1.5 rounded-full border border-rosa/15 bg-white shadow-sm transition hover:bg-rosa/5 hover:shadow-md"
+        >
+          Ver todos →
+        </Link>
+      </div>
+
       <ProductCarousel products={products} />
-    </div>
+    </section>
   );
 }

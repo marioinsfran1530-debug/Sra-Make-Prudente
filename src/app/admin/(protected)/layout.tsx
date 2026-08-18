@@ -5,6 +5,7 @@ import { ExternalLink } from "lucide-react";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { getAdminSession } from "@/lib/admin-auth";
 import { LogoutButton } from "@/components/admin/LogoutButton";
+import { AdminNav } from "@/components/admin/AdminNav";
 
 export const metadata: Metadata = {
   robots: { index: false, follow: false },
@@ -66,51 +67,9 @@ export default async function AdminLayout({
           </div>
         </div>
 
-        <nav className="flex flex-wrap gap-2 mt-4 rounded-2xl border border-rosa/15 bg-white px-3 py-2 shadow-md text-xs font-bold text-cinza">
-          <Link
-            href="/admin"
-            className="rounded-xl px-3 py-2 hover:bg-rosa/5 hover:text-rosa-profundo transition"
-          >
-            Dashboard
-          </Link>
-
-          <Link
-            href="/admin/produtos"
-            className="rounded-xl px-3 py-2 hover:bg-rosa/5 hover:text-rosa-profundo transition"
-          >
-            Produtos
-          </Link>
-
-          <Link
-            href="/admin/categorias"
-            className="rounded-xl px-3 py-2 hover:bg-rosa/5 hover:text-rosa-profundo transition"
-          >
-            Categorias
-          </Link>
-
-          <Link
-            href="/admin/pedidos"
-            className="rounded-xl px-3 py-2 hover:bg-rosa/5 hover:text-rosa-profundo transition"
-          >
-            Pedidos
-          </Link>
-
-          <Link
-            href="/admin/loja"
-            className="rounded-xl px-3 py-2 hover:bg-rosa/5 hover:text-rosa-profundo transition"
-          >
-            Loja
-          </Link>
-
-          {adminSession.role === "ADMIN" && (
-            <Link
-              href="/admin/usuarios"
-              className="rounded-xl px-3 py-2 hover:bg-rosa/5 hover:text-rosa-profundo transition"
-            >
-              Usuários
-            </Link>
-          )}
-        </nav>
+        <AdminNav
+          isAdmin={adminSession.role === "ADMIN"}
+        />
       </header>
 
       <div className="p-6">

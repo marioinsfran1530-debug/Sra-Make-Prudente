@@ -25,11 +25,16 @@ export async function confirmOrder(orderId: string) {
     });
 
     if (!order) throw new OrderError("Pedido não encontrado.");
-    if (order.status === "CONFIRMADO") {
-      throw new OrderError("Este pedido já está confirmado.");
+    if (STOCK_DECREMENTED_STATUSES.includes(order.status)) {
+      throw new OrderError(
+        "O estoque deste pedido já foi descontado anteriormente."
+      );
     }
+
     if (order.status === "CANCELADO") {
-      throw new OrderError("Não é possível confirmar um pedido cancelado.");
+      throw new OrderError(
+        "Não é possível confirmar um pedido cancelado."
+      );
     }
 
     for (const item of order.items) {
