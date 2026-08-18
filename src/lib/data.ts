@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { cache } from "react";
 import { productStockStatus, type StockStatus } from "@/lib/stock";
 
 // Camada de leitura pública. Regra do plano (seção 3): o Prisma não passa
@@ -69,12 +70,16 @@ export async function getCategories() {
   });
 }
 
-export async function getCategoryBySlug(slug: string) {
+export const getCategoryBySlug = cache(async (slug: string) => {
   return prisma.category.findFirst({
     where: { slug, active: true },
-    include: { subcategories: { orderBy: { name: "asc" } } },
+    include: {
+      subcategories: {
+        orderBy: { name: "asc" },
+      },
+    },
   });
-}
+});
 
 export type ProductFilters = {
   categorySlug?: string;
@@ -124,13 +129,14 @@ export async function getProducts(filters: ProductFilters = {}) {
   return products.map(mapProduct);
 }
 
-export async function getProductById(id: string) {
+export const getProductById = cache(async (id: string) => {
   const product = await prisma.product.findFirst({
     where: { id, active: true },
     include: PRODUCT_INCLUDE,
   });
+
   return product ? mapProduct(product) : null;
-}
+});
 
 export async function getStoreSettings() {
   return prisma.storeSettings.findFirst();

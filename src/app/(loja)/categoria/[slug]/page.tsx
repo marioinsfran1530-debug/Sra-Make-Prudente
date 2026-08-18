@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import {
@@ -62,13 +63,21 @@ export default async function CategoriaPage({
         activeCategory={params.slug}
       />
 
-      <ProductListClient
-        key={params.slug}
-        initialProducts={products}
-        categorySlug={params.slug}
-        subcategories={category.subcategories}
-        brands={brands}
-      />
+      <Suspense
+        fallback={
+          <div className="px-4 py-8 text-sm text-cinza">
+            Carregando produtos...
+          </div>
+        }
+      >
+        <ProductListClient
+          key={params.slug}
+          initialProducts={products}
+          categorySlug={params.slug}
+          subcategories={category.subcategories}
+          brands={brands}
+        />
+      </Suspense>
     </main>
   );
 }

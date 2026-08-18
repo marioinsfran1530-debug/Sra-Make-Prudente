@@ -1,5 +1,4 @@
-export const dynamic = "force-dynamic";
-
+import { Suspense } from "react";
 import {
   getBrands,
   getCategories,
@@ -40,12 +39,20 @@ export default async function CategoriasIndexPage() {
 
       <CatalogCategoryNav categories={categories} />
 
-      <ProductListClient
-        initialProducts={products}
-        categorySlug=""
-        subcategories={[]}
-        brands={brands}
-      />
+      <Suspense
+        fallback={
+          <div className="px-4 py-8 text-sm text-cinza">
+            Carregando produtos...
+          </div>
+        }
+      >
+        <ProductListClient
+          initialProducts={products}
+          categorySlug=""
+          subcategories={[]}
+          brands={brands}
+        />
+      </Suspense>
     </main>
   );
 }
