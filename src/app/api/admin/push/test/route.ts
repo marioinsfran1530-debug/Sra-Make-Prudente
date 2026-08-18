@@ -1,8 +1,18 @@
 import { NextResponse } from "next/server";
 import { getMessaging } from "firebase-admin/messaging";
 import { firebaseAdminApp } from "@/lib/firebase-admin";
+import { requireAdmin } from "@/lib/admin-auth";
 
 export async function POST(request: Request) {
+  const { error, status } = await requireAdmin("EDITOR");
+
+  if (error) {
+    return NextResponse.json(
+      { error },
+      { status }
+    );
+  }
+
   try {
     const body = await request.json();
     const token = String(body.token ?? "").trim();
