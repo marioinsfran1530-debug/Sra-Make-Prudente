@@ -1,0 +1,17 @@
+ALTER TABLE "StoreSettings"
+ADD COLUMN "logoUrl" TEXT,
+ADD COLUMN "logoStoragePath" TEXT,
+ADD COLUMN "bannerDesktopUrl" TEXT,
+ADD COLUMN "bannerDesktopStoragePath" TEXT,
+ADD COLUMN "bannerMobileUrl" TEXT,
+ADD COLUMN "bannerMobileStoragePath" TEXT,
+ADD COLUMN "heroEyebrow" TEXT,
+ADD COLUMN "heroTitle" TEXT,
+ADD COLUMN "heroSubtitle" TEXT,
+ADD COLUMN "primaryCtaLabel" TEXT,
+ADD COLUMN "primaryCtaUrl" TEXT,
+ADD COLUMN "secondaryCtaLabel" TEXT,
+ADD COLUMN "secondaryCtaUrl" TEXT,
+ADD COLUMN "highlight1" TEXT,
+ADD COLUMN "highlight2" TEXT,
+ADD COLUMN "highlight3" TEXT;
