@@ -103,20 +103,20 @@ export default async function HomePage() {
           <div className="absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-black/10" />
 
           <div className="absolute right-4 top-4 z-20 flex items-center gap-2 md:right-6 md:top-6">
-            <div className="rounded-full bg-white/92 shadow-md backdrop-blur text-rosa-profundo">
+            <div className="rounded-full bg-white shadow-lg ring-1 ring-white/80 text-rosa-profundo">
               <StoreAccountButton />
             </div>
             <Link
               href="/carrinho"
-              className="relative flex h-10 w-10 items-center justify-center rounded-full bg-white/92 text-rosa-profundo shadow-md backdrop-blur transition hover:-translate-y-0.5"
+              className="relative flex h-11 w-11 items-center justify-center rounded-full border border-white bg-white text-[#C70A68] shadow-xl ring-2 ring-white/70 transition hover:-translate-y-0.5 hover:scale-105"
               aria-label="Abrir carrinho"
             >
-              <ShoppingCart size={19} />
+              <ShoppingCart size={21} strokeWidth={2.5} />
               <CartCountBadge />
             </Link>
           </div>
 
-          <div className="relative z-10 grid min-h-[390px] items-end gap-6 p-5 sm:p-7 md:min-h-[360px] md:grid-cols-[minmax(0,1fr)_280px] md:p-8 lg:grid-cols-[minmax(0,1fr)_330px]">
+          <div className="relative z-10 grid min-h-[390px] items-end gap-6 p-5 sm:p-7 md:min-h-[360px] md:grid-cols-[minmax(0,1fr)_220px] md:p-8 lg:grid-cols-[minmax(0,1fr)_240px]">
             <div className="max-w-3xl">
               <div className="flex items-center gap-3 md:gap-4">
                 <div
@@ -172,7 +172,11 @@ export default async function HomePage() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3 rounded-2xl border border-white/25 bg-white/90 px-3.5 py-2.5 text-[#23142A] shadow-sm backdrop-blur">
+                <WhatsAppLink
+                  href={secondaryHref}
+                  context="home_help"
+                  className="flex items-center gap-3 rounded-2xl border border-white/25 bg-white/90 px-3.5 py-2.5 text-[#23142A] shadow-sm backdrop-blur transition hover:bg-white hover:shadow-md"
+                >
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#FFF0F7] text-rosa-profundo">
                     <MessageCircle size={16} />
                   </div>
@@ -180,7 +184,7 @@ export default async function HomePage() {
                     <p className="text-xs font-bold">Atendimento no WhatsApp</p>
                     <p className="text-[10px] text-cinza">Tire dúvidas e receba ajuda</p>
                   </div>
-                </div>
+                </WhatsAppLink>
               </div>
 
               {heroHighlights.length > 0 && (
@@ -198,20 +202,13 @@ export default async function HomePage() {
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-2 self-end md:grid-cols-1 md:gap-3 md:pb-1">
+            <div className="flex self-end md:self-center md:justify-end">
               <Link
                 href={settings?.primaryCtaUrl || "/categoria"}
-                className="flex min-h-[62px] items-center justify-center rounded-2xl bg-white px-4 py-3 text-center text-sm font-bold text-rosa-profundo shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl md:min-h-[72px]"
+                className="flex min-h-[56px] w-full items-center justify-center rounded-2xl bg-white px-5 py-3 text-center text-sm font-bold text-rosa-profundo shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl md:min-h-[52px] md:w-[210px]"
               >
                 {settings?.primaryCtaLabel || "Ver produtos"}
               </Link>
-              <WhatsAppLink
-                href={secondaryHref}
-                context="home_help"
-                className="flex min-h-[62px] items-center justify-center rounded-2xl bg-[#E4127B] px-4 py-3 text-center text-sm font-bold text-white shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl md:min-h-[72px]"
-              >
-                {settings?.secondaryCtaLabel || "Preciso de ajuda"}
-              </WhatsAppLink>
             </div>
           </div>
         </section>
