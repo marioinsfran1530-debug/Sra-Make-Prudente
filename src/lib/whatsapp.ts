@@ -13,7 +13,8 @@ export type OrderMessageItem = {
   subtotal: number;
 };
 
-const money = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const money = (v: number) =>
+  v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 const PAYMENT_LABEL: Record<string, string> = {
   PIX: "Pix",
@@ -22,11 +23,26 @@ const PAYMENT_LABEL: Record<string, string> = {
   CONFIRMAR_WHATSAPP: "Confirmar pelo WhatsApp",
 };
 
-// Monta a mensagem final do pedido (plano, seção 24/seção 7 do master v3).
-// Nunca declara pagamento como concluído — o WhatsApp é sempre confirmação humana.
+function formatPhone(value: string) {
+  const digits = value.replace(/\D/g, "").replace(/^55(?=\d{10,11}$)/, "");
+
+  if (digits.length === 11) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+  }
+
+  if (digits.length === 10) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  }
+
+  return value.trim();
+}
+
+// Monta uma mensagem curta e operacional para facilitar o atendimento no WhatsApp.
+// Nunca declara pagamento como concluído — o WhatsApp continua sendo confirmação humana.
 export function buildOrderMessage(params: {
   orderNumber: number;
   customerName: string;
+  customerPhone: string;
   items: OrderMessageItem[];
   subtotal: number;
   deliveryFee: number;
@@ -37,29 +53,41 @@ export function buildOrderMessage(params: {
   notes?: string | null;
 }) {
   const lines = params.items.map(
-    (i) => `- ${i.name}${i.variantName ? ` (${i.variantName})` : ""} — ${i.qty}x — ${money(i.subtotal)}`
+    (i) =>
+      `• ${i.qty}x ${i.name}${i.variantName ? ` (${i.variantName})` : ""} — ${money(i.subtotal)}`
   );
 
   const parts = [
-    "Olá! Quero fazer um pedido na Sra Make Prudente.",
+    "Olá! Quero finalizar meu pedido na *Sra Make Prudente*.",
     "",
-    `Pedido: #${params.orderNumber}`,
-    `Nome: ${params.customerName}`,
+    `*PEDIDO #${params.orderNumber}*`,
     "",
-    "Produtos:",
+    `*Cliente:* ${params.customerName}`,
+    `*WhatsApp:* ${formatPhone(params.customerPhone)}`,
+    "",
+    "*PRODUTOS*",
     ...lines,
     "",
+    "*RESUMO*",
     `Subtotal: ${money(params.subtotal)}`,
     params.deliveryFee > 0 ? `Entrega: ${money(params.deliveryFee)}` : null,
-    `Total: ${money(params.total)}`,
+    `*Total: ${money(params.total)}*`,
     "",
-    `Recebimento: ${params.deliveryType === "RETIRADA" ? "Retirar na loja" : "Entrega"}`,
-    params.deliveryType === "ENTREGA" && params.address ? `Endereço: ${params.address}` : null,
-    `Pagamento: ${PAYMENT_LABEL[params.payment] ?? params.payment}`,
-    params.notes ? `Observação: ${params.notes}` : null,
+    `*${params.deliveryType === "RETIRADA" ? "RETIRADA" : "ENTREGA"}*`,
+    params.deliveryType === "RETIRADA" ? "Tipo: Retirar na loja" : "Tipo: Entrega",
+    params.deliveryType === "ENTREGA" && params.address
+      ? `Endereço: ${params.address}`
+      : null,
     "",
-    "Vim pelo catálogo da Sra Make Prudente.",
+    "*PAGAMENTO*",
+    PAYMENT_LABEL[params.payment] ?? params.payment,
+    params.notes ? "" : null,
+    params.notes ? "*OBSERVAÇÃO*" : null,
+    params.notes ? params.notes : null,
+    "",
+    "Pedido realizado pelo Catálogo Sra Make Prudente.",
+    "Aguardo a confirmação do pedido.",
   ];
 
-  return parts.filter((l) => l !== null).join("\n");
+  return parts.filter((line) => line !== null).join("\n");
 }
