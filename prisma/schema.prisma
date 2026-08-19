@@ -15,17 +15,18 @@ datasource db {
 // ---------- Categorias ----------
 
 model Category {
-  id            String        @id @default(cuid())
-  name          String
-  slug          String        @unique
-  imageUrl      String?
-  description   String?
-  order         Int           @default(0)
-  active        Boolean       @default(true)
-  subcategories Subcategory[]
-  products      Product[]
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  id                String            @id @default(cuid())
+  name              String
+  slug              String            @unique
+  imageUrl          String?
+  description       String?
+  order             Int               @default(0)
+  active            Boolean           @default(true)
+  subcategories     Subcategory[]
+  products          Product[]
+  productCategories ProductCategory[]
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 }
 
 model Subcategory {
@@ -63,16 +64,30 @@ model Product {
   bestSeller Boolean @default(false)
   active     Boolean @default(true)
 
+  // Categoria principal preserva compatibilidade, subcategoria e exibição principal.
   categoryId    String
   category      Category     @relation(fields: [categoryId], references: [id])
   subcategoryId String?
   subcategory   Subcategory? @relation(fields: [subcategoryId], references: [id])
 
-  images   ProductImage[]
-  variants ProductVariant[]
+  // Categorias adicionais permitem que o mesmo produto apareça em mais de uma categoria.
+  categories ProductCategory[]
+  images     ProductImage[]
+  variants   ProductVariant[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model ProductCategory {
+  productId  String
+  categoryId String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@id([productId, categoryId])
+  @@index([categoryId])
 }
 
 model ProductImage {
