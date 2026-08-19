@@ -24,17 +24,22 @@ export function Badge({
 }
 
 export function StockLabel({ stock }: { stock: StockStatus }) {
+  // Para o cliente final, estoque baixo continua sendo um produto disponível.
+  // O alerta detalhado de "Últimas unidades" permanece restrito ao painel ADM.
+  const publicStock: StockStatus = stock === "ULTIMAS" ? "DISPONIVEL" : stock;
+
   const colors: Record<StockStatus, string> = {
     DISPONIVEL: "#4E9F6E",
     ULTIMAS: "#C9972E",
     INDISPONIVEL: "#E11D2E",
   };
+
   return (
     <span
       className="text-xs font-semibold"
-      style={{ color: colors[stock] }}
+      style={{ color: colors[publicStock] }}
     >
-      {STOCK_LABEL[stock]}
+      {STOCK_LABEL[publicStock]}
     </span>
   );
 }
