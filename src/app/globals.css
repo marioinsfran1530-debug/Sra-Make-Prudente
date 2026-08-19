@@ -18,3 +18,14 @@ body {
   background-color: var(--color-creme);
   color: var(--color-texto);
 }
+
+/* Ações compactas sobre o hero da home. */
+a[aria-label="Abrir carrinho"] {
+  width: 2.25rem;
+  height: 2.25rem;
+}
+
+a[aria-label="Abrir carrinho"] > svg {
+  width: 1.125rem;
+  height: 1.125rem;
+}
