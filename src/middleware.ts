@@ -1,18 +1,20 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 
-// Protege /admin/* no nível de rede. A verificação de sessão é repetida
+// Protege /admin/* no nível de rede. A verificação de usuário é repetida
 // depois no layout server-side e em cada rota /api/admin/* — o middleware
-// nunca é a única camada de proteção (ver seção 3 do plano).
+// nunca é a única camada de proteção.
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // /admin/login e /admin/reset-password ficam fora da checagem: o link de
   // recuperação de senha do Supabase chega com o token no #hash da URL, que
-  // o servidor NUNCA vê (só o navegador) — bloquear aqui criaria um loop de
-  // redirecionamento antes do supabase-js conseguir ler o token no client.
+  // o servidor nunca vê (só o navegador).
   const PUBLIC_ADMIN_PATHS = ["/admin/login", "/admin/reset-password"];
-  if (!pathname.startsWith("/admin") || PUBLIC_ADMIN_PATHS.some((p) => pathname.startsWith(p))) {
+  if (
+    !pathname.startsWith("/admin") ||
+    PUBLIC_ADMIN_PATHS.some((p) => pathname.startsWith(p))
+  ) {
     return NextResponse.next();
   }
 
@@ -36,12 +38,17 @@ export async function middleware(request: NextRequest) {
     }
   );
 
+  // getUser valida o token junto ao Supabase Auth. Não usamos getSession
+  // para autorização porque uma sessão lida diretamente do cookie não deve
+  // ser tratada como prova suficiente de identidade no servidor.
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
 
-  if (!session) {
+  if (error || !user) {
     const loginUrl = new URL("/admin/login", request.url);
+    loginUrl.searchParams.set("next", pathname);
     return NextResponse.redirect(loginUrl);
   }
 
