@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ExternalLink } from "lucide-react";
-import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { getAdminSession } from "@/lib/admin-auth";
 import { LogoutButton } from "@/components/admin/LogoutButton";
 import { AdminNav } from "@/components/admin/AdminNav";
@@ -16,23 +15,14 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = createSupabaseServerClient();
-
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-
-  if (!session) {
-    redirect("/admin/login");
-  }
-
+  // getAdminSession já valida o usuário com supabase.auth.getUser() e,
+  // em seguida, confirma o perfil administrativo ativo no banco. Evitamos
+  // uma segunda leitura de sessão por cookie e também uma chamada redundante.
   const adminSession = await getAdminSession();
 
   if (!adminSession) {
     redirect("/admin/login");
   }
-
-  const email = session.user.email ?? "";
 
   return (
     <div className="min-h-screen bg-creme">
@@ -44,7 +34,7 @@ export default async function AdminLayout({
             </p>
 
             <p className="text-[10px] text-cinza mt-1">
-              {email}
+              {adminSession.email}
             </p>
 
             <p className="text-[10px] text-cinza mt-0.5">
