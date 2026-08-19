@@ -1,21 +1,41 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 
-// Protege /admin/* no nível de rede. A verificação de usuário é repetida
-// depois no layout server-side e em cada rota /api/admin/* — o middleware
-// nunca é a única camada de proteção.
+const PUBLIC_ADMIN_PATHS = ["/admin/login", "/admin/reset-password"];
+const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+
+function isSameOrigin(request: NextRequest) {
+  const origin = request.headers.get("origin");
+  if (!origin) return false;
+
+  try {
+    return new URL(origin).origin === request.nextUrl.origin;
+  } catch {
+    return false;
+  }
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const isAdminPage = pathname.startsWith("/admin");
+  const isAdminApi = pathname.startsWith("/api/admin");
 
-  // /admin/login e /admin/reset-password ficam fora da checagem: o link de
-  // recuperação de senha do Supabase chega com o token no #hash da URL, que
-  // o servidor nunca vê (só o navegador).
-  const PUBLIC_ADMIN_PATHS = ["/admin/login", "/admin/reset-password"];
+  if (!isAdminPage && !isAdminApi) {
+    return NextResponse.next();
+  }
+
   if (
-    !pathname.startsWith("/admin") ||
-    PUBLIC_ADMIN_PATHS.some((p) => pathname.startsWith(p))
+    isAdminPage &&
+    PUBLIC_ADMIN_PATHS.some((path) => pathname.startsWith(path))
   ) {
     return NextResponse.next();
+  }
+
+  if (isAdminApi && MUTATING_METHODS.has(request.method) && !isSameOrigin(request)) {
+    return NextResponse.json(
+      { error: "Origem da requisição não permitida." },
+      { status: 403 }
+    );
   }
 
   let response = NextResponse.next({ request: { headers: request.headers } });
@@ -38,15 +58,16 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  // getUser valida o token junto ao Supabase Auth. Não usamos getSession
-  // para autorização porque uma sessão lida diretamente do cookie não deve
-  // ser tratada como prova suficiente de identidade no servidor.
   const {
     data: { user },
     error,
   } = await supabase.auth.getUser();
 
   if (error || !user) {
+    if (isAdminApi) {
+      return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
+    }
+
     const loginUrl = new URL("/admin/login", request.url);
     loginUrl.searchParams.set("next", pathname);
     return NextResponse.redirect(loginUrl);
@@ -56,5 +77,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*"],
+  matcher: ["/admin/:path*", "/api/admin/:path*"],
 };
