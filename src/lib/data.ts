@@ -2,7 +2,6 @@ import { prisma } from "@/lib/prisma";
 import { cache } from "react";
 import { productStockStatus, type StockStatus } from "@/lib/stock";
 
-
 // Camada de leitura pública. Regra do plano (seção 3): o Prisma não passa
 // pelas policies de RLS do Supabase, então TODO filtro de "ativo" precisa
 // ser explícito aqui no código — nunca confiar só no banco.
@@ -12,6 +11,7 @@ export type PublicProduct = Awaited<ReturnType<typeof mapProduct>>;
 const PRODUCT_INCLUDE = {
   category: true,
   subcategory: true,
+  categories: { include: { category: true } },
   images: { orderBy: { order: "asc" as const } },
   variants: { where: { active: true }, orderBy: { createdAt: "asc" as const } },
 };
@@ -31,6 +31,7 @@ function mapProduct<
     bestSeller: boolean;
     category: { id: string; name: string; slug: string };
     subcategory: { id: string; name: string; slug: string } | null;
+    categories: { category: { id: string; name: string; slug: string } }[];
     images: { id: string; url: string; alt: string | null }[];
     variants: { id: string; name: string; stockQty: number; active: boolean; price: unknown; promoPrice: unknown }[];
   }
@@ -49,6 +50,7 @@ function mapProduct<
     isNew: p.isNew,
     bestSeller: p.bestSeller,
     category: p.category,
+    categories: p.categories.map((item) => item.category),
     subcategory: p.subcategory,
     images: p.images,
     variants: p.variants.map((v) => ({
@@ -97,7 +99,16 @@ export async function getProducts(filters: ProductFilters = {}) {
   const where: Record<string, unknown> = { active: true };
 
   if (filters.categorySlug) {
-    where.category = { slug: filters.categorySlug };
+    where.OR = [
+      { category: { slug: filters.categorySlug } },
+      {
+        categories: {
+          some: {
+            category: { slug: filters.categorySlug },
+          },
+        },
+      },
+    ];
   }
   if (filters.subcategorySlug) {
     where.subcategory = { slug: filters.subcategorySlug };
@@ -113,12 +124,26 @@ export async function getProducts(filters: ProductFilters = {}) {
   }
   if (filters.search) {
     const q = filters.search;
-    where.OR = [
+    const searchConditions = [
       { name: { contains: q, mode: "insensitive" } },
       { brand: { contains: q, mode: "insensitive" } },
       { category: { name: { contains: q, mode: "insensitive" } } },
+      {
+        categories: {
+          some: {
+            category: { name: { contains: q, mode: "insensitive" } },
+          },
+        },
+      },
       { subcategory: { name: { contains: q, mode: "insensitive" } } },
     ];
+
+    if (where.OR) {
+      where.AND = [{ OR: where.OR }, { OR: searchConditions }];
+      delete where.OR;
+    } else {
+      where.OR = searchConditions;
+    }
   }
 
   const products = await prisma.product.findMany({
