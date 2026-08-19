@@ -5,12 +5,14 @@ import { BottomNav } from "@/components/BottomNav";
 import { CartProvider } from "@/components/CartProvider";
 import { CartCountBadge } from "@/components/CartCountBadge";
 import { TrackingInit } from "@/components/TrackingInit";
+import { getStoreSettings } from "@/lib/data";
 
-export default function LojaLayout({
+export default async function LojaLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const settings = await getStoreSettings();
   return (
     <CartProvider>
       <TrackingInit />
@@ -21,18 +23,20 @@ export default function LojaLayout({
             <div className="flex items-center gap-3 px-4 pt-4 pb-3">
               <Link href="/" className="flex items-center gap-2 flex-1 min-w-0">
                 <div
-                  className="w-9 h-9 rounded-full flex items-center justify-center font-serif font-bold text-white flex-shrink-0"
+                  className="w-9 h-9 rounded-full overflow-hidden flex items-center justify-center font-serif font-bold text-white flex-shrink-0"
                   style={{
                     background:
                       "linear-gradient(135deg, #E4127B 0%, #A6157A 55%, #6E1E8C 100%)",
                   }}
                 >
-                  SM
+                  {settings?.logoUrl ? (
+                    <img src={settings.logoUrl} alt={`Logo ${settings.storeName}`} className="h-full w-full object-contain bg-white" />
+                  ) : "SM"}
                 </div>
 
                 <div className="min-w-0">
                   <p className="font-serif font-bold text-sm leading-tight truncate text-texto">
-                    Sra Make Prudente
+                    {settings?.storeName ?? "Sra Make Prudente"}
                   </p>
                   <p className="text-[11px] text-cinza">
                     Presidente Prudente/SP
