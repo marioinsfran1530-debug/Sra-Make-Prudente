@@ -3,16 +3,39 @@ import {
   Palette,
   Eye,
   Hand,
+  Gem,
+  Sparkles,
+  Gift,
+  Package,
+  Baby,
   ShoppingBag,
   type LucideIcon,
 } from "lucide-react";
 
 const ICONS: Record<string, LucideIcon> = {
   make: Palette,
+  maquiagem: Palette,
   lash: Eye,
+  "lash-design": Eye,
   nail: Hand,
-  acessorios: ShoppingBag,
+  "nail-design": Hand,
+  acessorios: Gem,
+  acessórios: Gem,
+  cosmeticos: Sparkles,
+  cosméticos: Sparkles,
+  presentes: Gift,
+  "kits-promocionais": Package,
+  kits: Package,
+  "produtos-infantis": Baby,
+  infantil: Baby,
 };
+
+function normalizeSlug(slug: string) {
+  return slug
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
 
 export function CategoryGrid({
   categories,
@@ -22,7 +45,9 @@ export function CategoryGrid({
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
       {categories.map((cat) => {
-        const Icon = ICONS[cat.slug] ?? ShoppingBag;
+        const normalizedSlug = normalizeSlug(cat.slug);
+        const normalizedName = normalizeSlug(cat.name).replace(/\s+/g, "-");
+        const Icon = ICONS[normalizedSlug] ?? ICONS[normalizedName] ?? ShoppingBag;
 
         return (
           <Link
