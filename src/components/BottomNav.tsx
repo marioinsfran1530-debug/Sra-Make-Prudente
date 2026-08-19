@@ -11,26 +11,10 @@ import {
 import { useCart } from "@/components/CartProvider";
 
 const ITEMS = [
-  {
-    href: "/",
-    label: "Início",
-    icon: HomeIcon,
-  },
-  {
-    href: "/categoria",
-    label: "Categorias",
-    icon: Grid3x3,
-  },
-  {
-    href: "/carrinho",
-    label: "Carrinho",
-    icon: ShoppingCart,
-  },
-  {
-    href: "/loja",
-    label: "Loja",
-    icon: Store,
-  },
+  { href: "/", label: "Início", icon: HomeIcon },
+  { href: "/categoria", label: "Categorias", icon: Grid3x3 },
+  { href: "/carrinho", label: "Carrinho", icon: ShoppingCart },
+  { href: "/loja", label: "Loja", icon: Store },
 ];
 
 export function BottomNav() {
@@ -38,14 +22,10 @@ export function BottomNav() {
   const { count } = useCart();
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-rosa/10 shadow-[0_-4px_18px_rgba(35,20,42,0.05)]">
+    <div className="fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-rosa/10 shadow-[0_-4px_18px_rgba(35,20,42,0.05)] md:hidden">
       <div className="mx-auto grid w-full max-w-7xl grid-cols-4 items-center py-2 px-4">
         {ITEMS.map((item) => {
-          const active =
-            item.href === "/"
-              ? pathname === "/"
-              : pathname.startsWith(item.href);
-
+          const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
           const Icon = item.icon;
 
           return (
@@ -58,32 +38,22 @@ export function BottomNav() {
                 <Icon
                   size={21}
                   style={{
-                    color: active
-                      ? "#E4127B"
-                      : "#7A6C7F",
+                    color: active ? "#E4127B" : "#7A6C7F",
                     strokeWidth: active ? 2.4 : 2,
                   }}
                 />
-
                 {item.href === "/carrinho" && count > 0 && (
                   <span
                     className="absolute -top-1.5 -right-2 min-w-4 h-4 px-1 rounded-full text-[9px] font-bold flex items-center justify-center text-white"
-                    style={{
-                      backgroundColor: "#E11D2E",
-                    }}
+                    style={{ backgroundColor: "#E11D2E" }}
                   >
                     {count}
                   </span>
                 )}
               </div>
-
               <span
                 className="text-[10px] font-medium"
-                style={{
-                  color: active
-                    ? "#E4127B"
-                    : "#7A6C7F",
-                }}
+                style={{ color: active ? "#E4127B" : "#7A6C7F" }}
               >
                 {item.label}
               </span>
