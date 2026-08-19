@@ -22,17 +22,23 @@ export function BottomNav() {
   const { count } = useCart();
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-rosa/10 shadow-[0_-4px_18px_rgba(35,20,42,0.05)] md:hidden">
-      <div className="mx-auto grid w-full max-w-7xl grid-cols-4 items-center py-2 px-4">
+    <nav
+      aria-label="Atalhos principais"
+      className="fixed bottom-0 left-0 right-0 z-30 border-t border-rosa/10 bg-white shadow-[0_-4px_18px_rgba(35,20,42,0.05)]"
+    >
+      <div className="mx-auto grid w-full max-w-7xl grid-cols-4 items-center px-4 py-2">
         {ITEMS.map((item) => {
-          const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+          const active =
+            item.href === "/"
+              ? pathname === "/"
+              : pathname.startsWith(item.href);
           const Icon = item.icon;
 
           return (
             <Link
               key={item.href}
               href={item.href}
-              className="relative flex flex-col items-center justify-center gap-0.5 py-1"
+              className="relative flex flex-col items-center justify-center gap-0.5 py-1 transition hover:bg-creme/60 md:rounded-xl"
             >
               <div className="relative">
                 <Icon
@@ -44,7 +50,7 @@ export function BottomNav() {
                 />
                 {item.href === "/carrinho" && count > 0 && (
                   <span
-                    className="absolute -top-1.5 -right-2 min-w-4 h-4 px-1 rounded-full text-[9px] font-bold flex items-center justify-center text-white"
+                    className="absolute -right-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-bold text-white"
                     style={{ backgroundColor: "#E11D2E" }}
                   >
                     {count}
@@ -52,7 +58,7 @@ export function BottomNav() {
                 )}
               </div>
               <span
-                className="text-[10px] font-medium"
+                className="text-[10px] font-medium md:text-[11px]"
                 style={{ color: active ? "#E4127B" : "#7A6C7F" }}
               >
                 {item.label}
@@ -61,6 +67,6 @@ export function BottomNav() {
           );
         })}
       </div>
-    </div>
+    </nav>
   );
 }
