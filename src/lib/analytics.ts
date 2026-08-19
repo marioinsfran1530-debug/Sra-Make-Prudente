@@ -1,6 +1,6 @@
 // Eventos previstos no plano (seção 8): page_view, category_view,
 // product_view, search, add_to_cart, remove_from_cart, begin_checkout,
-// order_created, whatsapp_click, store_location_click.
+// order_created, whatsapp_click, store_location_click e order_push_opt_in.
 //
 // Por enquanto não há ferramenta de analytics conectada, então esta função
 // não inventa métricas nem envia nada — só padroniza o formato do evento
@@ -18,6 +18,7 @@ export type AnalyticsEvent =
   | "remove_from_cart"
   | "begin_checkout"
   | "order_created"
+  | "order_push_opt_in"
   | "whatsapp_click"
   | "store_location_click";
 
