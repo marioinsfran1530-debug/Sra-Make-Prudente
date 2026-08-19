@@ -123,8 +123,8 @@ export function StoreSettingsForm({ initial }: { initial: StoreSettings | null }
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault(); setSaving(true); setMessage(null); setError(null);
     try {
-      if (!isAllowedCtaUrl(values.primaryCtaUrl) || !isAllowedCtaUrl(values.secondaryCtaUrl)) {
-        throw new Error("Os links dos CTAs devem ser caminhos internos ou URLs HTTPS.");
+      if (!isAllowedCtaUrl(values.primaryCtaUrl)) {
+        throw new Error("O link do CTA principal deve ser um caminho interno ou uma URL HTTPS.");
       }
       const persistedAssetsBeforePut = { ...persistedAssets.current };
       const response = await fetch("/api/admin/store-settings", {
@@ -159,15 +159,13 @@ export function StoreSettingsForm({ initial }: { initial: StoreSettings | null }
         </div>
       </Card>
 
-      <Card title="Hero da vitrine" description="Personalize a mensagem principal, os botões e os destaques exibidos sobre o banner.">
+      <Card title="Hero da vitrine" description="Personalize a mensagem principal, o botão e os destaques exibidos sobre o banner.">
         <Field label="Chamada superior"><input value={values.heroEyebrow} onChange={(e) => set("heroEyebrow", e.target.value)} className="input" /></Field>
         <Field label="Título"><input value={values.heroTitle} onChange={(e) => set("heroTitle", e.target.value)} className="input" maxLength={100} /></Field>
         <Field label="Texto de apoio"><textarea value={values.heroSubtitle} onChange={(e) => set("heroSubtitle", e.target.value)} className="input resize-none" rows={3} /></Field>
         <div className="grid md:grid-cols-2 gap-4">
           <Field label="Texto do CTA principal"><input value={values.primaryCtaLabel} onChange={(e) => set("primaryCtaLabel", e.target.value)} className="input" /></Field>
           <Field label="Link do CTA principal"><input value={values.primaryCtaUrl} onChange={(e) => set("primaryCtaUrl", e.target.value)} className="input" placeholder="/categoria" /></Field>
-          <Field label="Texto do CTA secundário"><input value={values.secondaryCtaLabel} onChange={(e) => set("secondaryCtaLabel", e.target.value)} className="input" /></Field>
-          <Field label="Link do CTA secundário"><input value={values.secondaryCtaUrl} onChange={(e) => set("secondaryCtaUrl", e.target.value)} className="input" placeholder="Vazio: abre o WhatsApp" /></Field>
         </div>
         <div className="grid md:grid-cols-3 gap-4">
           {(["highlight1", "highlight2", "highlight3"] as const).map((field, index) => <Field key={field} label={`Destaque ${index + 1}`}><input value={values[field]} onChange={(e) => set(field, e.target.value)} className="input" /></Field>)}
