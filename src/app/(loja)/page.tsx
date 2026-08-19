@@ -202,10 +202,10 @@ export default async function HomePage() {
               )}
             </div>
 
-            <div className="flex self-end md:self-center md:justify-end">
+            <div className="flex self-end md:absolute md:right-8 md:bottom-[64px] md:w-[220px] lg:right-8 lg:w-[240px]">
               <Link
                 href={settings?.primaryCtaUrl || "/categoria"}
-                className="flex min-h-[56px] w-full items-center justify-center rounded-2xl bg-white px-5 py-3 text-center text-sm font-bold text-rosa-profundo shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl md:min-h-[52px] md:w-[210px]"
+                className="flex min-h-[56px] w-full items-center justify-center rounded-2xl bg-white px-5 py-3 text-center text-sm font-bold text-rosa-profundo shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl md:min-h-[52px]"
               >
                 {settings?.primaryCtaLabel || "Ver produtos"}
               </Link>
