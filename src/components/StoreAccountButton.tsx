@@ -43,9 +43,7 @@ export function StoreAccountButton() {
   }
 
   if (loading) {
-    return (
-      <div className="w-10 h-10 rounded-full bg-creme animate-pulse" />
-    );
+    return <div className="w-9 h-9 rounded-full bg-creme animate-pulse" />;
   }
 
   return (
@@ -53,10 +51,10 @@ export function StoreAccountButton() {
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className="w-10 h-10 rounded-full bg-creme flex items-center justify-center"
+        className="w-9 h-9 rounded-full bg-creme flex items-center justify-center"
         aria-label="Conta"
       >
-        <User size={20} className="text-rosa-profundo" />
+        <User size={18} className="text-rosa-profundo" />
       </button>
 
       {open && (
@@ -68,7 +66,7 @@ export function StoreAccountButton() {
             onClick={() => setOpen(false)}
           />
 
-          <div className="absolute right-0 top-12 z-50 w-56 rounded-2xl bg-white border border-rosa/10 shadow-lg p-2">
+          <div className="absolute right-0 top-11 z-50 w-56 rounded-2xl bg-white border border-rosa/10 shadow-lg p-2">
             {loggedIn ? (
               <>
                 <Link
@@ -76,10 +74,7 @@ export function StoreAccountButton() {
                   onClick={() => setOpen(false)}
                   className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-bold text-texto hover:bg-creme"
                 >
-                  <LayoutDashboard
-                    size={18}
-                    className="text-rosa-profundo"
-                  />
+                  <LayoutDashboard size={18} className="text-rosa-profundo" />
                   Painel administrativo
                 </Link>
 
@@ -98,10 +93,7 @@ export function StoreAccountButton() {
                 onClick={() => setOpen(false)}
                 className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-bold text-texto hover:bg-creme"
               >
-                <LogIn
-                  size={18}
-                  className="text-rosa-profundo"
-                />
+                <LogIn size={18} className="text-rosa-profundo" />
                 Acesso administrativo
               </Link>
             )}
