@@ -1,14 +1,23 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+function text(value: unknown, maxLength: number) {
+  return typeof value === "string" ? value.trim().slice(0, maxLength) : "";
+}
+
 export async function POST(request: Request) {
   try {
+    const contentLength = Number(request.headers.get("content-length") ?? 0);
+    if (contentLength > 16 * 1024) {
+      return NextResponse.json({ error: "Dados muito grandes." }, { status: 413 });
+    }
+
     const body = await request.json();
 
-    const deviceId = String(body.deviceId ?? "").trim();
-    const token = String(body.token ?? "").trim();
-    const sessionId = String(body.sessionId ?? "").trim() || null;
-    const phone = String(body.phone ?? "").trim() || null;
+    const deviceId = text(body.deviceId, 200);
+    const token = text(body.token, 4096);
+    const sessionId = text(body.sessionId, 200) || null;
+    const phone = text(body.phone, 30) || null;
 
     if (!deviceId || !token) {
       return NextResponse.json(
@@ -45,7 +54,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(
       { error: "Não foi possível registrar este aparelho." },
-      { status: 500 }
+      { status: 400 }
     );
   }
 }
