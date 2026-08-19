@@ -1,6 +1,8 @@
 import { SearchBar } from "@/components/SearchBar";
 import { CategoryGrid } from "@/components/CategoryGrid";
 import { ProductCarousel } from "@/components/ProductCarousel";
+import { StoreAccountButton } from "@/components/StoreAccountButton";
+import { CartCountBadge } from "@/components/CartCountBadge";
 import { getCategories, getProducts, getStoreSettings } from "@/lib/data";
 import {
   MessageCircle,
@@ -14,6 +16,7 @@ import {
   Facebook,
   Sparkles,
   Store,
+  ShoppingCart,
 } from "lucide-react";
 import { waLink } from "@/lib/whatsapp";
 import { WhatsAppLink, LocationLink } from "@/components/TrackedLink";
@@ -70,7 +73,7 @@ export default async function HomePage() {
     <main>
       <div className="px-4 pt-3 md:pt-4">
         <section
-          className="relative overflow-hidden rounded-3xl min-h-[470px] md:min-h-[450px] text-white"
+          className="relative overflow-hidden rounded-3xl min-h-[390px] md:min-h-[360px] text-white"
           style={{
             background:
               "linear-gradient(135deg, #E4127B 0%, #A6157A 55%, #6E1E8C 100%)",
@@ -96,14 +99,28 @@ export default async function HomePage() {
             </picture>
           )}
 
-          <div className="absolute inset-0 bg-gradient-to-r from-[#241429]/80 via-[#241429]/48 to-[#241429]/10" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-black/5" />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#241429]/88 via-[#241429]/58 to-[#241429]/15" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-black/10" />
 
-          <div className="relative z-10 flex min-h-[470px] md:min-h-[450px] items-end p-5 sm:p-7 md:p-10">
-            <div className="w-full max-w-3xl">
-              <div className="flex items-center gap-4 md:gap-5">
+          <div className="absolute right-4 top-4 z-20 flex items-center gap-2 md:right-6 md:top-6">
+            <div className="rounded-full bg-white/92 shadow-md backdrop-blur text-rosa-profundo">
+              <StoreAccountButton />
+            </div>
+            <Link
+              href="/carrinho"
+              className="relative flex h-10 w-10 items-center justify-center rounded-full bg-white/92 text-rosa-profundo shadow-md backdrop-blur transition hover:-translate-y-0.5"
+              aria-label="Abrir carrinho"
+            >
+              <ShoppingCart size={19} />
+              <CartCountBadge />
+            </Link>
+          </div>
+
+          <div className="relative z-10 grid min-h-[390px] items-end gap-6 p-5 sm:p-7 md:min-h-[360px] md:grid-cols-[minmax(0,1fr)_280px] md:p-8 lg:grid-cols-[minmax(0,1fr)_330px]">
+            <div className="max-w-3xl">
+              <div className="flex items-center gap-3 md:gap-4">
                 <div
-                  className="h-20 w-20 md:h-28 md:w-28 shrink-0 overflow-hidden rounded-full border-[3px] border-white bg-white shadow-xl flex items-center justify-center font-serif text-2xl md:text-4xl font-bold text-white"
+                  className="h-16 w-16 md:h-20 md:w-20 shrink-0 overflow-hidden rounded-full border-[3px] border-white bg-white shadow-xl flex items-center justify-center font-serif text-xl md:text-2xl font-bold text-white"
                   style={{
                     background:
                       "linear-gradient(135deg, #E4127B 0%, #A6157A 55%, #6E1E8C 100%)",
@@ -120,81 +137,81 @@ export default async function HomePage() {
                   )}
                 </div>
 
-                <div className="min-w-0">
-                  <p className="text-[10px] md:text-xs font-semibold uppercase tracking-[0.2em] text-white/75 mb-1">
+                <div className="min-w-0 pr-20 md:pr-0">
+                  <p className="text-[9px] md:text-[11px] font-semibold uppercase tracking-[0.2em] text-white/75 mb-1">
                     {settings?.heroEyebrow || "Loja física + catálogo online"}
                   </p>
-                  <h1 className="font-serif text-2xl sm:text-3xl md:text-5xl font-bold leading-tight drop-shadow-sm">
+                  <h1 className="font-serif text-2xl sm:text-3xl md:text-4xl font-bold leading-tight drop-shadow-sm">
                     {settings?.storeName || "Sra Make Prudente"}
                   </h1>
-                  <p className="mt-1.5 inline-flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-white/90">
-                    <MapPin size={15} /> Presidente Prudente/SP
+                  <p className="mt-1 inline-flex items-center gap-1.5 text-xs font-semibold text-white/90">
+                    <MapPin size={14} /> Presidente Prudente/SP
                   </p>
                 </div>
               </div>
 
-              <div className="mt-5 max-w-2xl">
-                <h2 className="font-serif text-xl sm:text-2xl md:text-3xl font-bold leading-tight">
+              <div className="mt-4 max-w-2xl">
+                <h2 className="font-serif text-lg sm:text-xl md:text-2xl font-bold leading-tight">
                   {settings?.heroTitle ||
                     "Encontre o que você precisa na Sra Make."}
                 </h2>
-                <p className="mt-2 max-w-xl text-sm md:text-base leading-relaxed text-white/88">
+                <p className="mt-1.5 max-w-xl text-xs sm:text-sm md:text-base leading-relaxed text-white/88">
                   {settings?.heroSubtitle ||
                     "Maquiagem, lash, nail e acessórios. Escolha pelo catálogo e confirme pelo WhatsApp."}
                 </p>
               </div>
 
-              <div className="mt-5 grid max-w-2xl grid-cols-1 gap-2 sm:grid-cols-2">
-                <div className="flex items-center gap-3 rounded-2xl border border-white/25 bg-white/90 px-4 py-3 text-[#23142A] shadow-sm backdrop-blur">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#FFF0F7] text-rosa-profundo">
-                    <Store size={18} />
+              <div className="mt-4 grid max-w-2xl grid-cols-1 gap-2 sm:grid-cols-2">
+                <div className="flex items-center gap-3 rounded-2xl border border-white/25 bg-white/90 px-3.5 py-2.5 text-[#23142A] shadow-sm backdrop-blur">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#FFF0F7] text-rosa-profundo">
+                    <Store size={16} />
                   </div>
                   <div>
                     <p className="text-xs font-bold">Retire na loja</p>
-                    <p className="text-[11px] text-cinza">Compre e retire no Centro</p>
+                    <p className="text-[10px] text-cinza">Compre e retire no Centro</p>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3 rounded-2xl border border-white/25 bg-white/90 px-4 py-3 text-[#23142A] shadow-sm backdrop-blur">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#FFF0F7] text-rosa-profundo">
-                    <MessageCircle size={18} />
+                <div className="flex items-center gap-3 rounded-2xl border border-white/25 bg-white/90 px-3.5 py-2.5 text-[#23142A] shadow-sm backdrop-blur">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#FFF0F7] text-rosa-profundo">
+                    <MessageCircle size={16} />
                   </div>
                   <div>
                     <p className="text-xs font-bold">Atendimento no WhatsApp</p>
-                    <p className="text-[11px] text-cinza">Tire dúvidas e receba ajuda</p>
+                    <p className="text-[10px] text-cinza">Tire dúvidas e receba ajuda</p>
                   </div>
                 </div>
               </div>
 
-              <div className="mt-4 flex flex-wrap gap-2">
-                <Link
-                  href={settings?.primaryCtaUrl || "/categoria"}
-                  className="rounded-xl bg-white px-5 py-3 text-sm font-bold text-rosa-profundo shadow-md transition hover:-translate-y-0.5 hover:shadow-lg"
-                >
-                  {settings?.primaryCtaLabel || "Ver produtos"}
-                </Link>
-                <WhatsAppLink
-                  href={secondaryHref}
-                  context="home_help"
-                  className="rounded-xl bg-[#E4127B] px-5 py-3 text-sm font-bold text-white shadow-md transition hover:-translate-y-0.5 hover:shadow-lg"
-                >
-                  {settings?.secondaryCtaLabel || "Falar no WhatsApp"}
-                </WhatsAppLink>
-              </div>
-
               {heroHighlights.length > 0 && (
-                <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2">
+                <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">
                   {heroHighlights.map((highlight) => (
                     <span
                       key={highlight}
-                      className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-white/90"
+                      className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-white/90"
                     >
-                      <Sparkles size={12} className="text-[#F9D87C]" />
+                      <Sparkles size={11} className="text-[#F9D87C]" />
                       {highlight}
                     </span>
                   ))}
                 </div>
               )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 self-end md:grid-cols-1 md:gap-3 md:pb-1">
+              <Link
+                href={settings?.primaryCtaUrl || "/categoria"}
+                className="flex min-h-[62px] items-center justify-center rounded-2xl bg-white px-4 py-3 text-center text-sm font-bold text-rosa-profundo shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl md:min-h-[72px]"
+              >
+                {settings?.primaryCtaLabel || "Ver produtos"}
+              </Link>
+              <WhatsAppLink
+                href={secondaryHref}
+                context="home_help"
+                className="flex min-h-[62px] items-center justify-center rounded-2xl bg-[#E4127B] px-4 py-3 text-center text-sm font-bold text-white shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl md:min-h-[72px]"
+              >
+                {settings?.secondaryCtaLabel || "Preciso de ajuda"}
+              </WhatsAppLink>
             </div>
           </div>
         </section>
