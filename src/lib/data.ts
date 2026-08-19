@@ -139,9 +139,9 @@ export const getProductById = cache(async (id: string) => {
   return product ? mapProduct(product) : null;
 });
 
-export async function getStoreSettings() {
+export const getStoreSettings = cache(async () => {
   return prisma.storeSettings.findFirst();
-}
+});
 
 export async function getBrands() {
   const rows = await prisma.product.findMany({
