@@ -11,6 +11,7 @@ export default async function EditarProdutoPage({
     prisma.product.findUnique({
       where: { id: params.id },
       include: {
+        categories: true,
         variants: true,
         images: {
           orderBy: { order: "asc" },
@@ -24,6 +25,10 @@ export default async function EditarProdutoPage({
   ]);
 
   if (!product) notFound();
+
+  const categoryIds = Array.from(
+    new Set([product.categoryId, ...product.categories.map((item) => item.categoryId)])
+  );
 
   return (
     <div>
@@ -40,23 +45,20 @@ export default async function EditarProdutoPage({
           sku: product.sku,
           description: product.description,
           price: Number(product.price),
-          promoPrice: product.promoPrice
-            ? Number(product.promoPrice)
-            : null,
+          promoPrice: product.promoPrice ? Number(product.promoPrice) : null,
           stockQty: product.stockQty,
           featured: product.featured,
           isNew: product.isNew,
           bestSeller: product.bestSeller,
           active: product.active,
           categoryId: product.categoryId,
+          categoryIds,
           subcategoryId: product.subcategoryId,
-
           variants: product.variants.map((v) => ({
             id: v.id,
             name: v.name,
             stockQty: v.stockQty,
           })),
-
           images: product.images.map((image) => ({
             id: image.id,
             url: image.url,
