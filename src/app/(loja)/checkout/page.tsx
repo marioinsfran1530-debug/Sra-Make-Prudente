@@ -107,6 +107,7 @@ export default function CheckoutPage() {
       const message = buildOrderMessage({
         orderNumber: data.orderNumber,
         customerName: name,
+        customerPhone: phone,
         items: data.items,
         subtotal: data.subtotal,
         deliveryFee: data.deliveryFee,
