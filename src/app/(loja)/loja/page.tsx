@@ -1,23 +1,17 @@
 import { getStoreSettings } from "@/lib/data";
 import { waLink } from "@/lib/whatsapp";
 import { InfoRow } from "@/components/InfoRow";
-import { PushNotificationButton } from "@/components/PushNotificationButton";
 
 export const revalidate = 60;
 
 export default async function LojaInfoPage() {
   const settings = await getStoreSettings();
-
   const whatsapp = settings?.whatsapp ?? "5518991248713";
-
   const mapsUrl =
     settings?.googleMapsUrl ||
     (settings?.address
-      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-          settings.address
-        )}`
+      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(settings.address)}`
       : undefined);
-
   const instagram = settings?.instagram ?? "@sramakeprudente";
 
   return (
@@ -25,37 +19,33 @@ export default async function LojaInfoPage() {
       <div
         className="rounded-3xl overflow-hidden mb-4 p-6 text-white"
         style={{
-          background:
-            "linear-gradient(135deg, #E4127B 0%, #A6157A 55%, #6E1E8C 100%)",
+          background: "linear-gradient(135deg, #E4127B 0%, #A6157A 55%, #6E1E8C 100%)",
         }}
       >
         <p className="text-white/80 text-xs font-semibold uppercase tracking-widest mb-1">
           Loja física de verdade
         </p>
-
-        <h2 className="font-serif font-bold text-xl">
+        <h1 className="font-serif font-bold text-2xl">
           {settings?.storeName ?? "Sra Make Prudente"}
-        </h2>
-
-        <p className="text-white/85 text-sm mt-2">
-          Você pode comprar pelo catálogo e retirar na loja.
+        </h1>
+        <p className="text-white/85 text-sm mt-2 max-w-2xl">
+          Compre pelo catálogo, tire dúvidas com a equipe e retire seu pedido diretamente na loja.
         </p>
       </div>
 
-      <div className="flex flex-col gap-3">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <InfoRow
           icon="location"
           title="Endereço"
           text={settings?.address ?? "Endereço ainda não cadastrado."}
-          action={
-            mapsUrl
-              ? {
-                  label: "Como chegar",
-                  href: mapsUrl,
-                }
-              : undefined
-          }
+          action={mapsUrl ? { label: "Como chegar", href: mapsUrl } : undefined}
           trackKind="location"
+        />
+
+        <InfoRow
+          icon="clock"
+          title="Horário"
+          text={settings?.businessHours ?? "Horário de funcionamento ainda não cadastrado."}
         />
 
         <InfoRow
@@ -64,10 +54,7 @@ export default async function LojaInfoPage() {
           text={settings?.whatsapp ?? "WhatsApp não cadastrado"}
           action={{
             label: "Conversar",
-            href: waLink(
-              "Oi! Vim pelo catálogo da Sra Make Prudente.",
-              whatsapp
-            ),
+            href: waLink("Oi! Vim pelo catálogo da Sra Make Prudente.", whatsapp),
           }}
           whatsapp
           trackKind="whatsapp"
@@ -90,35 +77,12 @@ export default async function LojaInfoPage() {
             text={settings.facebook}
             action={
               settings.facebook.startsWith("http")
-                ? {
-                    label: "Acessar",
-                    href: settings.facebook,
-                  }
+                ? { label: "Acessar", href: settings.facebook }
                 : undefined
             }
           />
         )}
-
-        <InfoRow
-          icon="clock"
-          title="Horário"
-          text={
-            settings?.businessHours ??
-            "Horário de funcionamento ainda não cadastrado."
-          }
-        />
       </div>
-    
-      <div className="mx-4 mt-6 rounded-2xl border border-rosa/20 bg-white p-4">
-        <p className="mb-1 text-sm font-bold text-texto">
-          Atualizações do seu pedido
-        </p>
-        <p className="mb-3 text-xs text-cinza">
-          Ative as notificações para testar avisos neste aparelho.
-        </p>
-        <PushNotificationButton />
-      </div>
-
-</main>
+    </main>
   );
 }
