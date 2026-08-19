@@ -8,6 +8,7 @@ export async function POST(request: Request) {
     const deviceId = String(body.deviceId ?? "").trim();
     const token = String(body.token ?? "").trim();
     const sessionId = String(body.sessionId ?? "").trim() || null;
+    const phone = String(body.phone ?? "").trim() || null;
 
     if (!deviceId || !token) {
       return NextResponse.json(
@@ -21,6 +22,7 @@ export async function POST(request: Request) {
       update: {
         token,
         sessionId,
+        phone,
         active: true,
         lastSeenAt: new Date(),
       },
@@ -28,6 +30,7 @@ export async function POST(request: Request) {
         deviceId,
         token,
         sessionId,
+        phone,
         active: true,
         lastSeenAt: new Date(),
       },
