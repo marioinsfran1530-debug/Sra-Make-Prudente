@@ -1,4 +1,7 @@
-import { Sparkles } from "lucide-react";
+"use client";
+
+import { useEffect, useState } from "react";
+import { ImageOff, Sparkles } from "lucide-react";
 
 export function ProductImage({
   name,
@@ -9,31 +12,39 @@ export function ProductImage({
   imageUrl?: string | null;
   className?: string;
 }) {
-  if (imageUrl) {
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img src={imageUrl} alt={name} className={`object-cover ${className}`} />;
-  }
+  const [failed, setFailed] = useState(false);
 
-  const initials = name
-    .split(" ")
-    .slice(0, 2)
-    .map((w) => w[0])
-    .join("")
-    .toUpperCase();
+  useEffect(() => {
+    setFailed(false);
+  }, [imageUrl]);
+
+  if (imageUrl && !failed) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return (
+      <img
+        src={imageUrl}
+        alt={name}
+        onError={() => setFailed(true)}
+        className={`object-cover bg-white ${className}`}
+      />
+    );
+  }
 
   return (
     <div
-      className={`flex items-center justify-center relative overflow-hidden ${className}`}
+      className={`flex flex-col items-center justify-center relative overflow-hidden text-center ${className}`}
       style={{
         background: "linear-gradient(150deg, #FFF6FA 0%, #FBE4EF 55%, #F3D9EA 100%)",
       }}
+      aria-label={`Imagem indisponível para ${name}`}
     >
-      <span className="font-serif font-bold text-2xl" style={{ color: "#A6157A", opacity: 0.55 }}>
-        {initials}
+      <ImageOff size={20} className="text-rosa-profundo/55" />
+      <span className="mt-1 px-2 text-[9px] font-semibold leading-tight text-rosa-profundo/65">
+        Imagem indisponível
       </span>
       <Sparkles
         className="absolute"
-        style={{ color: "#C9972E", opacity: 0.35, width: 16, height: 16, top: 8, right: 10 }}
+        style={{ color: "#C9972E", opacity: 0.3, width: 14, height: 14, top: 7, right: 8 }}
       />
     </div>
   );
