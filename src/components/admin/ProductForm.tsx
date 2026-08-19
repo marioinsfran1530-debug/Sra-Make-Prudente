@@ -50,6 +50,7 @@ export function ProductForm({
     bestSeller: boolean;
     active: boolean;
     categoryId: string;
+    categoryIds?: string[];
     subcategoryId: string | null;
     variants: VariantRow[];
     images?: ProductImage[];
@@ -57,6 +58,11 @@ export function ProductForm({
 }) {
   const router = useRouter();
   const isEdit = !!initial;
+
+  const initialPrimaryCategoryId = initial?.categoryId ?? categories[0]?.id ?? "";
+  const initialCategoryIds = Array.from(
+    new Set([initialPrimaryCategoryId, ...(initial?.categoryIds ?? [])].filter(Boolean))
+  );
 
   const [name, setName] = useState(initial?.name ?? "");
   const [brand, setBrand] = useState(initial?.brand ?? "");
@@ -73,9 +79,8 @@ export function ProductForm({
   const [isNew, setIsNew] = useState(initial?.isNew ?? false);
   const [bestSeller, setBestSeller] = useState(initial?.bestSeller ?? false);
   const [active, setActive] = useState(initial?.active ?? true);
-  const [categoryId, setCategoryId] = useState(
-    initial?.categoryId ?? categories[0]?.id ?? ""
-  );
+  const [categoryId, setCategoryId] = useState(initialPrimaryCategoryId);
+  const [categoryIds, setCategoryIds] = useState<string[]>(initialCategoryIds);
   const [subcategoryId, setSubcategoryId] = useState(
     initial?.subcategoryId ?? ""
   );
@@ -83,7 +88,7 @@ export function ProductForm({
     initial?.variants ?? []
   );
 
-  const [existingImages, setExistingImages] = useState<ProductImage[]>(
+  const [existingImages] = useState<ProductImage[]>(
     [...(initial?.images ?? [])].sort((a, b) => a.order - b.order)
   );
 
@@ -109,7 +114,6 @@ export function ProductForm({
     setImageError(null);
 
     const selected = Array.from(e.target.files ?? []);
-
     if (!selected.length) return;
 
     const totalImages = existingImages.length + newImages.length + selected.length;
@@ -121,7 +125,6 @@ export function ProductForm({
     }
 
     const invalidType = selected.find((file) => !ALLOWED_TYPES.has(file.type));
-
     if (invalidType) {
       setImageError("Formato inválido. Use apenas JPG, PNG ou WebP.");
       e.target.value = "";
@@ -129,7 +132,6 @@ export function ProductForm({
     }
 
     const oversized = selected.find((file) => file.size > MAX_FILE_SIZE);
-
     if (oversized) {
       setImageError("Cada imagem deve ter no máximo 5 MB.");
       e.target.value = "";
@@ -144,10 +146,26 @@ export function ProductForm({
     setNewImages((current) => current.filter((_, i) => i !== index));
   }
 
+  function changePrimaryCategory(nextCategoryId: string) {
+    setCategoryId(nextCategoryId);
+    setSubcategoryId("");
+    setCategoryIds((current) =>
+      Array.from(new Set([nextCategoryId, ...current].filter(Boolean)))
+    );
+  }
+
+  function toggleAdditionalCategory(id: string, checked: boolean) {
+    if (id === categoryId) return;
+
+    setCategoryIds((current) => {
+      if (checked) return Array.from(new Set([...current, id, categoryId]));
+      return current.filter((category) => category !== id || category === categoryId);
+    });
+  }
+
   async function uploadImages(productId: string) {
     for (const file of newImages) {
       const formData = new FormData();
-
       formData.append("file", file);
       formData.append("productId", productId);
 
@@ -186,6 +204,7 @@ export function ProductForm({
         bestSeller,
         active,
         categoryId,
+        categoryIds: Array.from(new Set([categoryId, ...categoryIds].filter(Boolean))),
         subcategoryId: subcategoryId || null,
         variants,
       };
@@ -233,29 +252,15 @@ export function ProductForm({
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-3 max-w-lg">
       <Field label="Nome">
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          required
-          className="input"
-        />
+        <input value={name} onChange={(e) => setName(e.target.value)} required className="input" />
       </Field>
 
       <Field label="Marca">
-        <input
-          value={brand}
-          onChange={(e) => setBrand(e.target.value)}
-          required
-          className="input"
-        />
+        <input value={brand} onChange={(e) => setBrand(e.target.value)} required className="input" />
       </Field>
 
       <Field label="SKU (opcional)">
-        <input
-          value={sku}
-          onChange={(e) => setSku(e.target.value)}
-          className="input"
-        />
+        <input value={sku} onChange={(e) => setSku(e.target.value)} className="input" />
       </Field>
 
       <Field label="Descrição">
@@ -305,13 +310,10 @@ export function ProductForm({
       </p>
 
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Categoria">
+        <Field label="Categoria principal">
           <select
             value={categoryId}
-            onChange={(e) => {
-              setCategoryId(e.target.value);
-              setSubcategoryId("");
-            }}
+            onChange={(e) => changePrimaryCategory(e.target.value)}
             className="input"
           >
             {categories.map((c) => (
@@ -322,14 +324,13 @@ export function ProductForm({
           </select>
         </Field>
 
-        <Field label="Subcategoria">
+        <Field label="Subcategoria da principal">
           <select
             value={subcategoryId}
             onChange={(e) => setSubcategoryId(e.target.value)}
             className="input"
           >
             <option value="">—</option>
-
             {selectedCategory?.subcategories.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name}
@@ -339,12 +340,45 @@ export function ProductForm({
         </Field>
       </div>
 
+      <div className="rounded-2xl border border-rosa/15 bg-white p-4">
+        <p className="text-xs font-bold text-texto">Também exibir em</p>
+        <p className="mt-1 text-[11px] text-cinza">
+          Marque outras categorias onde este produto deve aparecer. A categoria principal fica sempre selecionada.
+        </p>
+
+        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {categories.map((category) => {
+            const isPrimary = category.id === categoryId;
+            const checked = isPrimary || categoryIds.includes(category.id);
+
+            return (
+              <label
+                key={category.id}
+                className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold ${
+                  isPrimary
+                    ? "border-rosa-profundo/25 bg-rosa/5 text-rosa-profundo"
+                    : "border-rosa/15 bg-creme/40 text-texto"
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  disabled={isPrimary}
+                  onChange={(e) => toggleAdditionalCategory(category.id, e.target.checked)}
+                />
+                <span>{category.name}</span>
+                {isPrimary && (
+                  <span className="ml-auto text-[9px] font-bold uppercase tracking-wide">Principal</span>
+                )}
+              </label>
+            );
+          })}
+        </div>
+      </div>
+
       <div className="border border-rosa/15 rounded-2xl p-4 bg-white">
         <div className="mb-3">
-          <p className="text-xs font-bold text-texto">
-            Imagens do produto
-          </p>
-
+          <p className="text-xs font-bold text-texto">Imagens do produto</p>
           <p className="text-[11px] text-cinza mt-1">
             Até {MAX_IMAGES} imagens. JPG, PNG ou WebP, máximo de 5 MB cada.
           </p>
@@ -357,12 +391,7 @@ export function ProductForm({
                 key={image.id}
                 className="relative aspect-square overflow-hidden rounded-xl border border-rosa/10 bg-creme"
               >
-                <img
-                  src={image.url}
-                  alt={`Imagem ${index + 1}`}
-                  className="w-full h-full object-cover"
-                />
-
+                <img src={image.url} alt={`Imagem ${index + 1}`} className="w-full h-full object-cover" />
                 {index === 0 && (
                   <span className="absolute left-1.5 bottom-1.5 rounded-full bg-white/90 px-2 py-1 text-[9px] font-bold text-texto">
                     Principal
@@ -380,12 +409,7 @@ export function ProductForm({
                 key={preview}
                 className="relative aspect-square overflow-hidden rounded-xl border border-rosa/20 bg-creme"
               >
-                <img
-                  src={preview}
-                  alt={`Nova imagem ${index + 1}`}
-                  className="w-full h-full object-cover"
-                />
-
+                <img src={preview} alt={`Nova imagem ${index + 1}`} className="w-full h-full object-cover" />
                 <button
                   type="button"
                   onClick={() => removeNewImage(index)}
@@ -402,14 +426,9 @@ export function ProductForm({
         {existingImages.length + newImages.length < MAX_IMAGES && (
           <label className="flex items-center justify-center w-full min-h-24 rounded-xl border-2 border-dashed border-rosa/20 bg-creme cursor-pointer hover:border-rosa/40 transition">
             <div className="text-center">
-              <p className="text-sm font-bold text-rosa-profundo">
-                + Adicionar imagens
-              </p>
-              <p className="text-[10px] text-cinza mt-1">
-                Você pode selecionar várias de uma vez
-              </p>
+              <p className="text-sm font-bold text-rosa-profundo">+ Adicionar imagens</p>
+              <p className="text-[10px] text-cinza mt-1">Você pode selecionar várias de uma vez</p>
             </div>
-
             <input
               type="file"
               accept="image/jpeg,image/png,image/webp"
@@ -420,35 +439,14 @@ export function ProductForm({
           </label>
         )}
 
-        {imageError && (
-          <p className="text-xs text-vermelho mt-2">{imageError}</p>
-        )}
+        {imageError && <p className="text-xs text-vermelho mt-2">{imageError}</p>}
       </div>
 
       <div className="flex flex-wrap gap-4 py-2">
-        <Checkbox
-          label="Destaque"
-          checked={featured}
-          onChange={setFeatured}
-        />
-
-        <Checkbox
-          label="Novidade"
-          checked={isNew}
-          onChange={setIsNew}
-        />
-
-        <Checkbox
-          label="Mais vendido"
-          checked={bestSeller}
-          onChange={setBestSeller}
-        />
-
-        <Checkbox
-          label="Ativo"
-          checked={active}
-          onChange={setActive}
-        />
+        <Checkbox label="Destaque" checked={featured} onChange={setFeatured} />
+        <Checkbox label="Novidade" checked={isNew} onChange={setIsNew} />
+        <Checkbox label="Mais vendido" checked={bestSeller} onChange={setBestSeller} />
+        <Checkbox label="Ativo" checked={active} onChange={setActive} />
       </div>
 
       <div>
@@ -458,12 +456,8 @@ export function ProductForm({
 
         {variants.length > 0 && (
           <div className="grid grid-cols-[minmax(0,1fr)_110px_auto] gap-2 mb-2 px-1">
-            <span className="text-[10px] font-bold uppercase tracking-wide text-cinza">
-              Nome
-            </span>
-            <span className="text-[10px] font-bold uppercase tracking-wide text-cinza">
-              Estoque
-            </span>
+            <span className="text-[10px] font-bold uppercase tracking-wide text-cinza">Nome</span>
+            <span className="text-[10px] font-bold uppercase tracking-wide text-cinza">Estoque</span>
             <span />
           </div>
         )}
@@ -477,10 +471,7 @@ export function ProductForm({
               value={v.name}
               onChange={(e) => {
                 const next = [...variants];
-                next[idx] = {
-                  ...next[idx],
-                  name: e.target.value,
-                };
+                next[idx] = { ...next[idx], name: e.target.value };
                 setVariants(next);
               }}
               placeholder="Ex: Bege claro"
@@ -493,12 +484,7 @@ export function ProductForm({
               value={v.stockQty}
               onChange={(e) => {
                 const next = [...variants];
-
-                next[idx] = {
-                  ...next[idx],
-                  stockQty: Number(e.target.value),
-                };
-
+                next[idx] = { ...next[idx], stockQty: Number(e.target.value) };
                 setVariants(next);
               }}
               placeholder="0"
@@ -507,9 +493,7 @@ export function ProductForm({
 
             <button
               type="button"
-              onClick={() =>
-                setVariants(variants.filter((_, i) => i !== idx))
-              }
+              onClick={() => setVariants(variants.filter((_, i) => i !== idx))}
               className="text-xs font-bold text-vermelho px-2 whitespace-nowrap"
             >
               Remover
@@ -519,26 +503,14 @@ export function ProductForm({
 
         <button
           type="button"
-          onClick={() =>
-            setVariants([
-              ...variants,
-              {
-                name: "",
-                stockQty: 0,
-              },
-            ])
-          }
+          onClick={() => setVariants([...variants, { name: "", stockQty: 0 }])}
           className="text-xs font-bold text-rosa-profundo"
         >
           + Adicionar variante
         </button>
       </div>
 
-      {error && (
-        <p className="text-xs text-vermelho">
-          {error}
-        </p>
-      )}
+      {error && <p className="text-xs text-vermelho">{error}</p>}
 
       <button
         type="submit"
