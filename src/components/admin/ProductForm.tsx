@@ -424,19 +424,35 @@ export function ProductForm({
         )}
 
         {existingImages.length + newImages.length < MAX_IMAGES && (
-          <label className="flex items-center justify-center w-full min-h-24 rounded-xl border-2 border-dashed border-rosa/20 bg-creme cursor-pointer hover:border-rosa/40 transition">
-            <div className="text-center">
-              <p className="text-sm font-bold text-rosa-profundo">+ Adicionar imagens</p>
-              <p className="text-[10px] text-cinza mt-1">Você pode selecionar várias de uma vez</p>
-            </div>
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              multiple
-              onChange={handleImagesChange}
-              className="hidden"
-            />
-          </label>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <label className="flex min-h-24 cursor-pointer items-center justify-center rounded-xl border-2 border-dashed border-rosa/25 bg-creme px-3 transition hover:border-rosa/50">
+              <div className="text-center">
+                <p className="text-sm font-bold text-rosa-profundo">Tirar foto</p>
+                <p className="mt-1 text-[10px] text-cinza">Abre a câmera traseira do celular</p>
+              </div>
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handleImagesChange}
+                className="hidden"
+              />
+            </label>
+
+            <label className="flex min-h-24 cursor-pointer items-center justify-center rounded-xl border-2 border-dashed border-rosa/20 bg-creme px-3 transition hover:border-rosa/40">
+              <div className="text-center">
+                <p className="text-sm font-bold text-rosa-profundo">Escolher da galeria</p>
+                <p className="mt-1 text-[10px] text-cinza">Você pode selecionar várias imagens</p>
+              </div>
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                multiple
+                onChange={handleImagesChange}
+                className="hidden"
+              />
+            </label>
+          </div>
         )}
 
         {imageError && <p className="text-xs text-vermelho mt-2">{imageError}</p>}
