@@ -193,17 +193,33 @@ model AdminProfile {
 }
 
 model StoreSettings {
-  id              String   @id @default(cuid())
-  storeName       String
-  whatsapp        String
-  instagram       String?
-  facebook        String?
-  address         String?
-  googleMapsUrl   String?
-  businessHours   String?
-  deliveryEnabled Boolean  @default(true)
-  pickupEnabled   Boolean  @default(true)
-  updatedAt       DateTime @updatedAt
+  id                       String   @id @default(cuid())
+  storeName                String
+  whatsapp                 String
+  instagram                String?
+  facebook                 String?
+  address                  String?
+  googleMapsUrl            String?
+  businessHours            String?
+  logoUrl                  String?
+  logoStoragePath          String?
+  bannerDesktopUrl         String?
+  bannerDesktopStoragePath String?
+  bannerMobileUrl          String?
+  bannerMobileStoragePath  String?
+  heroEyebrow              String?
+  heroTitle                String?
+  heroSubtitle             String?
+  primaryCtaLabel          String?
+  primaryCtaUrl            String?
+  secondaryCtaLabel        String?
+  secondaryCtaUrl          String?
+  highlight1               String?
+  highlight2               String?
+  highlight3               String?
+  deliveryEnabled          Boolean  @default(true)
+  pickupEnabled            Boolean  @default(true)
+  updatedAt                DateTime @updatedAt
 }
 
 // ---------- Notificações Push ----------
