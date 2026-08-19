@@ -17,16 +17,20 @@ export default function AdminLoginPage() {
     e.preventDefault();
     setError(null);
     setLoading(true);
+
     const supabase = createSupabaseBrowserClient();
     const { error } = await supabase.auth.signInWithPassword({
-      email,
+      email: email.trim().toLowerCase(),
       password,
     });
+
     setLoading(false);
+
     if (error) {
       setError("E-mail ou senha inválidos.");
       return;
     }
+
     router.push("/admin");
     router.refresh();
   }
@@ -36,19 +40,14 @@ export default function AdminLoginPage() {
     setError(null);
     setInfo(null);
     setLoading(true);
+
     const supabase = createSupabaseBrowserClient();
-    // redirectTo explícito garante que o link do e-mail leve para a nossa
-    // página de redefinição, e não para a Site URL genérica do Supabase.
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
       redirectTo: `${window.location.origin}/admin/reset-password`,
     });
+
     setLoading(false);
-    if (error) {
-  console.error("ERRO SUPABASE RESET:", error);
-  setError(`Erro: ${error.message}`);
-  return;
-    }
-    setInfo("Se esse e-mail estiver cadastrado, enviamos um link de redefinição de senha.");
+    setInfo("Se esse e-mail estiver cadastrado, enviaremos um link de redefinição de senha.");
   }
 
   if (mode === "forgot") {
@@ -67,7 +66,9 @@ export default function AdminLoginPage() {
           <input
             type="email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => setEmail(e.target.value.slice(0, 254))}
+            maxLength={254}
+            autoComplete="email"
             required
             className="w-full mt-1 mb-4 rounded-xl border border-rosa/20 px-3 py-2 text-sm outline-none"
           />
@@ -110,7 +111,9 @@ export default function AdminLoginPage() {
         <input
           type="email"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={(e) => setEmail(e.target.value.slice(0, 254))}
+          maxLength={254}
+          autoComplete="username"
           required
           className="w-full mt-1 mb-4 rounded-xl border border-rosa/20 px-3 py-2 text-sm outline-none"
         />
@@ -119,7 +122,9 @@ export default function AdminLoginPage() {
         <input
           type="password"
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          onChange={(e) => setPassword(e.target.value.slice(0, 200))}
+          maxLength={200}
+          autoComplete="current-password"
           required
           className="w-full mt-1 mb-4 rounded-xl border border-rosa/20 px-3 py-2 text-sm outline-none"
         />
