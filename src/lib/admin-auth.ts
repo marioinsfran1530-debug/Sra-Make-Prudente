@@ -7,19 +7,20 @@ export type AdminSession = {
   role: "ADMIN" | "EDITOR";
 };
 
-// Repete a validação de sessão no servidor, mesmo já passando pelo
-// middleware — regra explícita do plano (seção 3): nunca confiar só na
-// proteção visual/rota do frontend.
+// Valida a identidade no Supabase Auth e depois confirma que existe um
+// perfil administrativo ativo na nossa base. Assim, ter apenas um cookie de
+// sessão não é suficiente para acessar recursos protegidos.
 export async function getAdminSession(): Promise<AdminSession | null> {
   const supabase = createSupabaseServerClient();
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
 
-  if (!session) return null;
+  if (error || !user) return null;
 
   const profile = await prisma.adminProfile.findUnique({
-    where: { id: session.user.id },
+    where: { id: user.id },
   });
 
   if (!profile || !profile.active) return null;
