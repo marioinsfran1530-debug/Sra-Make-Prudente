@@ -8,6 +8,14 @@ type VariantInput = {
   stockQty: number;
 };
 
+function normalizeCategoryIds(primaryCategoryId: string, categoryIds: unknown) {
+  const ids = Array.isArray(categoryIds)
+    ? categoryIds.filter((id): id is string => typeof id === "string" && id.length > 0)
+    : [];
+
+  return Array.from(new Set([primaryCategoryId, ...ids]));
+}
+
 export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -17,6 +25,7 @@ export async function PUT(
 
   const body = await request.json();
   const variantsProvided = Array.isArray(body.variants);
+  const categoriesProvided = Array.isArray(body.categoryIds) || body.categoryId !== undefined;
 
   const variants: VariantInput[] = variantsProvided
     ? body.variants
@@ -29,60 +38,47 @@ export async function PUT(
     : [];
 
   const product = await prisma.$transaction(async (tx) => {
+    const current = await tx.product.findUnique({
+      where: { id: params.id },
+      select: { categoryId: true },
+    });
+
+    if (!current) throw new Error("Produto não encontrado.");
+
+    const primaryCategoryId = String(body.categoryId ?? current.categoryId);
+
     const updatedProduct = await tx.product.update({
       where: { id: params.id },
       data: {
         ...(body.name !== undefined && { name: body.name }),
         ...(body.brand !== undefined && { brand: body.brand }),
-
-        ...(body.sku !== undefined && {
-          sku: body.sku || null,
-        }),
-
-        ...(body.description !== undefined && {
-          description: body.description || null,
-        }),
-
-        ...(body.price !== undefined && {
-          price: Number(body.price),
-        }),
-
+        ...(body.sku !== undefined && { sku: body.sku || null }),
+        ...(body.description !== undefined && { description: body.description || null }),
+        ...(body.price !== undefined && { price: Number(body.price) }),
         ...(body.promoPrice !== undefined && {
           promoPrice:
             body.promoPrice === null || body.promoPrice === ""
               ? null
               : Number(body.promoPrice),
         }),
-
-        ...(body.stockQty !== undefined && {
-          stockQty: Number(body.stockQty),
-        }),
-
-        ...(body.featured !== undefined && {
-          featured: !!body.featured,
-        }),
-
-        ...(body.isNew !== undefined && {
-          isNew: !!body.isNew,
-        }),
-
-        ...(body.bestSeller !== undefined && {
-          bestSeller: !!body.bestSeller,
-        }),
-
-        ...(body.active !== undefined && {
-          active: !!body.active,
-        }),
-
-        ...(body.categoryId !== undefined && {
-          categoryId: body.categoryId,
-        }),
-
-        ...(body.subcategoryId !== undefined && {
-          subcategoryId: body.subcategoryId || null,
-        }),
+        ...(body.stockQty !== undefined && { stockQty: Number(body.stockQty) }),
+        ...(body.featured !== undefined && { featured: !!body.featured }),
+        ...(body.isNew !== undefined && { isNew: !!body.isNew }),
+        ...(body.bestSeller !== undefined && { bestSeller: !!body.bestSeller }),
+        ...(body.active !== undefined && { active: !!body.active }),
+        ...(body.categoryId !== undefined && { categoryId: primaryCategoryId }),
+        ...(body.subcategoryId !== undefined && { subcategoryId: body.subcategoryId || null }),
       },
     });
+
+    if (categoriesProvided) {
+      const categoryIds = normalizeCategoryIds(primaryCategoryId, body.categoryIds);
+      await tx.productCategory.deleteMany({ where: { productId: params.id } });
+      await tx.productCategory.createMany({
+        data: categoryIds.map((categoryId) => ({ productId: params.id, categoryId })),
+        skipDuplicates: true,
+      });
+    }
 
     if (variantsProvided) {
       const receivedIds = variants
@@ -92,27 +88,15 @@ export async function PUT(
       await tx.productVariant.deleteMany({
         where: {
           productId: params.id,
-          ...(receivedIds.length > 0
-            ? {
-                id: {
-                  notIn: receivedIds,
-                },
-              }
-            : {}),
+          ...(receivedIds.length > 0 ? { id: { notIn: receivedIds } } : {}),
         },
       });
 
       for (const variant of variants) {
         if (variant.id) {
           await tx.productVariant.update({
-            where: {
-              id: variant.id,
-              productId: params.id,
-            },
-            data: {
-              name: variant.name,
-              stockQty: variant.stockQty,
-            },
+            where: { id: variant.id, productId: params.id },
+            data: { name: variant.name, stockQty: variant.stockQty },
           });
         } else {
           await tx.productVariant.create({
