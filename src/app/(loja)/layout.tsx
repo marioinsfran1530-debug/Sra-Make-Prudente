@@ -21,7 +21,7 @@ export default async function LojaLayout({
             storeName={settings?.storeName ?? "Sra Make Prudente"}
             logoUrl={settings?.logoUrl}
           />
-          <div className="pb-20 md:pb-8">{children}</div>
+          <div className="pb-20">{children}</div>
           <BottomNav />
         </div>
       </div>
