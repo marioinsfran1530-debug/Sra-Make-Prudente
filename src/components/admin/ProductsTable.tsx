@@ -24,10 +24,10 @@ type Row = {
 };
 
 type ViewMode = "list" | "grid";
+type VitrineField = "featured" | "isNew" | "bestSeller";
 
 export function ProductsTable({ products }: { products: Row[] }) {
   const router = useRouter();
-
   const [query, setQuery] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [status, setStatus] = useState("");
@@ -36,15 +36,13 @@ export function ProductsTable({ products }: { products: Row[] }) {
   const [perPage, setPerPage] = useState(10);
   const [page, setPage] = useState(1);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [openVitrineId, setOpenVitrineId] = useState<string | null>(null);
   const [togglingVitrine, setTogglingVitrine] = useState<string | null>(null);
 
   const categories = useMemo(() => {
     const map = new Map<string, string>();
-
-    products.forEach((product) => {
-      map.set(product.categoryId, product.category.name);
-    });
+    products.forEach((product) => map.set(product.categoryId, product.category.name));
 
     return Array.from(map.entries())
       .map(([id, name]) => ({ id, name }))
@@ -59,38 +57,27 @@ export function ProductsTable({ products }: { products: Row[] }) {
         !normalizedQuery ||
         product.name.toLowerCase().includes(normalizedQuery) ||
         product.brand.toLowerCase().includes(normalizedQuery) ||
-        product.sku?.toLowerCase().includes(normalizedQuery);
+        Boolean(product.sku?.toLowerCase().includes(normalizedQuery));
 
-      const matchesCategory =
-        !categoryId || product.categoryId === categoryId;
-
+      const matchesCategory = !categoryId || product.categoryId === categoryId;
       const stockStatus = computeStockStatus(product.stockQty);
-
       const matchesStatus =
         !status ||
         (status === "active" && product.active) ||
         (status === "inactive" && !product.active) ||
         status === stockStatus;
-
       const matchesTag =
         !tag ||
         (tag === "featured" && product.featured) ||
         (tag === "new" && product.isNew) ||
         (tag === "bestSeller" && product.bestSeller);
 
-      return (
-        matchesQuery &&
-        matchesCategory &&
-        matchesStatus &&
-        matchesTag
-      );
+      return matchesQuery && matchesCategory && matchesStatus && matchesTag;
     });
   }, [products, query, categoryId, status, tag]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
-
   const safePage = Math.min(page, totalPages);
-
   const visibleProducts = filtered.slice(
     (safePage - 1) * perPage,
     safePage * perPage
@@ -107,9 +94,7 @@ export function ProductsTable({ products }: { products: Row[] }) {
       const response = await fetch(`/api/admin/products/${product.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          active: !product.active,
-        }),
+        body: JSON.stringify({ active: !product.active }),
       });
 
       if (!response.ok) {
@@ -117,27 +102,56 @@ export function ProductsTable({ products }: { products: Row[] }) {
       }
 
       router.refresh();
+    } catch (error) {
+      window.alert(
+        error instanceof Error ? error.message : "Não foi possível atualizar o produto."
+      );
     } finally {
       setTogglingId(null);
     }
   }
 
-  async function toggleVitrine(
-    product: Row,
-    field: "featured" | "isNew" | "bestSeller"
-  ) {
-    const currentValue = product[field];
-    const operationId = `${product.id}-${field}`;
+  async function deleteProduct(product: Row) {
+    const confirmed = window.confirm(
+      `Excluir “${product.name}” definitivamente?\n\nUse esta opção somente para cadastros feitos por engano. Esta ação não pode ser desfeita.`
+    );
 
+    if (!confirmed) return;
+
+    setDeletingId(product.id);
+
+    try {
+      const response = await fetch(`/api/admin/products/${product.id}`, {
+        method: "DELETE",
+      });
+      const data = (await response.json().catch(() => null)) as
+        | { error?: string }
+        | null;
+
+      if (!response.ok) {
+        throw new Error(data?.error || "Não foi possível excluir o produto.");
+      }
+
+      setOpenVitrineId(null);
+      router.refresh();
+    } catch (error) {
+      window.alert(
+        error instanceof Error ? error.message : "Não foi possível excluir o produto."
+      );
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  async function toggleVitrine(product: Row, field: VitrineField) {
+    const operationId = `${product.id}-${field}`;
     setTogglingVitrine(operationId);
 
     try {
       const response = await fetch(`/api/admin/products/${product.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          [field]: !currentValue,
-        }),
+        body: JSON.stringify({ [field]: !product[field] }),
       });
 
       if (!response.ok) {
@@ -145,46 +159,48 @@ export function ProductsTable({ products }: { products: Row[] }) {
       }
 
       router.refresh();
+    } catch (error) {
+      window.alert(
+        error instanceof Error ? error.message : "Não foi possível atualizar a vitrine."
+      );
     } finally {
       setTogglingVitrine(null);
     }
   }
 
-
   return (
     <div>
-      <div className="flex flex-col gap-3 mb-4">
-        <div className="flex flex-col sm:flex-row gap-2">
+      <div className="mb-4 flex flex-col gap-3">
+        <div className="flex flex-col gap-2 sm:flex-row">
           <input
             value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
+            onChange={(event) => {
+              setQuery(event.target.value);
               resetPage();
             }}
             placeholder="Buscar por nome, marca ou SKU..."
-            className="flex-1 rounded-xl border border-rosa/20 px-4 py-2.5 text-sm outline-none bg-white"
+            className="flex-1 rounded-xl border border-rosa/20 bg-white px-4 py-2.5 text-sm outline-none"
           />
 
           <Link
             href="/admin/produtos/novo"
-            className="text-xs font-bold px-4 py-2.5 rounded-xl text-white whitespace-nowrap text-center"
+            className="whitespace-nowrap rounded-xl px-4 py-2.5 text-center text-xs font-bold text-white"
             style={{ backgroundColor: "#E4127B" }}
           >
             + Novo produto
           </Link>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
           <select
             value={categoryId}
-            onChange={(e) => {
-              setCategoryId(e.target.value);
+            onChange={(event) => {
+              setCategoryId(event.target.value);
               resetPage();
             }}
-            className="rounded-xl border border-rosa/20 px-3 py-2 text-xs bg-white"
+            className="rounded-xl border border-rosa/20 bg-white px-3 py-2 text-xs"
           >
             <option value="">Todas as categorias</option>
-
             {categories.map((category) => (
               <option key={category.id} value={category.id}>
                 {category.name}
@@ -194,11 +210,11 @@ export function ProductsTable({ products }: { products: Row[] }) {
 
           <select
             value={status}
-            onChange={(e) => {
-              setStatus(e.target.value);
+            onChange={(event) => {
+              setStatus(event.target.value);
               resetPage();
             }}
-            className="rounded-xl border border-rosa/20 px-3 py-2 text-xs bg-white"
+            className="rounded-xl border border-rosa/20 bg-white px-3 py-2 text-xs"
           >
             <option value="">Todas as situações</option>
             <option value="active">Ativos</option>
@@ -210,11 +226,11 @@ export function ProductsTable({ products }: { products: Row[] }) {
 
           <select
             value={tag}
-            onChange={(e) => {
-              setTag(e.target.value);
+            onChange={(event) => {
+              setTag(event.target.value);
               resetPage();
             }}
-            className="rounded-xl border border-rosa/20 px-3 py-2 text-xs bg-white"
+            className="rounded-xl border border-rosa/20 bg-white px-3 py-2 text-xs"
           >
             <option value="">Todos os tipos</option>
             <option value="featured">Destaques</option>
@@ -225,42 +241,31 @@ export function ProductsTable({ products }: { products: Row[] }) {
           <div className="flex gap-2">
             <select
               value={perPage}
-              onChange={(e) => {
-                setPerPage(Number(e.target.value));
+              onChange={(event) => {
+                setPerPage(Number(event.target.value));
                 setPage(1);
               }}
-              className="flex-1 rounded-xl border border-rosa/20 px-3 py-2 text-xs bg-white"
+              className="flex-1 rounded-xl border border-rosa/20 bg-white px-3 py-2 text-xs"
             >
               <option value={10}>10 por página</option>
               <option value={30}>30 por página</option>
               <option value={50}>50 por página</option>
             </select>
 
-            <button
-              type="button"
-              onClick={() => setViewMode("list")}
-              className={`w-10 rounded-xl border flex items-center justify-center ${
-                viewMode === "list"
-                  ? "border-rosa-profundo text-rosa-profundo bg-rosa/5"
-                  : "border-rosa/20 text-cinza bg-white"
-              }`}
+            <ViewButton
+              active={viewMode === "list"}
               title="Visualização em lista"
+              onClick={() => setViewMode("list")}
             >
               <List size={16} />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setViewMode("grid")}
-              className={`w-10 rounded-xl border flex items-center justify-center ${
-                viewMode === "grid"
-                  ? "border-rosa-profundo text-rosa-profundo bg-rosa/5"
-                  : "border-rosa/20 text-cinza bg-white"
-              }`}
+            </ViewButton>
+            <ViewButton
+              active={viewMode === "grid"}
               title="Visualização em grade"
+              onClick={() => setViewMode("grid")}
             >
               <Grid2X2 size={16} />
-            </button>
+            </ViewButton>
           </div>
         </div>
 
@@ -291,66 +296,45 @@ export function ProductsTable({ products }: { products: Row[] }) {
       <div
         className={
           viewMode === "grid"
-            ? "grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3"
+            ? "grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3"
             : "flex flex-col gap-2"
         }
       >
         {visibleProducts.map((product) => {
           const stock = computeStockStatus(product.stockQty);
+          const deleting = deletingId === product.id;
 
           return (
             <div
               key={product.id}
               className={
                 viewMode === "grid"
-                  ? "flex flex-col bg-white rounded-xl p-4"
-                  : "flex items-center gap-3 bg-white rounded-xl p-3"
+                  ? "flex flex-col rounded-xl bg-white p-4"
+                  : "flex items-center gap-3 rounded-xl bg-white p-3"
               }
               style={{
                 boxShadow: "0 2px 10px rgba(35,20,42,0.06)",
                 opacity: product.active ? 1 : 0.55,
               }}
             >
-              <div className="flex-1 min-w-0">
-                <div className="flex flex-wrap gap-1 mb-1">
-                  {product.featured && (
-                    <span className="text-[9px] font-bold rounded-full bg-rosa/10 text-rosa-profundo px-2 py-1">
-                      Destaque
-                    </span>
-                  )}
-
-                  {product.isNew && (
-                    <span className="text-[9px] font-bold rounded-full bg-creme text-texto px-2 py-1">
-                      Novidade
-                    </span>
-                  )}
-
-                  {product.bestSeller && (
-                    <span className="text-[9px] font-bold rounded-full bg-navy/5 text-texto px-2 py-1">
-                      Mais procurado
-                    </span>
-                  )}
+              <div className="min-w-0 flex-1">
+                <div className="mb-1 flex flex-wrap gap-1">
+                  {product.featured && <Tag>Destaque</Tag>}
+                  {product.isNew && <Tag variant="cream">Novidade</Tag>}
+                  {product.bestSeller && <Tag variant="navy">Mais procurado</Tag>}
                 </div>
 
-                <p className="text-sm font-bold text-texto truncate">
-                  {product.name}
-                </p>
-
+                <p className="truncate text-sm font-bold text-texto">{product.name}</p>
                 <p className="text-xs text-cinza">
                   {product.brand} · {product.category.name}
                 </p>
-
                 {product.sku && (
-                  <p className="text-[10px] text-cinza mt-0.5">
-                    SKU: {product.sku}
-                  </p>
+                  <p className="mt-0.5 text-[10px] text-cinza">SKU: {product.sku}</p>
                 )}
-
-                <p className="text-xs text-cinza mt-1">
+                <p className="mt-1 text-xs text-cinza">
                   {STOCK_LABEL[stock]} · {product.stockQty} un.
                 </p>
-
-                <p className="text-sm font-bold text-rosa-profundo mt-1">
+                <p className="mt-1 text-sm font-bold text-rosa-profundo">
                   {money(product.promoPrice ?? product.price)}
                 </p>
               </div>
@@ -358,26 +342,18 @@ export function ProductsTable({ products }: { products: Row[] }) {
               <div
                 className={
                   viewMode === "grid"
-                    ? "flex gap-2 mt-4"
-                    : "flex gap-2"
+                    ? "mt-4 flex flex-wrap gap-2"
+                    : "flex flex-wrap justify-end gap-2"
                 }
               >
-
-
                 <div className="relative">
                   <button
                     type="button"
                     onClick={() =>
-                      setOpenVitrineId(
-                        openVitrineId === product.id
-                          ? null
-                          : product.id
-                      )
+                      setOpenVitrineId(openVitrineId === product.id ? null : product.id)
                     }
-                    className={`text-xs font-bold px-3 py-2 rounded-xl border whitespace-nowrap ${
-                      product.featured ||
-                      product.isNew ||
-                      product.bestSeller
+                    className={`whitespace-nowrap rounded-xl border px-3 py-2 text-xs font-bold ${
+                      product.featured || product.isNew || product.bestSeller
                         ? "border-rosa-profundo bg-rosa/10 text-rosa-profundo"
                         : "border-rosa/20 bg-white text-texto"
                     }`}
@@ -386,45 +362,27 @@ export function ProductsTable({ products }: { products: Row[] }) {
                   </button>
 
                   {openVitrineId === product.id && (
-                    <div className="absolute right-0 bottom-full mb-2 z-30 w-52 rounded-2xl bg-white border border-rosa/10 shadow-xl p-2">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-cinza px-2 py-1">
+                    <div className="absolute bottom-full right-0 z-30 mb-2 w-52 rounded-2xl border border-rosa/10 bg-white p-2 shadow-xl">
+                      <p className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-cinza">
                         Exibir produto em
                       </p>
-
                       <VitrineOption
                         label="Destaque"
                         checked={product.featured}
-                        loading={
-                          togglingVitrine ===
-                          `${product.id}-featured`
-                        }
-                        onClick={() =>
-                          toggleVitrine(product, "featured")
-                        }
+                        loading={togglingVitrine === `${product.id}-featured`}
+                        onClick={() => toggleVitrine(product, "featured")}
                       />
-
                       <VitrineOption
                         label="Novidade"
                         checked={product.isNew}
-                        loading={
-                          togglingVitrine ===
-                          `${product.id}-isNew`
-                        }
-                        onClick={() =>
-                          toggleVitrine(product, "isNew")
-                        }
+                        loading={togglingVitrine === `${product.id}-isNew`}
+                        onClick={() => toggleVitrine(product, "isNew")}
                       />
-
                       <VitrineOption
                         label="Mais procurado"
                         checked={product.bestSeller}
-                        loading={
-                          togglingVitrine ===
-                          `${product.id}-bestSeller`
-                        }
-                        onClick={() =>
-                          toggleVitrine(product, "bestSeller")
-                        }
+                        loading={togglingVitrine === `${product.id}-bestSeller`}
+                        onClick={() => toggleVitrine(product, "bestSeller")}
                       />
                     </div>
                   )}
@@ -433,8 +391,8 @@ export function ProductsTable({ products }: { products: Row[] }) {
                 <button
                   type="button"
                   onClick={() => toggleActive(product)}
-                  disabled={togglingId === product.id}
-                  className="text-xs font-bold px-3 py-2 rounded-xl border border-rosa/20 text-texto whitespace-nowrap disabled:opacity-50"
+                  disabled={togglingId === product.id || deleting}
+                  className="whitespace-nowrap rounded-xl border border-rosa/20 px-3 py-2 text-xs font-bold text-texto disabled:opacity-50"
                 >
                   {togglingId === product.id
                     ? "..."
@@ -443,9 +401,18 @@ export function ProductsTable({ products }: { products: Row[] }) {
                       : "Ativar"}
                 </button>
 
+                <button
+                  type="button"
+                  onClick={() => deleteProduct(product)}
+                  disabled={deleting || togglingId === product.id}
+                  className="whitespace-nowrap rounded-xl border border-red-200 px-3 py-2 text-xs font-bold text-red-600 disabled:opacity-50"
+                >
+                  {deleting ? "Excluindo..." : "Excluir"}
+                </button>
+
                 <Link
                   href={`/admin/produtos/${product.id}`}
-                  className="text-xs font-bold px-3 py-2 rounded-xl text-white whitespace-nowrap text-center"
+                  className="whitespace-nowrap rounded-xl px-3 py-2 text-center text-xs font-bold text-white"
                   style={{ backgroundColor: "#131B33" }}
                 >
                   Editar
@@ -465,32 +432,25 @@ export function ProductsTable({ products }: { products: Row[] }) {
       </div>
 
       {filtered.length > 0 && (
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-5">
+        <div className="mt-5 flex flex-col items-center justify-between gap-3 sm:flex-row">
           <p className="text-[11px] text-cinza">
             Página {safePage} de {totalPages}
           </p>
-
           <div className="flex items-center gap-2">
             <button
               type="button"
               disabled={safePage <= 1}
               onClick={() => setPage((current) => Math.max(1, current - 1))}
-              className="text-xs font-bold px-3 py-2 rounded-xl border border-rosa/20 disabled:opacity-40"
+              className="rounded-xl border border-rosa/20 px-3 py-2 text-xs font-bold disabled:opacity-40"
             >
               Anterior
             </button>
-
-            <span className="text-xs font-bold text-texto px-2">
-              {safePage}
-            </span>
-
+            <span className="px-2 text-xs font-bold text-texto">{safePage}</span>
             <button
               type="button"
               disabled={safePage >= totalPages}
-              onClick={() =>
-                setPage((current) => Math.min(totalPages, current + 1))
-              }
-              className="text-xs font-bold px-3 py-2 rounded-xl border border-rosa/20 disabled:opacity-40"
+              onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+              className="rounded-xl border border-rosa/20 px-3 py-2 text-xs font-bold disabled:opacity-40"
             >
               Próxima
             </button>
@@ -501,6 +461,52 @@ export function ProductsTable({ products }: { products: Row[] }) {
   );
 }
 
+function ViewButton({
+  active,
+  title,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  title: string;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex w-10 items-center justify-center rounded-xl border ${
+        active
+          ? "border-rosa-profundo bg-rosa/5 text-rosa-profundo"
+          : "border-rosa/20 bg-white text-cinza"
+      }`}
+      title={title}
+    >
+      {children}
+    </button>
+  );
+}
+
+function Tag({
+  children,
+  variant = "pink",
+}: {
+  children: React.ReactNode;
+  variant?: "pink" | "cream" | "navy";
+}) {
+  const classes = {
+    pink: "bg-rosa/10 text-rosa-profundo",
+    cream: "bg-creme text-texto",
+    navy: "bg-navy/5 text-texto",
+  }[variant];
+
+  return (
+    <span className={`rounded-full px-2 py-1 text-[9px] font-bold ${classes}`}>
+      {children}
+    </span>
+  );
+}
 
 function VitrineOption({
   label,
@@ -518,17 +524,14 @@ function VitrineOption({
       type="button"
       onClick={onClick}
       disabled={loading}
-      className="w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl hover:bg-rosa/5 transition disabled:opacity-50"
+      className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 transition hover:bg-rosa/5 disabled:opacity-50"
     >
-      <span className="text-xs font-semibold text-texto">
-        {label}
-      </span>
-
+      <span className="text-xs font-semibold text-texto">{label}</span>
       <span
-        className={`w-5 h-5 rounded-md border flex items-center justify-center text-[11px] font-bold ${
+        className={`flex h-5 w-5 items-center justify-center rounded-md border text-[11px] font-bold ${
           checked
-            ? "bg-rosa-profundo border-rosa-profundo text-white"
-            : "bg-white border-rosa/30 text-transparent"
+            ? "border-rosa-profundo bg-rosa-profundo text-white"
+            : "border-rosa/30 bg-white text-transparent"
         }`}
       >
         {loading ? "…" : "✓"}
