@@ -15,6 +15,10 @@ export default async function AdminDivulgacaoPage() {
     promoPrice: product.promoPrice ? Number(product.promoPrice) : null,
     stockQty: product.stockQty,
     active: product.active,
+    featured: product.featured,
+    isNew: product.isNew,
+    bestSeller: product.bestSeller,
+    createdAt: product.createdAt.toISOString(),
     category: { name: product.category.name },
   }));
 
@@ -23,7 +27,7 @@ export default async function AdminDivulgacaoPage() {
       <div className="mb-5">
         <h1 className="font-serif text-xl font-bold text-texto">Central de Divulgação</h1>
         <p className="mt-1 text-sm text-cinza">
-          Gere ofertas, novidades e avisos de últimas unidades usando os dados do catálogo.
+          Gere ofertas, organize a fila do dia e publique com confirmação humana.
         </p>
       </div>
 
