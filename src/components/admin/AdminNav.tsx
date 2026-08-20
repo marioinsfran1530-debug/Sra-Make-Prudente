@@ -20,6 +20,7 @@ export function AdminNav({
     { href: "/admin/produtos", label: "Produtos" },
     { href: "/admin/categorias", label: "Categorias" },
     { href: "/admin/pedidos", label: "Pedidos" },
+    { href: "/admin/divulgacao", label: "Divulgação" },
     { href: "/admin/loja", label: "Loja" },
   ];
 
