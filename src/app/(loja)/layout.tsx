@@ -43,51 +43,64 @@ export default async function LojaLayout({
     socialUrl(settings?.facebook, "facebook"),
   ].filter((url): url is string => Boolean(url));
 
-  const localBusiness = {
+  const structuredData = {
     "@context": "https://schema.org",
-    "@type": ["Store", "LocalBusiness"],
-    "@id": `${SITE_URL}/#store`,
-    name: storeName,
-    url: SITE_URL,
-    description:
-      "Loja de maquiagem, lash, nail e acessórios em Presidente Prudente, com catálogo online, retirada e atendimento pelo WhatsApp.",
-    areaServed: {
-      "@type": "City",
-      name: "Presidente Prudente",
-      containedInPlace: {
-        "@type": "State",
-        name: "São Paulo",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": `${SITE_URL}/#website`,
+        url: SITE_URL,
+        name: storeName,
+        alternateName: "Sra Make",
+        inLanguage: "pt-BR",
+        publisher: { "@id": `${SITE_URL}/#store` },
       },
-    },
-    ...(settings?.logoUrl ? { logo: settings.logoUrl, image: settings.logoUrl } : {}),
-    ...(telephone
-      ? {
-          telephone,
-          contactPoint: {
-            "@type": "ContactPoint",
-            telephone,
-            contactType: "customer service",
-            areaServed: "BR",
-            availableLanguage: "Portuguese",
+      {
+        "@type": ["Store", "LocalBusiness"],
+        "@id": `${SITE_URL}/#store`,
+        name: storeName,
+        url: SITE_URL,
+        description:
+          "Loja de maquiagem, lash, nail e acessórios em Presidente Prudente, com catálogo online, retirada e atendimento pelo WhatsApp.",
+        areaServed: {
+          "@type": "City",
+          name: "Presidente Prudente",
+          containedInPlace: {
+            "@type": "State",
+            name: "São Paulo",
           },
-        }
-      : {}),
-    ...(settings?.address
-      ? {
-          address: {
-            "@type": "PostalAddress",
-            streetAddress: settings.address,
-            addressLocality: "Presidente Prudente",
-            addressRegion: "SP",
-            addressCountry: "BR",
-          },
-        }
-      : {}),
-    ...(settings?.googleMapsUrl ? { hasMap: settings.googleMapsUrl } : {}),
-    ...(sameAs.length > 0 ? { sameAs } : {}),
+        },
+        ...(settings?.logoUrl ? { logo: settings.logoUrl, image: settings.logoUrl } : {}),
+        ...(telephone
+          ? {
+              telephone,
+              contactPoint: {
+                "@type": "ContactPoint",
+                telephone,
+                contactType: "customer service",
+                areaServed: "BR",
+                availableLanguage: "Portuguese",
+              },
+            }
+          : {}),
+        ...(settings?.address
+          ? {
+              address: {
+                "@type": "PostalAddress",
+                streetAddress: settings.address,
+                addressLocality: "Presidente Prudente",
+                addressRegion: "SP",
+                addressCountry: "BR",
+              },
+            }
+          : {}),
+        ...(settings?.googleMapsUrl ? { hasMap: settings.googleMapsUrl } : {}),
+        ...(sameAs.length > 0 ? { sameAs } : {}),
+      },
+    ],
   };
 
-  const localBusinessJson = JSON.stringify(localBusiness).replace(/</g, "\\u003c");
+  const structuredDataJson = JSON.stringify(structuredData).replace(/</g, "\\u003c");
 
   return (
     <CartProvider>
@@ -95,7 +108,7 @@ export default async function LojaLayout({
 
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: localBusinessJson }}
+        dangerouslySetInnerHTML={{ __html: structuredDataJson }}
       />
 
       <div className="min-h-screen bg-creme">
