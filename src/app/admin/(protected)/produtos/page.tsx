@@ -3,24 +3,32 @@ import { ProductsTable } from "@/components/admin/ProductsTable";
 
 export default async function AdminProdutosPage() {
   const products = await prisma.product.findMany({
-    include: { category: true },
+    include: {
+      category: true,
+      variants: {
+        where: { active: true },
+        select: { stockQty: true },
+      },
+    },
     orderBy: { createdAt: "desc" },
   });
 
-  const rows = products.map((p) => ({
-    id: p.id,
-    name: p.name,
-    brand: p.brand,
-    sku: p.sku,
-    price: Number(p.price),
-    promoPrice: p.promoPrice ? Number(p.promoPrice) : null,
-    stockQty: p.stockQty,
-    active: p.active,
-    featured: p.featured,
-    isNew: p.isNew,
-    bestSeller: p.bestSeller,
-    categoryId: p.categoryId,
-    category: { name: p.category.name },
+  const rows = products.map((product) => ({
+    id: product.id,
+    name: product.name,
+    brand: product.brand,
+    sku: product.sku,
+    price: Number(product.price),
+    promoPrice: product.promoPrice ? Number(product.promoPrice) : null,
+    stockQty: product.variants.length
+      ? product.variants.reduce((total, variant) => total + variant.stockQty, 0)
+      : product.stockQty,
+    active: product.active,
+    featured: product.featured,
+    isNew: product.isNew,
+    bestSeller: product.bestSeller,
+    categoryId: product.categoryId,
+    category: { name: product.category.name },
   }));
 
   return (
