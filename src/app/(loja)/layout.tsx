@@ -6,15 +6,27 @@ import { getStoreSettings } from "@/lib/data";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://sramakeprudente.com.br";
 
-function absoluteSocialUrl(value?: string | null) {
+function socialUrl(value: string | null | undefined, network: "instagram" | "facebook") {
   if (!value) return null;
 
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
   try {
-    const url = new URL(value);
+    const url = new URL(trimmed);
     return url.protocol === "https:" ? url.toString() : null;
   } catch {
-    return null;
+    const handle = trimmed.replace(/^@/, "").replace(/^\/+|\/+$/g, "");
+    if (!handle || handle.includes(" ")) return null;
+    return `https://${network}.com/${handle}`;
   }
+}
+
+function phoneForSchema(value?: string | null) {
+  if (!value) return null;
+  const digits = value.replace(/\D/g, "");
+  if (!digits) return null;
+  return digits.startsWith("55") ? `+${digits}` : `+55${digits}`;
 }
 
 export default async function LojaLayout({
@@ -24,10 +36,11 @@ export default async function LojaLayout({
 }) {
   const settings = await getStoreSettings();
   const storeName = settings?.storeName ?? "Sra Make Prudente";
+  const telephone = phoneForSchema(settings?.whatsapp);
 
   const sameAs = [
-    absoluteSocialUrl(settings?.instagram),
-    absoluteSocialUrl(settings?.facebook),
+    socialUrl(settings?.instagram, "instagram"),
+    socialUrl(settings?.facebook, "facebook"),
   ].filter((url): url is string => Boolean(url));
 
   const localBusiness = {
@@ -36,8 +49,29 @@ export default async function LojaLayout({
     "@id": `${SITE_URL}/#store`,
     name: storeName,
     url: SITE_URL,
+    description:
+      "Loja de maquiagem, lash, nail e acessórios em Presidente Prudente, com catálogo online, retirada e atendimento pelo WhatsApp.",
+    areaServed: {
+      "@type": "City",
+      name: "Presidente Prudente",
+      containedInPlace: {
+        "@type": "State",
+        name: "São Paulo",
+      },
+    },
     ...(settings?.logoUrl ? { logo: settings.logoUrl, image: settings.logoUrl } : {}),
-    ...(settings?.whatsapp ? { telephone: settings.whatsapp } : {}),
+    ...(telephone
+      ? {
+          telephone,
+          contactPoint: {
+            "@type": "ContactPoint",
+            telephone,
+            contactType: "customer service",
+            areaServed: "BR",
+            availableLanguage: "Portuguese",
+          },
+        }
+      : {}),
     ...(settings?.address
       ? {
           address: {
