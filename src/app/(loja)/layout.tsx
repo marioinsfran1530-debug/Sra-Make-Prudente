@@ -4,7 +4,7 @@ import { DesktopStoreNav } from "@/components/DesktopStoreNav";
 import { TrackingInit } from "@/components/TrackingInit";
 import { getStoreSettings } from "@/lib/data";
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://sramakeprudente.com.br";
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://sramakeprudente.vercel.app";
 
 function socialUrl(value: string | null | undefined, network: "instagram" | "facebook") {
   if (!value) return null;
