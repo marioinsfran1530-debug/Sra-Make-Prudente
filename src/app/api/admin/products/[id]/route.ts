@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin-auth";
 
@@ -7,6 +8,16 @@ type VariantInput = {
   name: string;
   stockQty: number;
 };
+
+const PRODUCT_IMAGES_BUCKET = "product-images";
+const OPEN_ORDER_STATUSES = [
+  "NOVO",
+  "EM_CONFIRMACAO",
+  "CONFIRMADO",
+  "SEPARANDO",
+  "PRONTO_RETIRADA",
+  "SAIU_ENTREGA",
+] as const;
 
 function normalizeCategoryIds(primaryCategoryId: string, categoryIds: unknown) {
   const ids = Array.isArray(categoryIds)
@@ -123,10 +134,66 @@ export async function DELETE(
   const { error, status } = await requireAdmin("EDITOR");
   if (error) return NextResponse.json({ error }, { status });
 
-  await prisma.product.update({
+  const product = await prisma.product.findUnique({
     where: { id: params.id },
-    data: { active: false },
+    select: {
+      id: true,
+      images: {
+        select: { storagePath: true },
+      },
+    },
   });
+
+  if (!product) {
+    return NextResponse.json({ error: "Produto não encontrado." }, { status: 404 });
+  }
+
+  const orderInProgress = await prisma.orderItem.findFirst({
+    where: {
+      productId: params.id,
+      order: {
+        status: { in: [...OPEN_ORDER_STATUSES] },
+      },
+    },
+    select: { id: true },
+  });
+
+  if (orderInProgress) {
+    return NextResponse.json(
+      {
+        error:
+          "Este produto está ligado a um pedido em andamento. Finalize ou cancele o pedido antes de excluir.",
+      },
+      { status: 409 }
+    );
+  }
+
+  await prisma.product.delete({
+    where: { id: params.id },
+  });
+
+  const storagePaths = product.images
+    .map((image) => image.storagePath)
+    .filter((path): path is string => Boolean(path));
+
+  if (
+    storagePaths.length > 0 &&
+    process.env.NEXT_PUBLIC_SUPABASE_URL &&
+    process.env.SUPABASE_SERVICE_ROLE_KEY
+  ) {
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+
+    const { error: storageError } = await supabase.storage
+      .from(PRODUCT_IMAGES_BUCKET)
+      .remove(storagePaths);
+
+    if (storageError) {
+      console.error("Produto excluído, mas houve falha ao limpar imagens:", storageError);
+    }
+  }
 
   return NextResponse.json({ ok: true });
 }
