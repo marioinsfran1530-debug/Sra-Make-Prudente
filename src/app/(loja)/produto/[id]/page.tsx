@@ -13,7 +13,7 @@ import { waLink } from "@/lib/whatsapp";
 export const revalidate = 60;
 
 const SITE_URL =
-  process.env.NEXT_PUBLIC_SITE_URL || "https://sramakeprudente.com.br";
+  process.env.NEXT_PUBLIC_SITE_URL || "https://sramakeprudente.vercel.app";
 
 function jsonLd(data: Record<string, unknown>) {
   return JSON.stringify(data).replace(/</g, "\\u003c");
@@ -28,13 +28,14 @@ export async function generateMetadata({
   if (!product) return {};
 
   const description =
-    product.description ??
+    product.description?.trim() ||
     `${product.name} da ${product.brand} no catálogo da Sra Make Prudente em Presidente Prudente.`;
   const canonical = `${SITE_URL}/produto/${product.id}`;
   const mainImage = product.images[0]?.url;
+  const title = `${product.name} — ${product.brand}`;
 
   return {
-    title: `${product.name} — ${product.brand}`,
+    title,
     description,
     alternates: { canonical },
     openGraph: {
@@ -43,6 +44,12 @@ export async function generateMetadata({
       url: canonical,
       type: "website",
       images: mainImage ? [{ url: mainImage, alt: product.name }] : undefined,
+    },
+    twitter: {
+      card: mainImage ? "summary_large_image" : "summary",
+      title,
+      description,
+      ...(mainImage ? { images: [mainImage] } : {}),
     },
   };
 }
@@ -67,9 +74,10 @@ export default async function ProdutoPage({
   const productStructuredData = {
     "@context": "https://schema.org",
     "@type": "Product",
+    "@id": `${productUrl}#product`,
     name: product.name,
     description:
-      product.description ??
+      product.description?.trim() ||
       `${product.name} da ${product.brand} disponível no catálogo da Sra Make Prudente.`,
     sku: product.sku ?? undefined,
     brand: {
@@ -87,8 +95,7 @@ export default async function ProdutoPage({
       availability,
       itemCondition: "https://schema.org/NewCondition",
       seller: {
-        "@type": "Organization",
-        name: "Sra Make Prudente",
+        "@id": `${SITE_URL}/#store`,
       },
     },
   };
