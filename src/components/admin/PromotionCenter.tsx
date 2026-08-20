@@ -1,35 +1,738 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, Clock3, Copy, Download, ExternalLink, ImageIcon, Megaphone, RefreshCw, Share2, Sparkles, WandSparkles } from "lucide-react";
+import {
+  Check,
+  Clock3,
+  Copy,
+  Download,
+  ExternalLink,
+  ImageIcon,
+  RefreshCw,
+  Share2,
+  Sparkles,
+} from "lucide-react";
 
-type Product = { id:string; name:string; brand:string; price:number; promoPrice:number|null; stockQty:number; active:boolean; featured:boolean; isNew:boolean; bestSeller:boolean; createdAt:string; imageUrl:string|null; category:{name:string} };
-type Template="oferta"|"novidade"|"ultimas"; type ArtworkFormat="status"|"quadrado";
-type QueueItem={time:string;productId:string;template:Template;done:boolean}; type StoreBranding={storeName:string;logoUrl:string|null};
-type CampaignEvent={id:string;productId:string;productName:string;template:Template;createdAt:string;channel:"whatsapp"|"share"|"download";campaignCode:string};
-const QUEUE_KEY="sra-make-divulgacao-queue-v1", HISTORY_KEY="sra-make-divulgacao-history-v1", EVENTS_KEY="sra-make-campaign-events-v1";
-const TIMES=["09:00","12:00","15:00","18:00","20:00"];
-function money(v:number){return v.toLocaleString("pt-BR",{style:"currency",currency:"BRL"})}
-function slug(v:string){return v.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,40)}
-function campaignCode(p:Product,t:Template){return `${t}-${slug(p.name)}-${new Date().toISOString().slice(0,10).replace(/-/g,"")}`}
-function buildMessage(p:Product,t:Template,url:string){const h=t==="novidade"?"✨ NOVIDADE NA SRA MAKE":t==="ultimas"?"⚠️ ÚLTIMAS UNIDADES":"🔥 OFERTA SRA MAKE";const price=p.promoPrice?`De ${money(p.price)}\nPor *${money(p.promoPrice)}*`:`Por *${money(p.price)}*`;const urgency=t==="ultimas"?`Restam ${p.stockQty} unidade${p.stockQty===1?"":"s"}.`:t==="novidade"?"Chegou novidade por aqui.":"Aproveite enquanto temos estoque.";return [h,"",`💄 *${p.name}*`,p.brand||"","",price,"",urgency,"",`🛒 Veja no catálogo:\n${url}`,"","📍 Sra Make Prudente","Retirada ou entrega em Presidente Prudente."].filter(Boolean).join("\n")}
-function pickTemplate(p:Product):Template{if(p.stockQty<=5)return"ultimas";if(p.isNew)return"novidade";return"oferta"}
-function score(p:Product,recent:Set<string>){let s=0;if(p.promoPrice)s+=6;if(p.isNew)s+=5;if(p.featured)s+=4;if(p.bestSeller)s+=3;if(p.stockQty>=10)s+=2;if(p.stockQty<=5)s+=3;if(recent.has(p.id))s-=20;return s}
-function buildQueue(products:Product[],ids:string[]){const recent=new Set(ids.slice(-12));const sorted=products.filter(p=>p.active&&p.stockQty>0).sort((a,b)=>score(b,recent)-score(a,recent));const chosen:Product[]=[],cats=new Set<string>();for(const p of sorted){if(chosen.length>=TIMES.length)break;if(!cats.has(p.category.name)||chosen.length>=3){chosen.push(p);cats.add(p.category.name)}}for(const p of sorted){if(chosen.length>=TIMES.length)break;if(!chosen.some(x=>x.id===p.id))chosen.push(p)}return chosen.map((p,i)=>({time:TIMES[i],productId:p.id,template:pickTemplate(p),done:false}))}
-function loadImage(src:string){return new Promise<HTMLImageElement>((resolve,reject)=>{const i=new Image();i.crossOrigin="anonymous";i.onload=()=>resolve(i);i.onerror=reject;i.src=src})}
-function drawCover(ctx:CanvasRenderingContext2D,img:HTMLImageElement,x:number,y:number,w:number,h:number){const sc=Math.max(w/img.width,h/img.height),dw=img.width*sc,dh=img.height*sc;ctx.drawImage(img,x+(w-dw)/2,y+(h-dh)/2,dw,dh)}
-function wrappedLines(ctx:CanvasRenderingContext2D,text:string,max:number){const words=text.split(/\s+/),lines:string[]=[];let cur="";for(const word of words){const n=cur?`${cur} ${word}`:word;if(ctx.measureText(n).width>max&&cur){lines.push(cur);cur=word}else cur=n}if(cur)lines.push(cur);return lines}
-async function drawArtwork(canvas:HTMLCanvasElement,p:Product,t:Template,f:ArtworkFormat,b:StoreBranding){const w=1080,h=f==="status"?1920:1080;canvas.width=w;canvas.height=h;const c=canvas.getContext("2d");if(!c)return;const pink="#E0C0C0",dark="#333333",cream="#FFF8F5",deep="#8D4F5F";c.fillStyle=cream;c.fillRect(0,0,w,h);c.fillStyle=pink;c.fillRect(0,0,w,Math.round(h*.19));c.fillStyle=deep;c.fillRect(0,h-150,w,150);c.fillStyle="#fff";c.font="700 46px Arial";c.textAlign="center";c.fillText(t==="novidade"?"NOVIDADE":t==="ultimas"?"ÚLTIMAS UNIDADES":"OFERTA",w/2,105);c.font="700 58px Georgia";c.fillStyle=dark;c.fillText(b.storeName||"Sra Make Prudente",w/2,180);const top=Math.round(h*.22),ih=f==="status"?740:430,ix=90,iw=w-180;c.fillStyle="#fff";c.fillRect(ix,top,iw,ih);if(p.imageUrl){try{drawCover(c,await loadImage(p.imageUrl),ix,top,iw,ih)}catch{}}let y=top+ih+70;c.textAlign="left";c.fillStyle=dark;c.font="700 58px Georgia";const lines=wrappedLines(c,p.name,w-180).slice(0,3);lines.forEach((l,i)=>c.fillText(l,90,y+i*68));y+=lines.length*68+18;if(p.brand){c.font="500 34px Arial";c.fillStyle="#666";c.fillText(p.brand,90,y);y+=70}if(p.promoPrice){c.font="500 34px Arial";c.fillStyle="#777";c.fillText(`De ${money(p.price)}`,90,y);y+=60}c.fillStyle=deep;c.font="700 82px Arial";c.fillText(money(p.promoPrice??p.price),90,y);y+=85;c.font="700 30px Arial";c.fillStyle=dark;c.fillText(t==="ultimas"?`Só ${p.stockQty} unidade${p.stockQty===1?"":"s"} em estoque`:t==="novidade"?"Acabou de chegar na Sra Make":"Aproveite enquanto temos estoque",90,y);c.fillStyle="#fff";c.font="700 32px Arial";c.textAlign="center";c.fillText("Peça pelo catálogo • Retirada ou entrega",w/2,h-92)}
-export function PromotionCenter({products,branding}:{products:Product[];branding:StoreBranding}){const available=useMemo(()=>products.filter(p=>p.active&&p.stockQty>0),[products]);const[productId,setProductId]=useState(available[0]?.id??"");const[template,setTemplate]=useState<Template>("oferta"),[copied,setCopied]=useState(false),[queue,setQueue]=useState<QueueItem[]>([]),[history,setHistory]=useState<string[]>([]),[format,setFormat]=useState<ArtworkFormat>("status"),[ready,setReady]=useState(false),[events,setEvents]=useState<CampaignEvent[]>([]),[generated,setGenerated]=useState(false);const canvasRef=useRef<HTMLCanvasElement>(null);
-useEffect(()=>{try{const h=JSON.parse(localStorage.getItem(HISTORY_KEY)||"[]"),q=JSON.parse(localStorage.getItem(QUEUE_KEY)||"[]"),e=JSON.parse(localStorage.getItem(EVENTS_KEY)||"[]");setHistory(h);setQueue(q.length?q:buildQueue(products,h));setEvents(e)}catch{setQueue(buildQueue(products,[]))}},[products]);useEffect(()=>{if(queue.length)localStorage.setItem(QUEUE_KEY,JSON.stringify(queue))},[queue]);const product=available.find(x=>x.id===productId);const origin=typeof window==="undefined"?"":window.location.origin;const code=product?campaignCode(product,template):"";const productUrl=product?`${origin}/produto/${product.id}?utm_source=whatsapp&utm_medium=organic&utm_campaign=${encodeURIComponent(code)}&utm_content=${format}`:"";const message=product?buildMessage(product,template,productUrl):"";
-useEffect(()=>{const c=canvasRef.current;if(!c||!product)return;setReady(false);drawArtwork(c,product,template,format,branding).then(()=>setReady(true))},[product,template,format,branding]);
-function track(channel:CampaignEvent["channel"]){if(!product)return;const ev={id:`${Date.now()}-${Math.random()}`,productId:product.id,productName:product.name,template,createdAt:new Date().toISOString(),channel,campaignCode:code};const next=[ev,...events].slice(0,100);setEvents(next);localStorage.setItem(EVENTS_KEY,JSON.stringify(next))}
-function generateCampaign(){if(!product)return;setTemplate(pickTemplate(product));setFormat("status");setGenerated(true);window.setTimeout(()=>setGenerated(false),2200)}
-async function copyMessage(){if(!message)return;await navigator.clipboard.writeText(message);setCopied(true);setTimeout(()=>setCopied(false),1800)}async function shareMessage(){if(!product||!message)return;track("share");if(navigator.share){try{await navigator.share({title:product.name,text:message,url:productUrl});return}catch{}}await copyMessage()}function openWhatsApp(){if(!message)return;track("whatsapp");window.open(`https://wa.me/?text=${encodeURIComponent(message)}`,"_blank","noopener,noreferrer")}
-function blob(){return new Promise<Blob|null>(r=>canvasRef.current?.toBlob(r,"image/png",.95))}async function downloadArtwork(){if(!product||!ready)return;track("download");const b=await blob();if(!b)return;const u=URL.createObjectURL(b),a=document.createElement("a");a.href=u;a.download=`sra-make-${slug(product.name)}-${format}.png`;a.click();URL.revokeObjectURL(u)}async function shareArtwork(){if(!product||!ready)return;const b=await blob();if(!b)return;const file=new File([b],`sra-make-${product.id}.png`,{type:"image/png"});track("share");if(navigator.share&&navigator.canShare?.({files:[file]})){try{await navigator.share({files:[file],title:product.name,text:message});return}catch{}}await downloadArtwork()}
-const recommendedTime=queue.find(q=>q.productId===productId&&!q.done)?.time??(new Date().getHours()<18?"18:00":"20:00");
-return <div className="space-y-6"><section className="rounded-2xl border border-rosa/20 bg-gradient-to-br from-white to-creme p-5 shadow-sm"><div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"><div><div className="flex items-center gap-2 text-rosa-profundo"><WandSparkles size={22}/><span className="text-xs font-bold uppercase tracking-wider">Campanha completa</span></div><h2 className="mt-2 font-serif text-2xl font-bold text-texto">Campanha em um clique</h2><p className="mt-1 max-w-2xl text-sm text-cinza">Escolha o produto. O catálogo define o melhor modelo, cria a arte, escreve a mensagem, gera o link rastreável e sugere o horário.</p></div><button onClick={generateCampaign} disabled={!product} className="flex items-center justify-center gap-2 rounded-xl bg-rosa-profundo px-5 py-4 text-sm font-bold text-white disabled:opacity-40"><Sparkles size={18}/>{generated?"Campanha pronta!":"Gerar campanha completa"}</button></div>{product&&<div className="mt-5 grid gap-3 sm:grid-cols-4"><div className="rounded-xl bg-white p-3"><p className="text-[11px] uppercase text-cinza">Produto</p><p className="mt-1 truncate text-sm font-bold text-texto">{product.name}</p></div><div className="rounded-xl bg-white p-3"><p className="text-[11px] uppercase text-cinza">Modelo</p><p className="mt-1 text-sm font-bold text-texto">{template==="ultimas"?"Últimas unidades":template==="novidade"?"Novidade":"Oferta"}</p></div><div className="rounded-xl bg-white p-3"><p className="text-[11px] uppercase text-cinza">Horário sugerido</p><p className="mt-1 text-sm font-bold text-texto">{recommendedTime}</p></div><div className="rounded-xl bg-white p-3"><p className="text-[11px] uppercase text-cinza">Rastreamento</p><p className="mt-1 truncate text-xs font-bold text-texto">{code}</p></div></div>}</section>
-<div className="grid gap-6 lg:grid-cols-2"><section className="rounded-2xl border border-rosa/15 bg-white p-5 shadow-sm"><div className="mb-4 flex items-center gap-3"><Megaphone className="text-rosa-profundo" size={20}/><h2 className="font-serif text-lg font-bold">Produto e campanha</h2></div><select value={productId} onChange={e=>setProductId(e.target.value)} className="w-full rounded-xl border border-rosa/20 px-3 py-3 text-sm">{available.map(p=><option key={p.id} value={p.id}>{p.name} — {p.stockQty} em estoque</option>)}</select><div className="mt-4 grid grid-cols-3 gap-2">{([["oferta","Oferta"],["novidade","Novidade"],["ultimas","Últimas"]] as const).map(([v,l])=><button key={v} onClick={()=>setTemplate(v)} className={`rounded-xl border px-2 py-2.5 text-xs font-bold ${template===v?"bg-rosa-profundo text-white":"border-rosa/20 text-cinza"}`}>{l}</button>)}</div><div className="mt-4 rounded-xl bg-creme p-3 text-xs text-cinza"><b>Link rastreável:</b><br/><span className="break-all">{productUrl}</span></div></section><section className="rounded-2xl border border-rosa/15 bg-white p-5 shadow-sm"><h2 className="font-serif text-lg font-bold">Mensagem pronta</h2><div className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap rounded-xl bg-creme p-4 text-sm leading-6">{message}</div><div className="mt-3 grid grid-cols-3 gap-2"><button onClick={copyMessage} className="flex items-center justify-center gap-1 rounded-xl border border-rosa/20 py-3 text-xs font-bold"><Copy size={15}/>{copied?"Copiado":"Copiar"}</button><button onClick={shareMessage} className="flex items-center justify-center gap-1 rounded-xl border border-rosa/20 py-3 text-xs font-bold"><Share2 size={15}/>Compartilhar</button><button onClick={openWhatsApp} className="flex items-center justify-center gap-1 rounded-xl bg-rosa-profundo py-3 text-xs font-bold text-white"><ExternalLink size={15}/>WhatsApp</button></div></section></div>
-<section className="rounded-2xl border border-rosa/15 bg-white p-5 shadow-sm"><div className="flex flex-wrap justify-between gap-3"><div className="flex gap-3"><ImageIcon className="text-rosa-profundo"/><div><h2 className="font-serif text-lg font-bold">Arte automática</h2><p className="text-sm text-cinza">Criativo pronto para publicar.</p></div></div><div className="flex gap-2">{(["status","quadrado"] as const).map(v=><button key={v} onClick={()=>setFormat(v)} className={`rounded-xl border px-3 py-2 text-xs font-bold ${format===v?"bg-rosa-profundo text-white":"border-rosa/20"}`}>{v==="status"?"Status 9:16":"Quadrado 1:1"}</button>)}</div></div><div className="mt-5 grid gap-5 lg:grid-cols-[minmax(260px,420px)_1fr]"><div className="rounded-2xl bg-creme p-3"><canvas ref={canvasRef} className="h-auto w-full rounded-xl bg-white"/></div><div className="flex flex-col justify-center gap-3"><button onClick={downloadArtwork} disabled={!ready} className="flex items-center justify-center gap-2 rounded-xl border border-rosa/20 px-4 py-3 text-xs font-bold"><Download size={16}/>Baixar PNG</button><button onClick={shareArtwork} disabled={!ready} className="flex items-center justify-center gap-2 rounded-xl bg-rosa-profundo px-4 py-3 text-xs font-bold text-white"><Share2 size={16}/>Compartilhar arte</button></div></div></section>
-<section className="rounded-2xl border border-rosa/15 bg-white p-5 shadow-sm"><div className="flex items-center justify-between gap-3"><div><h2 className="font-serif text-lg font-bold">Métricas da Central</h2><p className="text-sm text-cinza">Registro local das ações feitas pela equipe. Os UTMs permitem identificar a campanha em ferramentas de analytics quando conectadas.</p></div></div><div className="mt-4 grid grid-cols-3 gap-3">{[["WhatsApp",events.filter(e=>e.channel==="whatsapp").length],["Compartilhamentos",events.filter(e=>e.channel==="share").length],["Downloads",events.filter(e=>e.channel==="download").length]].map(([l,v])=><div key={String(l)} className="rounded-xl bg-creme p-4 text-center"><p className="text-2xl font-bold text-texto">{v}</p><p className="text-xs text-cinza">{l}</p></div>)}</div>{events.length>0&&<div className="mt-4 space-y-2">{events.slice(0,5).map(e=><div key={e.id} className="flex justify-between gap-3 rounded-lg border border-rosa/10 px-3 py-2 text-xs"><span className="truncate font-bold">{e.productName}</span><span className="shrink-0 text-cinza">{new Date(e.createdAt).toLocaleString("pt-BR")}</span></div>)}</div>}</section>
-<section className="rounded-2xl border border-rosa/15 bg-white p-5 shadow-sm"><div className="flex flex-wrap justify-between gap-3"><div><h2 className="font-serif text-lg font-bold">Fila sugerida de hoje</h2><p className="text-sm text-cinza">Produtos priorizados automaticamente.</p></div><button onClick={()=>setQueue(buildQueue(products,history))} className="flex items-center gap-2 rounded-xl border border-rosa/20 px-3 py-2 text-xs font-bold"><RefreshCw size={15}/>Nova fila</button></div><div className="mt-4 space-y-2">{queue.map((q,i)=>{const p=products.find(x=>x.id===q.productId);if(!p)return null;return <div key={`${q.time}-${q.productId}`} className="flex items-center justify-between gap-3 rounded-xl border border-rosa/10 p-3"><div className="min-w-0"><p className="truncate text-sm font-bold">{p.name}</p><p className="text-xs text-cinza"><Clock3 size={12} className="inline"/> {q.time} · {q.template}</p></div><div className="flex gap-2"><button onClick={()=>{setProductId(q.productId);setTemplate(q.template);window.scrollTo({top:0,behavior:"smooth"})}} className="rounded-lg border px-3 py-2 text-xs font-bold">Abrir</button><button onClick={()=>{const next=queue.map((x,j)=>j===i?{...x,done:!x.done}:x);setQueue(next);if(!q.done){const h=[...history,q.productId].slice(-30);setHistory(h);localStorage.setItem(HISTORY_KEY,JSON.stringify(h))}}} className={`rounded-lg px-3 py-2 text-xs font-bold ${q.done?"border":"bg-rosa-profundo text-white"}`}>{q.done?<Check size={14}/>:"Publicado"}</button></div></div>})}</div></section></div>
+type Product = {
+  id: string;
+  name: string;
+  brand: string;
+  price: number;
+  promoPrice: number | null;
+  stockQty: number;
+  active: boolean;
+  featured: boolean;
+  isNew: boolean;
+  bestSeller: boolean;
+  createdAt: string;
+  imageUrl: string | null;
+  category: { name: string };
+};
+
+type CampaignKind = "destaque" | "oferta" | "novidade";
+type ArtworkFormat = "status" | "quadrado";
+type QueueItem = {
+  time: string;
+  productId: string;
+  kind: CampaignKind;
+  done: boolean;
+};
+type StoredQueue = { date: string; items: QueueItem[] };
+type StoreBranding = { storeName: string; logoUrl: string | null };
+
+const QUEUE_KEY = "sra-make-divulgacao-queue-v2";
+const HISTORY_KEY = "sra-make-divulgacao-history-v2";
+const TIMES = ["10:00", "15:00", "19:00"];
+
+function money(value: number) {
+  return value.toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  });
+}
+
+function slug(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 40);
+}
+
+function localDateKey() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function hasRealPromotion(product: Product) {
+  return product.promoPrice !== null && product.promoPrice < product.price;
+}
+
+function pickCampaignKind(product: Product): CampaignKind {
+  if (product.isNew) return "novidade";
+  if (hasRealPromotion(product)) return "oferta";
+  return "destaque";
+}
+
+function campaignLabel(kind: CampaignKind) {
+  if (kind === "novidade") return "Novidade";
+  if (kind === "oferta") return "Oferta";
+  return "Destaque";
+}
+
+function campaignCode(product: Product, kind: CampaignKind) {
+  return `${kind}-${slug(product.name)}-${localDateKey().replace(/-/g, "")}`;
+}
+
+function buildMessage(product: Product, kind: CampaignKind, url: string) {
+  const heading =
+    kind === "novidade"
+      ? "✨ NOVIDADE NA SRA MAKE"
+      : kind === "oferta"
+        ? "💗 OFERTA SRA MAKE"
+        : "✨ DESTAQUE SRA MAKE";
+
+  const price = hasRealPromotion(product)
+    ? `De ~${money(product.price)}~\nPor *${money(product.promoPrice!)}*`
+    : `*${money(product.price)}*`;
+
+  const context =
+    kind === "novidade"
+      ? "Novidade disponível na Sra Make."
+      : kind === "oferta"
+        ? "Preço especial disponível no catálogo."
+        : "";
+
+  return [
+    heading,
+    "",
+    `*${product.name}*`,
+    product.brand || "",
+    "",
+    price,
+    context ? "" : null,
+    context || null,
+    "",
+    "Veja detalhes e faça seu pedido:",
+    url,
+    "",
+    "Retirada ou entrega em Presidente Prudente.",
+  ]
+    .filter((line): line is string => line !== null)
+    .join("\n");
+}
+
+function scoreProduct(product: Product, recent: Set<string>) {
+  let score = 0;
+  if (product.imageUrl) score += 8;
+  if (hasRealPromotion(product)) score += 7;
+  if (product.isNew) score += 6;
+  if (product.featured) score += 4;
+  if (product.bestSeller) score += 3;
+  if (product.stockQty >= 5) score += 2;
+  if (product.stockQty <= 2) score -= 4;
+  if (recent.has(product.id)) score -= 30;
+  return score;
+}
+
+function buildQueue(products: Product[], historyIds: string[]) {
+  const recent = new Set(historyIds.slice(-12));
+  const available = products.filter(
+    (product) => product.active && product.stockQty > 0
+  );
+  const withImage = available.filter((product) => Boolean(product.imageUrl));
+  const source = withImage.length >= TIMES.length ? withImage : available;
+  const sorted = [...source].sort(
+    (a, b) => scoreProduct(b, recent) - scoreProduct(a, recent)
+  );
+
+  const chosen: Product[] = [];
+  const categories = new Set<string>();
+
+  for (const product of sorted) {
+    if (chosen.length >= TIMES.length) break;
+    if (categories.has(product.category.name)) continue;
+    chosen.push(product);
+    categories.add(product.category.name);
+  }
+
+  for (const product of sorted) {
+    if (chosen.length >= TIMES.length) break;
+    if (chosen.some((item) => item.id === product.id)) continue;
+    chosen.push(product);
+  }
+
+  return chosen.map((product, index) => ({
+    time: TIMES[index],
+    productId: product.id,
+    kind: pickCampaignKind(product),
+    done: false,
+  }));
+}
+
+function loadImage(src: string) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    image.crossOrigin = "anonymous";
+    image.onload = () => resolve(image);
+    image.onerror = reject;
+    image.src = src;
+  });
+}
+
+function drawContain(
+  context: CanvasRenderingContext2D,
+  image: HTMLImageElement,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  padding = 24
+) {
+  const usableWidth = Math.max(1, width - padding * 2);
+  const usableHeight = Math.max(1, height - padding * 2);
+  const scale = Math.min(usableWidth / image.width, usableHeight / image.height);
+  const drawWidth = image.width * scale;
+  const drawHeight = image.height * scale;
+
+  context.drawImage(
+    image,
+    x + (width - drawWidth) / 2,
+    y + (height - drawHeight) / 2,
+    drawWidth,
+    drawHeight
+  );
+}
+
+function wrappedLines(
+  context: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number
+) {
+  const words = text.split(/\s+/);
+  const lines: string[] = [];
+  let current = "";
+
+  for (const word of words) {
+    const next = current ? `${current} ${word}` : word;
+    if (context.measureText(next).width > maxWidth && current) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = next;
+    }
+  }
+
+  if (current) lines.push(current);
+  return lines;
+}
+
+async function drawArtwork(
+  canvas: HTMLCanvasElement,
+  product: Product,
+  kind: CampaignKind,
+  format: ArtworkFormat,
+  branding: StoreBranding
+) {
+  const width = 1080;
+  const height = format === "status" ? 1920 : 1080;
+  canvas.width = width;
+  canvas.height = height;
+
+  const context = canvas.getContext("2d");
+  if (!context) return;
+
+  const cream = "#FFF9FB";
+  const white = "#FFFFFF";
+  const dark = "#333333";
+  const muted = "#766D72";
+  const pink = "#E0C0C0";
+  const deep = "#8D4F5F";
+  const margin = 72;
+
+  context.fillStyle = cream;
+  context.fillRect(0, 0, width, height);
+
+  context.textAlign = "left";
+  context.fillStyle = deep;
+  context.font = `700 ${format === "status" ? 40 : 34}px Georgia`;
+  context.fillText(branding.storeName || "Sra Make Prudente", margin, 92);
+
+  context.textAlign = "right";
+  context.font = `700 ${format === "status" ? 28 : 24}px Arial`;
+  context.fillText(campaignLabel(kind).toUpperCase(), width - margin, 92);
+
+  const imageTop = format === "status" ? 160 : 140;
+  const imageHeight = format === "status" ? 1040 : 520;
+  const imageWidth = width - margin * 2;
+
+  context.fillStyle = white;
+  context.fillRect(margin, imageTop, imageWidth, imageHeight);
+  context.strokeStyle = pink;
+  context.lineWidth = 3;
+  context.strokeRect(margin, imageTop, imageWidth, imageHeight);
+
+  if (product.imageUrl) {
+    try {
+      const image = await loadImage(product.imageUrl);
+      drawContain(context, image, margin, imageTop, imageWidth, imageHeight, 30);
+    } catch {
+      context.textAlign = "center";
+      context.fillStyle = muted;
+      context.font = "500 30px Arial";
+      context.fillText(
+        "Foto indisponível",
+        width / 2,
+        imageTop + imageHeight / 2
+      );
+    }
+  }
+
+  let y = imageTop + imageHeight + (format === "status" ? 72 : 48);
+  context.textAlign = "left";
+
+  if (product.brand) {
+    context.fillStyle = muted;
+    context.font = `700 ${format === "status" ? 30 : 24}px Arial`;
+    context.fillText(product.brand.toUpperCase(), margin, y);
+    y += format === "status" ? 54 : 42;
+  }
+
+  context.fillStyle = dark;
+  context.font = `700 ${format === "status" ? 58 : 44}px Georgia`;
+  const titleLines = wrappedLines(
+    context,
+    product.name,
+    width - margin * 2
+  ).slice(0, format === "status" ? 3 : 2);
+  const titleLineHeight = format === "status" ? 70 : 54;
+
+  titleLines.forEach((line, index) => {
+    context.fillText(line, margin, y + index * titleLineHeight);
+  });
+  y += titleLines.length * titleLineHeight + (format === "status" ? 24 : 16);
+
+  if (hasRealPromotion(product)) {
+    context.fillStyle = muted;
+    context.font = `500 ${format === "status" ? 30 : 24}px Arial`;
+    context.fillText(`De ${money(product.price)}`, margin, y);
+    y += format === "status" ? 52 : 40;
+  }
+
+  context.fillStyle = deep;
+  context.font = `700 ${format === "status" ? 82 : 64}px Arial`;
+  context.fillText(money(product.promoPrice ?? product.price), margin, y);
+
+  const footerHeight = format === "status" ? 120 : 96;
+  context.fillStyle = deep;
+  context.fillRect(0, height - footerHeight, width, footerHeight);
+  context.fillStyle = white;
+  context.textAlign = "center";
+  context.font = `700 ${format === "status" ? 30 : 24}px Arial`;
+  context.fillText(
+    "Veja no catálogo • Retirada ou entrega",
+    width / 2,
+    height - footerHeight / 2 + 10
+  );
+}
+
+function createArtworkBlob(canvas: HTMLCanvasElement | null) {
+  return new Promise<Blob | null>((resolve) => {
+    if (!canvas) {
+      resolve(null);
+      return;
+    }
+    canvas.toBlob(resolve, "image/png", 0.95);
+  });
+}
+
+export function PromotionCenter({
+  products,
+  branding,
+  siteUrl = "https://sramakeprudente.vercel.app",
+}: {
+  products: Product[];
+  branding: StoreBranding;
+  siteUrl?: string;
+}) {
+  const available = useMemo(
+    () => products.filter((product) => product.active && product.stockQty > 0),
+    [products]
+  );
+
+  const [productId, setProductId] = useState(available[0]?.id ?? "");
+  const [format, setFormat] = useState<ArtworkFormat>("status");
+  const [queue, setQueue] = useState<QueueItem[]>([]);
+  const [history, setHistory] = useState<string[]>([]);
+  const [ready, setReady] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [shareNote, setShareNote] = useState("");
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  const product = available.find((item) => item.id === productId) ?? available[0];
+  const kind = product ? pickCampaignKind(product) : "destaque";
+  const code = product ? campaignCode(product, kind) : "";
+  const baseUrl = siteUrl.replace(/\/$/, "");
+  const productUrl = product
+    ? `${baseUrl}/produto/${product.id}?utm_source=whatsapp&utm_medium=organic&utm_campaign=${encodeURIComponent(code)}&utm_content=${format}`
+    : "";
+  const message = product ? buildMessage(product, kind, productUrl) : "";
+
+  useEffect(() => {
+    try {
+      const storedHistory = JSON.parse(
+        localStorage.getItem(HISTORY_KEY) || "[]"
+      ) as string[];
+      const storedQueue = JSON.parse(
+        localStorage.getItem(QUEUE_KEY) || "null"
+      ) as StoredQueue | null;
+
+      const nextQueue =
+        storedQueue?.date === localDateKey() && Array.isArray(storedQueue.items)
+          ? storedQueue.items
+          : buildQueue(products, storedHistory);
+
+      setHistory(storedHistory);
+      setQueue(nextQueue);
+    } catch {
+      setQueue(buildQueue(products, []));
+    }
+  }, [products]);
+
+  useEffect(() => {
+    if (!queue.length) return;
+    const stored: StoredQueue = { date: localDateKey(), items: queue };
+    localStorage.setItem(QUEUE_KEY, JSON.stringify(stored));
+  }, [queue]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !product) return;
+
+    setReady(false);
+    drawArtwork(canvas, product, kind, format, branding)
+      .then(() => setReady(true))
+      .catch(() => setReady(false));
+  }, [product, kind, format, branding]);
+
+  async function copyMessage() {
+    if (!message) return;
+    await navigator.clipboard.writeText(message);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1600);
+  }
+
+  function downloadBlob(blob: Blob) {
+    if (!product) return;
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `sra-make-${slug(product.name)}-${format}.png`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function downloadArtwork() {
+    if (!product || !ready) return;
+    const blob = await createArtworkBlob(canvasRef.current);
+    if (!blob) return;
+    downloadBlob(blob);
+  }
+
+  async function shareCampaign() {
+    if (!product || !ready || !message) return;
+    setShareNote("");
+
+    const blob = await createArtworkBlob(canvasRef.current);
+    if (!blob) return;
+
+    const file = new File([blob], `sra-make-${slug(product.name)}.png`, {
+      type: "image/png",
+    });
+
+    if (navigator.share && navigator.canShare?.({ files: [file] })) {
+      try {
+        await navigator.share({
+          files: [file],
+          title: product.name,
+          text: message,
+        });
+        return;
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+      }
+    }
+
+    downloadBlob(blob);
+    await navigator.clipboard.writeText(message);
+    setShareNote("Arte baixada e mensagem copiada.");
+  }
+
+  function openWhatsApp() {
+    if (!message) return;
+    window.open(
+      `https://wa.me/?text=${encodeURIComponent(message)}`,
+      "_blank",
+      "noopener,noreferrer"
+    );
+  }
+
+  function createNewQueue() {
+    setQueue(buildQueue(products, history));
+  }
+
+  function openQueueItem(item: QueueItem) {
+    setProductId(item.productId);
+    setFormat("status");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function togglePublished(index: number) {
+    const item = queue[index];
+    if (!item) return;
+
+    const next = queue.map((current, currentIndex) =>
+      currentIndex === index ? { ...current, done: !current.done } : current
+    );
+    setQueue(next);
+
+    if (!item.done) {
+      const nextHistory = [...history, item.productId].slice(-30);
+      setHistory(nextHistory);
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(nextHistory));
+    }
+  }
+
+  if (!product) {
+    return (
+      <div className="rounded-2xl border border-rosa/15 bg-white p-5 text-sm text-cinza">
+        Cadastre pelo menos um produto ativo e com estoque para criar campanhas.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <section className="rounded-2xl border border-rosa/15 bg-white p-5 shadow-sm">
+        <div className="flex items-start gap-3">
+          <Sparkles className="mt-0.5 text-rosa-profundo" size={20} />
+          <div>
+            <h2 className="font-serif text-xl font-bold text-texto">
+              Campanha completa
+            </h2>
+            <p className="mt-1 text-sm text-cinza">
+              Escolha o produto. A arte e a mensagem são preparadas juntas.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
+          <label className="block">
+            <span className="mb-2 block text-xs font-bold uppercase tracking-wide text-cinza">
+              Produto
+            </span>
+            <select
+              value={product.id}
+              onChange={(event) => {
+                setProductId(event.target.value);
+                setShareNote("");
+              }}
+              className="w-full rounded-xl border border-rosa/20 bg-white px-3 py-3 text-sm text-texto"
+            >
+              {available.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <div>
+            <span className="mb-2 block text-xs font-bold uppercase tracking-wide text-cinza">
+              Modelo automático
+            </span>
+            <div className="rounded-xl bg-creme px-4 py-3 text-sm font-bold text-texto">
+              {campaignLabel(kind)}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-rosa/15 bg-white p-5 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <ImageIcon className="text-rosa-profundo" size={20} />
+            <div>
+              <h2 className="font-serif text-lg font-bold text-texto">
+                Campanha pronta
+              </h2>
+              <p className="text-sm text-cinza">
+                Arte, descrição e link do catálogo no mesmo lugar.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            {(["status", "quadrado"] as const).map((value) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setFormat(value)}
+                className={`rounded-xl border px-3 py-2 text-xs font-bold ${
+                  format === value
+                    ? "border-rosa-profundo bg-rosa-profundo text-white"
+                    : "border-rosa/20 text-cinza"
+                }`}
+              >
+                {value === "status" ? "Status 9:16" : "Quadrado 1:1"}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(260px,420px)_1fr]">
+          <div className="rounded-2xl bg-creme p-3">
+            <canvas
+              ref={canvasRef}
+              className="h-auto w-full rounded-xl bg-white"
+            />
+          </div>
+
+          <div className="flex min-w-0 flex-col gap-3">
+            <div className="whitespace-pre-wrap rounded-xl bg-creme p-4 text-sm leading-6 text-texto">
+              {message}
+            </div>
+
+            <button
+              type="button"
+              onClick={shareCampaign}
+              disabled={!ready}
+              className="flex items-center justify-center gap-2 rounded-xl bg-rosa-profundo px-4 py-3 text-sm font-bold text-white disabled:opacity-40"
+            >
+              <Share2 size={17} />
+              Compartilhar campanha
+            </button>
+            <p className="text-[11px] leading-5 text-cinza">
+              O envio continua sob sua confirmação no celular.
+            </p>
+
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              <button
+                type="button"
+                onClick={copyMessage}
+                className="flex items-center justify-center gap-1.5 rounded-xl border border-rosa/20 px-3 py-3 text-xs font-bold text-texto"
+              >
+                <Copy size={15} />
+                {copied ? "Copiado" : "Copiar texto"}
+              </button>
+              <button
+                type="button"
+                onClick={downloadArtwork}
+                disabled={!ready}
+                className="flex items-center justify-center gap-1.5 rounded-xl border border-rosa/20 px-3 py-3 text-xs font-bold text-texto disabled:opacity-40"
+              >
+                <Download size={15} />
+                Baixar arte
+              </button>
+              <button
+                type="button"
+                onClick={openWhatsApp}
+                className="col-span-2 flex items-center justify-center gap-1.5 rounded-xl border border-rosa/20 px-3 py-3 text-xs font-bold text-texto sm:col-span-1"
+              >
+                <ExternalLink size={15} />
+                WhatsApp (texto)
+              </button>
+            </div>
+
+            {shareNote ? (
+              <p className="text-xs font-medium text-cinza">{shareNote}</p>
+            ) : null}
+
+            <p className="break-all text-[11px] leading-5 text-cinza">
+              Link: {productUrl}
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-rosa/15 bg-white p-5 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="font-serif text-lg font-bold text-texto">
+              Sugestões de hoje
+            </h2>
+            <p className="text-sm text-cinza">
+              Três produtos para manter a divulgação simples e variada.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={createNewQueue}
+            className="flex items-center gap-2 rounded-xl border border-rosa/20 px-3 py-2 text-xs font-bold text-texto"
+          >
+            <RefreshCw size={15} />
+            Gerar novas sugestões
+          </button>
+        </div>
+
+        <div className="mt-4 space-y-2">
+          {queue.map((item, index) => {
+            const queueProduct = products.find(
+              (current) => current.id === item.productId
+            );
+            if (!queueProduct) return null;
+
+            return (
+              <div
+                key={`${item.time}-${item.productId}`}
+                className="flex flex-col gap-3 rounded-xl border border-rosa/10 p-3 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-bold text-texto">
+                    {queueProduct.name}
+                  </p>
+                  <p className="mt-1 text-xs text-cinza">
+                    <Clock3 size={12} className="mr-1 inline" />
+                    {item.time} · {queueProduct.category.name} · {campaignLabel(item.kind)}
+                  </p>
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => openQueueItem(item)}
+                    className="rounded-lg border border-rosa/20 px-3 py-2 text-xs font-bold text-texto"
+                  >
+                    Abrir
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => togglePublished(index)}
+                    className={`flex items-center justify-center gap-1 rounded-lg px-3 py-2 text-xs font-bold ${
+                      item.done
+                        ? "border border-rosa/20 text-cinza"
+                        : "bg-rosa-profundo text-white"
+                    }`}
+                  >
+                    {item.done ? (
+                      <>
+                        <Check size={14} /> Publicado
+                      </>
+                    ) : (
+                      "Marcar publicado"
+                    )}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+    </div>
+  );
+}
