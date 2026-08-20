@@ -14,6 +14,8 @@ import { SearchBar } from "@/components/SearchBar";
 
 export const revalidate = 60;
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://sramakeprudente.com.br";
+
 export async function generateMetadata({
   params,
 }: {
@@ -21,9 +23,23 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const category = await getCategoryBySlug(params.slug);
   if (!category) return {};
+
+  const canonicalUrl = `${SITE_URL}/categoria/${category.slug}`;
+  const title = `${category.name} em Presidente Prudente`;
+  const description = `${category.name} na Sra Make Prudente. Encontre produtos, escolha pelo catálogo e finalize seu atendimento pelo WhatsApp em Presidente Prudente/SP.`;
+
   return {
-    title: category.name,
-    description: `${category.name} no catálogo da Sra Make Prudente — escolha pelo catálogo e confirme pelo WhatsApp.`,
+    title,
+    description,
+    alternates: {
+      canonical: canonicalUrl,
+    },
+    openGraph: {
+      title,
+      description,
+      url: canonicalUrl,
+      type: "website",
+    },
   };
 }
 
@@ -41,8 +57,39 @@ export default async function CategoriaPage({
     getCategories(),
   ]);
 
+  const canonicalUrl = `${SITE_URL}/categoria/${category.slug}`;
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      {
+        "@type": "ListItem",
+        position: 1,
+        name: "Início",
+        item: SITE_URL,
+      },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: "Categorias",
+        item: `${SITE_URL}/categoria`,
+      },
+      {
+        "@type": "ListItem",
+        position: 3,
+        name: category.name,
+        item: canonicalUrl,
+      },
+    ],
+  };
+
   return (
     <main>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+      />
+
       <CategoryViewTracker categorySlug={params.slug} />
       <div className="px-4 pt-4 pb-3">
         <p className="text-[11px] font-bold uppercase tracking-widest text-rosa-profundo">
