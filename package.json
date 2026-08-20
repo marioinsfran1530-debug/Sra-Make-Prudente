@@ -9,6 +9,7 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
+    "test:stock": "rm -rf .tmp-tests && tsc src/lib/stock.ts --outDir .tmp-tests --module commonjs --target ES2020 --esModuleInterop --skipLibCheck && node --test tests/stock.test.cjs",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev"
   },
