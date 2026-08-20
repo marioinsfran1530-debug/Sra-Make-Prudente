@@ -12,7 +12,8 @@
     "test:stock": "rm -rf .tmp-tests && tsc src/lib/stock.ts --outDir .tmp-tests --module commonjs --target ES2020 --esModuleInterop --skipLibCheck && node --test tests/stock.test.cjs",
     "test:orders": "rm -rf .tmp-tests && tsc src/lib/order-rules.ts --outDir .tmp-tests --module commonjs --target ES2020 --esModuleInterop --skipLibCheck && node --test tests/order-rules.test.cjs",
     "test:order-validation": "rm -rf .tmp-tests && tsc src/lib/order-validation.ts --outDir .tmp-tests --module commonjs --target ES2020 --esModuleInterop --skipLibCheck && node --test tests/order-validation.test.cjs",
-    "test": "npm run test:stock && npm run test:orders && npm run test:order-validation",
+    "test:order-safety": "rm -rf .tmp-tests && tsc src/lib/order-request-safety.ts --outDir .tmp-tests --module commonjs --target ES2020 --esModuleInterop --skipLibCheck && node --test tests/order-request-safety.test.cjs",
+    "test": "npm run test:stock && npm run test:orders && npm run test:order-validation && npm run test:order-safety",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev"
   },
