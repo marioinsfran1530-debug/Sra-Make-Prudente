@@ -1,16 +1,7 @@
 import { prisma } from "@/lib/prisma";
+import { stockWasDecremented } from "@/lib/order-rules";
 
 export class OrderError extends Error {}
-
-// Status em que o estoque JÁ foi descontado (a partir da confirmação).
-// Usado para decidir se um cancelamento precisa devolver estoque.
-const STOCK_DECREMENTED_STATUSES = [
-  "CONFIRMADO",
-  "SEPARANDO",
-  "PRONTO_RETIRADA",
-  "SAIU_ENTREGA",
-  "FINALIZADO",
-];
 
 type StockRow = { id: string; stockQty: number };
 
@@ -25,7 +16,7 @@ export async function confirmOrder(orderId: string) {
     });
 
     if (!order) throw new OrderError("Pedido não encontrado.");
-    if (STOCK_DECREMENTED_STATUSES.includes(order.status)) {
+    if (stockWasDecremented(order.status)) {
       throw new OrderError(
         "O estoque deste pedido já foi descontado anteriormente."
       );
@@ -92,7 +83,7 @@ export async function cancelOrder(orderId: string) {
 
     if (!order) throw new OrderError("Pedido não encontrado.");
 
-    const needsRestock = STOCK_DECREMENTED_STATUSES.includes(order.status);
+    const needsRestock = stockWasDecremented(order.status);
 
     if (needsRestock) {
       for (const item of order.items) {
