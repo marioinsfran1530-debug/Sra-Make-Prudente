@@ -12,6 +12,13 @@ import { waLink } from "@/lib/whatsapp";
 
 export const revalidate = 60;
 
+const SITE_URL =
+  process.env.NEXT_PUBLIC_SITE_URL || "https://sramakeprudente.com.br";
+
+function jsonLd(data: Record<string, unknown>) {
+  return JSON.stringify(data).replace(/</g, "\\u003c");
+}
+
 export async function generateMetadata({
   params,
 }: {
@@ -22,12 +29,21 @@ export async function generateMetadata({
 
   const description =
     product.description ??
-    `${product.name} da ${product.brand} no catálogo da Sra Make Prudente.`;
+    `${product.name} da ${product.brand} no catálogo da Sra Make Prudente em Presidente Prudente.`;
+  const canonical = `${SITE_URL}/produto/${product.id}`;
+  const mainImage = product.images[0]?.url;
 
   return {
     title: `${product.name} — ${product.brand}`,
     description,
-    openGraph: { title: product.name, description },
+    alternates: { canonical },
+    openGraph: {
+      title: product.name,
+      description,
+      url: canonical,
+      type: "website",
+      images: mainImage ? [{ url: mainImage, alt: product.name }] : undefined,
+    },
   };
 }
 
@@ -40,9 +56,79 @@ export default async function ProdutoPage({
   if (!product) notFound();
 
   const mainImage = product.images[0]?.url ?? null;
+  const productUrl = `${SITE_URL}/produto/${product.id}`;
+  const categoryUrl = `${SITE_URL}/categoria/${product.category.slug}`;
+  const currentPrice = product.promoPrice ?? product.price;
+  const availability =
+    product.stock === "INDISPONIVEL"
+      ? "https://schema.org/OutOfStock"
+      : "https://schema.org/InStock";
+
+  const productStructuredData = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: product.name,
+    description:
+      product.description ??
+      `${product.name} da ${product.brand} disponível no catálogo da Sra Make Prudente.`,
+    sku: product.sku ?? undefined,
+    brand: {
+      "@type": "Brand",
+      name: product.brand,
+    },
+    image: product.images.map((image) => image.url),
+    category: product.category.name,
+    url: productUrl,
+    offers: {
+      "@type": "Offer",
+      url: productUrl,
+      priceCurrency: "BRL",
+      price: currentPrice.toFixed(2),
+      availability,
+      itemCondition: "https://schema.org/NewCondition",
+      seller: {
+        "@type": "Organization",
+        name: "Sra Make Prudente",
+      },
+    },
+  };
+
+  const breadcrumbStructuredData = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      {
+        "@type": "ListItem",
+        position: 1,
+        name: "Início",
+        item: SITE_URL,
+      },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: product.category.name,
+        item: categoryUrl,
+      },
+      {
+        "@type": "ListItem",
+        position: 3,
+        name: product.name,
+        item: productUrl,
+      },
+    ],
+  };
 
   return (
     <main className="px-4 py-4 lg:px-6 lg:py-4">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: jsonLd(productStructuredData) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: jsonLd(breadcrumbStructuredData) }}
+      />
+
       <ProductViewTracker productId={product.id} name={product.name} />
 
       <div className="mx-auto w-full max-w-6xl">
