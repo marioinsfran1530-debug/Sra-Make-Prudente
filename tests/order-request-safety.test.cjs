@@ -5,6 +5,7 @@ const {
   normalizeBrazilPhone,
   orderItemsFingerprint,
   sameOrderItems,
+  buildOrderRequestKey,
 } = require("../.tmp-tests/order-request-safety.js");
 
 test("normaliza celular brasileiro com máscara", () => {
@@ -49,5 +50,49 @@ test("pedidos com quantidade ou variante diferente não são duplicados", () => 
       [{ productId: "p1", variantId: "v2", qty: 1 }]
     ),
     false
+  );
+});
+
+test("chave de idempotencia é estável mesmo com itens em outra ordem", () => {
+  const base = {
+    customerPhone: "+5518999999999",
+    sessionId: "sessao-1",
+    deliveryType: "RETIRADA",
+    payment: "PIX",
+    address: "",
+  };
+
+  const first = buildOrderRequestKey({
+    ...base,
+    items: [
+      { productId: "p2", variantId: null, qty: 1 },
+      { productId: "p1", variantId: "v1", qty: 2 },
+    ],
+  });
+
+  const second = buildOrderRequestKey({
+    ...base,
+    items: [
+      { productId: "p1", variantId: "v1", qty: 2 },
+      { productId: "p2", variantId: null, qty: 1 },
+    ],
+  });
+
+  assert.equal(first, second);
+});
+
+test("chave muda quando dados relevantes do pedido mudam", () => {
+  const base = {
+    customerPhone: "+5518999999999",
+    sessionId: "sessao-1",
+    deliveryType: "ENTREGA",
+    payment: "PIX",
+    address: "Rua A, 10",
+    items: [{ productId: "p1", variantId: null, qty: 1 }],
+  };
+
+  assert.notEqual(
+    buildOrderRequestKey(base),
+    buildOrderRequestKey({ ...base, address: "Rua A, 11" })
   );
 });
