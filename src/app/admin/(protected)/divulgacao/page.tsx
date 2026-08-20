@@ -11,8 +11,7 @@ export default async function AdminDivulgacaoPage() {
         category: true,
         images: { orderBy: { order: "asc" }, take: 1 },
         variants: {
-          where: { active: true },
-          select: { stockQty: true },
+          select: { active: true, stockQty: true },
         },
       },
       orderBy: [{ featured: "desc" }, { createdAt: "desc" }],
@@ -22,7 +21,9 @@ export default async function AdminDivulgacaoPage() {
 
   const rows = products.map((product) => {
     const stockQty = product.variants.length
-      ? product.variants.reduce((total, variant) => total + variant.stockQty, 0)
+      ? product.variants
+          .filter((variant) => variant.active)
+          .reduce((total, variant) => total + variant.stockQty, 0)
       : product.stockQty;
 
     return {
