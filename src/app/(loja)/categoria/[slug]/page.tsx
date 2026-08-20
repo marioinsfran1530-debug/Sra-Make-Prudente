@@ -14,7 +14,7 @@ import { SearchBar } from "@/components/SearchBar";
 
 export const revalidate = 60;
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://sramakeprudente.com.br";
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://sramakeprudente.vercel.app";
 
 export async function generateMetadata({
   params,
