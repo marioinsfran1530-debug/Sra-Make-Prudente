@@ -7,6 +7,7 @@ import {
   resolveOrderUnitPrice,
 } from "@/lib/order-validation";
 import {
+  buildOrderRequestKey,
   normalizeBrazilPhone,
   sameOrderItems,
 } from "@/lib/order-request-safety";
@@ -209,80 +210,117 @@ export async function POST(request: NextRequest) {
   const subtotal = orderItems.reduce((sum, item) => sum + item.subtotal, 0);
   const deliveryFee = 0;
   const total = subtotal + deliveryFee;
+  const normalizedAddress = body.deliveryType === "ENTREGA" ? address : "";
 
-  const recentOrders = await prisma.order.findMany({
-    where: {
-      customerPhone,
-      status: "NOVO",
-      deliveryType: body.deliveryType,
-      payment: body.payment,
-      createdAt: { gte: new Date(Date.now() - DUPLICATE_WINDOW_MS) },
-      ...(sessionId ? { sessionId } : {}),
-    },
-    include: { items: true },
-    orderBy: { createdAt: "desc" },
-    take: 3,
+  const requestKey = buildOrderRequestKey({
+    customerPhone,
+    sessionId,
+    deliveryType: body.deliveryType,
+    payment: body.payment,
+    address: normalizedAddress,
+    items: orderItems.map((item) => ({
+      productId: item.productId,
+      variantId: item.variantId,
+      qty: item.qty,
+    })),
   });
 
-  const duplicateOrder = recentOrders.find((candidate) => {
-    if ((candidate.address ?? "") !== (body.deliveryType === "ENTREGA" ? address : "")) {
-      return false;
+  const result = await prisma.$transaction(async (tx) => {
+    // Serializa somente pedidos com a mesma assinatura. Assim, dois envios
+    // simultâneos do mesmo checkout não conseguem criar duas vendas antes da
+    // verificação de duplicidade terminar.
+    await tx.$queryRaw<Array<{ pg_advisory_xact_lock: null }>>`
+      SELECT pg_advisory_xact_lock(hashtext(${requestKey}))
+    `;
+
+    const recentOrders = await tx.order.findMany({
+      where: {
+        customerPhone,
+        status: "NOVO",
+        deliveryType: body.deliveryType,
+        payment: body.payment,
+        createdAt: { gte: new Date(Date.now() - DUPLICATE_WINDOW_MS) },
+        ...(sessionId ? { sessionId } : {}),
+      },
+      include: { items: true },
+      orderBy: { createdAt: "desc" },
+      take: 3,
+    });
+
+    const duplicateOrder = recentOrders.find((candidate) => {
+      if ((candidate.address ?? "") !== normalizedAddress) {
+        return false;
+      }
+
+      return sameOrderItems(
+        candidate.items.map((item) => ({
+          productId: item.productId,
+          variantId: item.variantId,
+          qty: item.qty,
+        })),
+        orderItems.map((item) => ({
+          productId: item.productId,
+          variantId: item.variantId,
+          qty: item.qty,
+        }))
+      );
+    });
+
+    if (duplicateOrder) {
+      return {
+        duplicate: true as const,
+        orderNumber: duplicateOrder.number,
+        subtotal: Number(duplicateOrder.subtotal),
+        deliveryFee: Number(duplicateOrder.deliveryFee),
+        total: Number(duplicateOrder.total),
+        items: duplicateOrder.items.map((item) => ({
+          name: item.name,
+          variantName: item.variantName,
+          qty: item.qty,
+          subtotal: Number(item.subtotal),
+        })),
+      };
     }
 
-    return sameOrderItems(
-      candidate.items.map((item) => ({
-        productId: item.productId,
-        variantId: item.variantId,
-        qty: item.qty,
-      })),
-      orderItems.map((item) => ({
-        productId: item.productId,
-        variantId: item.variantId,
-        qty: item.qty,
-      }))
-    );
-  });
-
-  if (duplicateOrder) {
-    return NextResponse.json({
-      orderNumber: duplicateOrder.number,
-      subtotal: Number(duplicateOrder.subtotal),
-      deliveryFee: Number(duplicateOrder.deliveryFee),
-      total: Number(duplicateOrder.total),
-      duplicate: true,
-      items: duplicateOrder.items.map((item) => ({
-        name: item.name,
-        variantName: item.variantName,
-        qty: item.qty,
-        subtotal: Number(item.subtotal),
-      })),
+    const order = await tx.order.create({
+      data: {
+        customerName,
+        customerPhone,
+        subtotal,
+        deliveryFee,
+        total,
+        deliveryType: body.deliveryType,
+        address: normalizedAddress || null,
+        payment: body.payment,
+        notes: notes || null,
+        origin: text(body.origin, 500) || null,
+        referrer: text(body.referrer, 1000) || null,
+        landingPage: text(body.landingPage, 1000) || null,
+        utmSource: text(body.utmSource, 200) || null,
+        utmMedium: text(body.utmMedium, 200) || null,
+        utmCampaign: text(body.utmCampaign, 200) || null,
+        utmContent: text(body.utmContent, 200) || null,
+        sessionId: sessionId || null,
+        status: "NOVO",
+        items: {
+          create: orderItems,
+        },
+      },
     });
-  }
 
-  const order = await prisma.order.create({
-    data: {
-      customerName,
-      customerPhone,
+    return {
+      duplicate: false as const,
+      orderNumber: order.number,
       subtotal,
       deliveryFee,
       total,
-      deliveryType: body.deliveryType,
-      address: body.deliveryType === "ENTREGA" ? address : null,
-      payment: body.payment,
-      notes: notes || null,
-      origin: text(body.origin, 500) || null,
-      referrer: text(body.referrer, 1000) || null,
-      landingPage: text(body.landingPage, 1000) || null,
-      utmSource: text(body.utmSource, 200) || null,
-      utmMedium: text(body.utmMedium, 200) || null,
-      utmCampaign: text(body.utmCampaign, 200) || null,
-      utmContent: text(body.utmContent, 200) || null,
-      sessionId: sessionId || null,
-      status: "NOVO",
-      items: {
-        create: orderItems,
-      },
-    },
+      items: orderItems.map((item) => ({
+        name: item.name,
+        variantName: item.variantName,
+        qty: item.qty,
+        subtotal: item.subtotal,
+      })),
+    };
   });
 
   if (sessionId) {
@@ -298,17 +336,5 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  return NextResponse.json({
-    orderNumber: order.number,
-    subtotal,
-    deliveryFee,
-    total,
-    duplicate: false,
-    items: orderItems.map((item) => ({
-      name: item.name,
-      variantName: item.variantName,
-      qty: item.qty,
-      subtotal: item.subtotal,
-    })),
-  });
+  return NextResponse.json(result);
 }
