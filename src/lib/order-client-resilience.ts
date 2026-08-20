@@ -2,11 +2,35 @@ export const ORDER_REQUEST_TIMEOUT_MS = 12_000;
 export const ORDER_REQUEST_MAX_ATTEMPTS = 2;
 export const ORDER_RETRY_DELAY_MS = 400;
 
-export type OrderRequestResult = {
-  ok: boolean;
-  status: number;
-  data: Record<string, any>;
+type OrderSuccessData = {
+  orderNumber: number;
+  subtotal: number;
+  deliveryFee: number;
+  total: number;
+  duplicate?: boolean;
+  items: Array<{
+    name: string;
+    variantName: string | null;
+    qty: number;
+    subtotal: number;
+  }>;
 };
+
+type OrderErrorData = {
+  error?: string;
+};
+
+export type OrderRequestResult =
+  | {
+      ok: true;
+      status: number;
+      data: OrderSuccessData;
+    }
+  | {
+      ok: false;
+      status: number;
+      data: OrderErrorData;
+    };
 
 export function shouldRetryOrderRequest(status: number | null): boolean {
   if (status === null) return true;
@@ -29,12 +53,20 @@ async function requestOrderOnce(payload: unknown): Promise<OrderRequestResult> {
       signal: controller.signal,
     });
 
-    const data = await response.json().catch(() => ({}));
+    const data: unknown = await response.json().catch(() => ({}));
+
+    if (response.ok) {
+      return {
+        ok: true,
+        status: response.status,
+        data: data as OrderSuccessData,
+      };
+    }
 
     return {
-      ok: response.ok,
+      ok: false,
       status: response.status,
-      data,
+      data: data as OrderErrorData,
     };
   } finally {
     clearTimeout(timeout);
