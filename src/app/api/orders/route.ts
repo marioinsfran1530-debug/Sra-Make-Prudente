@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import {
+  hasEnoughStock,
+  orderItemRequiresVariant,
+  orderLineKey,
+  resolveOrderUnitPrice,
+} from "@/lib/order-validation";
 
 type CartItemInput = {
   productId: string;
@@ -89,6 +95,10 @@ export async function POST(request: NextRequest) {
     subtotal: number;
   }[] = [];
 
+  // Evita que o mesmo produto/opção seja repetido em várias linhas para
+  // ultrapassar silenciosamente o estoque disponível.
+  const requestedByLine = new Map<string, number>();
+
   for (const item of body.items) {
     const productId = text(item?.productId, 100);
     const variantId = item?.variantId ? text(item.variantId, 100) : null;
@@ -115,21 +125,65 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let unitPrice = product.promoPrice ? Number(product.promoPrice) : Number(product.price);
+    const activeVariants = product.variants.filter((variant) => variant.active);
+
+    if (orderItemRequiresVariant(activeVariants.length, variantId)) {
+      return NextResponse.json(
+        { error: `Escolha uma opção para ${product.name}.` },
+        { status: 400 }
+      );
+    }
+
     let variantName: string | null = null;
+    let availableStock = product.stockQty;
+    let variantPrice: number | null = null;
+    let variantPromoPrice: number | null = null;
 
     if (variantId) {
-      const variant = product.variants.find((v) => v.id === variantId && v.active);
+      const variant = activeVariants.find((candidate) => candidate.id === variantId);
       if (!variant) {
         return NextResponse.json(
           { error: `Opção indisponível para ${product.name}.` },
           { status: 400 }
         );
       }
+
       variantName = variant.name;
-      if (variant.price) {
-        unitPrice = variant.promoPrice ? Number(variant.promoPrice) : Number(variant.price);
-      }
+      availableStock = variant.stockQty;
+      variantPrice = variant.price === null ? null : Number(variant.price);
+      variantPromoPrice =
+        variant.promoPrice === null ? null : Number(variant.promoPrice);
+    }
+
+    const lineKey = orderLineKey(product.id, variantId);
+    const requestedQty = (requestedByLine.get(lineKey) ?? 0) + qty;
+
+    if (!hasEnoughStock(availableStock, requestedQty)) {
+      return NextResponse.json(
+        {
+          error: `Quantidade indisponível para ${product.name}${
+            variantName ? ` (${variantName})` : ""
+          }. Disponível: ${availableStock}.`,
+        },
+        { status: 409 }
+      );
+    }
+
+    requestedByLine.set(lineKey, requestedQty);
+
+    const unitPrice = resolveOrderUnitPrice({
+      productPrice: Number(product.price),
+      productPromoPrice:
+        product.promoPrice === null ? null : Number(product.promoPrice),
+      variantPrice,
+      variantPromoPrice,
+    });
+
+    if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+      return NextResponse.json(
+        { error: `Preço inválido para ${product.name}.` },
+        { status: 409 }
+      );
     }
 
     orderItems.push({
