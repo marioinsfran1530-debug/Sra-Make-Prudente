@@ -26,7 +26,10 @@ export async function generateMetadata({
 
   const canonicalUrl = `${SITE_URL}/categoria/${category.slug}`;
   const title = `${category.name} em Presidente Prudente`;
-  const description = `${category.name} na Sra Make Prudente. Encontre produtos, escolha pelo catálogo e finalize seu atendimento pelo WhatsApp em Presidente Prudente/SP.`;
+  const description =
+    category.description?.trim() ||
+    `${category.name} na Sra Make Prudente. Encontre produtos, escolha pelo catálogo e finalize seu atendimento pelo WhatsApp em Presidente Prudente/SP.`;
+  const image = category.imageUrl || undefined;
 
   return {
     title,
@@ -39,6 +42,13 @@ export async function generateMetadata({
       description,
       url: canonicalUrl,
       type: "website",
+      ...(image ? { images: [{ url: image, alt: category.name }] } : {}),
+    },
+    twitter: {
+      card: image ? "summary_large_image" : "summary",
+      title,
+      description,
+      ...(image ? { images: [image] } : {}),
     },
   };
 }
