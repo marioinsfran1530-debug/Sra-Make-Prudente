@@ -9,6 +9,7 @@ import { waLink, buildOrderMessage } from "@/lib/whatsapp";
 import { getTrackingPayload } from "@/lib/tracking";
 import { trackEvent } from "@/lib/analytics";
 import { subscribeToOrderNotifications } from "@/lib/push-client";
+import { submitOrderWithRetry } from "@/lib/order-client-resilience";
 
 const PAYMENT_OPTIONS: { value: string; label: string }[] = [
   { value: "PIX", label: "Pix" },
@@ -60,13 +61,12 @@ export default function CheckoutPage() {
     (deliveryType !== "ENTREGA" || address.trim());
 
   async function handleSendOrder() {
+    if (submitting) return;
+
     setSubmitting(true);
     setError(null);
 
     try {
-      // O push é opcional e nunca bloqueia a venda. Como esta chamada nasce do
-      // clique final do cliente, o navegador pode exibir a permissão no contexto
-      // correto. Se houver recusa/falha, seguimos normalmente para o pedido.
       if (wantsNotifications) {
         const pushResult = await subscribeToOrderNotifications(phone);
 
@@ -75,30 +75,29 @@ export default function CheckoutPage() {
         });
       }
 
-      const res = await fetch("/api/orders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          items: items.map((item) => ({
-            productId: item.productId,
-            variantId: item.variantId,
-            qty: item.qty,
-          })),
-          customerName: name,
-          customerPhone: phone,
-          deliveryType,
-          address: deliveryType === "ENTREGA" ? address : undefined,
-          payment,
-          notes: notes || undefined,
-          ...getTrackingPayload(),
-        }),
-      });
+      const payload = {
+        items: items.map((item) => ({
+          productId: item.productId,
+          variantId: item.variantId,
+          qty: item.qty,
+        })),
+        customerName: name,
+        customerPhone: phone,
+        deliveryType,
+        address: deliveryType === "ENTREGA" ? address : undefined,
+        payment,
+        notes: notes || undefined,
+        ...getTrackingPayload(),
+      };
 
-      const data = await res.json();
+      const result = await submitOrderWithRetry(payload);
+      const data = result.data;
 
-      if (!res.ok) {
+      if (!result.ok) {
         setError(
-          data.error ?? "Não foi possível enviar o pedido. Tente novamente."
+          typeof data.error === "string"
+            ? data.error
+            : "Não foi possível enviar o pedido. Tente novamente."
         );
         setSubmitting(false);
         return;
@@ -123,6 +122,7 @@ export default function CheckoutPage() {
       trackEvent("order_created", {
         orderNumber: data.orderNumber,
         total: data.total,
+        duplicate: data.duplicate === true,
       });
 
       trackEvent("whatsapp_click", {
@@ -134,7 +134,7 @@ export default function CheckoutPage() {
       router.push("/");
     } catch {
       setError(
-        "Não foi possível enviar o pedido. Verifique sua conexão e tente novamente."
+        "Não foi possível confirmar o pedido agora. Verifique sua conexão e tente novamente. Se o pedido já tiver sido recebido, o sistema evitará criar outro igual."
       );
       setSubmitting(false);
     }
