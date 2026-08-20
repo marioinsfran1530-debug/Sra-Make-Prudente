@@ -38,8 +38,8 @@ jobs:
       - name: Verificar TypeScript
         run: npm run typecheck
 
-      - name: Testar regras de estoque
-        run: npm run test:stock
+      - name: Testar regras críticas
+        run: npm test
 
       - name: Verificar lint
         run: npm run lint
