@@ -25,7 +25,7 @@ export function ProductImage({
         src={imageUrl}
         alt={name}
         onError={() => setFailed(true)}
-        className={`object-cover bg-white ${className}`}
+        className={`object-contain object-center bg-white p-2 ${className}`}
       />
     );
   }
