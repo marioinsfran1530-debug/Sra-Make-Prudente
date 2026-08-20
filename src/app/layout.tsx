@@ -5,6 +5,7 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://sramakeprudente.ve
 const TITLE = "Sra Make Prudente | Maquiagem, Lash, Nail e Cosméticos";
 const DESCRIPTION =
   "Confira o catálogo da Sra Make Prudente. Maquiagem, produtos para lash, nail e acessórios em Presidente Prudente. Escolha seus produtos e faça seu pedido pelo WhatsApp.";
+const SOCIAL_IMAGE_URL = `${SITE_URL}/icon-512.png`;
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -15,6 +16,9 @@ export const metadata: Metadata = {
   description: DESCRIPTION,
   applicationName: "Sra Make Prudente",
   manifest: "/manifest.webmanifest",
+  alternates: {
+    canonical: "/",
+  },
   icons: {
     icon: [{ url: "/favicon-32.png", sizes: "32x32", type: "image/png" }],
     apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
@@ -26,13 +30,13 @@ export const metadata: Metadata = {
     siteName: "Sra Make Prudente",
     locale: "pt_BR",
     type: "website",
-    images: [{ url: "/icon-512.png", width: 512, height: 512, alt: "Sra Make Prudente" }],
+    images: [{ url: SOCIAL_IMAGE_URL, width: 512, height: 512, alt: "Sra Make Prudente" }],
   },
   twitter: {
     card: "summary",
     title: TITLE,
     description: DESCRIPTION,
-    images: ["/icon-512.png"],
+    images: [SOCIAL_IMAGE_URL],
   },
   robots: { index: true, follow: true },
 };
