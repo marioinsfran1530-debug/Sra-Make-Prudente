@@ -6,6 +6,10 @@ import {
   orderLineKey,
   resolveOrderUnitPrice,
 } from "@/lib/order-validation";
+import {
+  normalizeBrazilPhone,
+  sameOrderItems,
+} from "@/lib/order-request-safety";
 
 type CartItemInput = {
   productId: string;
@@ -40,6 +44,7 @@ const ALLOWED_PAYMENTS = new Set([
 
 const MAX_ITEMS = 50;
 const MAX_QTY_PER_ITEM = 99;
+const DUPLICATE_WINDOW_MS = 45_000;
 
 function text(value: unknown, maxLength: number) {
   return typeof value === "string" ? value.trim().slice(0, maxLength) : "";
@@ -66,12 +71,16 @@ export async function POST(request: NextRequest) {
   }
 
   const customerName = text(body.customerName, 120);
-  const customerPhone = text(body.customerPhone, 30);
+  const customerPhone = normalizeBrazilPhone(text(body.customerPhone, 30));
   const address = text(body.address, 250);
   const notes = text(body.notes, 500);
+  const sessionId = text(body.sessionId, 200);
 
   if (!customerName || !customerPhone) {
-    return NextResponse.json({ error: "Nome e WhatsApp são obrigatórios." }, { status: 400 });
+    return NextResponse.json(
+      { error: "Informe um nome e um WhatsApp válido com DDD." },
+      { status: 400 }
+    );
   }
   if (body.deliveryType !== "RETIRADA" && body.deliveryType !== "ENTREGA") {
     return NextResponse.json({ error: "Forma de recebimento inválida." }, { status: 400 });
@@ -95,8 +104,6 @@ export async function POST(request: NextRequest) {
     subtotal: number;
   }[] = [];
 
-  // Evita que o mesmo produto/opção seja repetido em várias linhas para
-  // ultrapassar silenciosamente o estoque disponível.
   const requestedByLine = new Map<string, number>();
 
   for (const item of body.items) {
@@ -203,6 +210,55 @@ export async function POST(request: NextRequest) {
   const deliveryFee = 0;
   const total = subtotal + deliveryFee;
 
+  const recentOrders = await prisma.order.findMany({
+    where: {
+      customerPhone,
+      status: "NOVO",
+      deliveryType: body.deliveryType,
+      payment: body.payment,
+      createdAt: { gte: new Date(Date.now() - DUPLICATE_WINDOW_MS) },
+      ...(sessionId ? { sessionId } : {}),
+    },
+    include: { items: true },
+    orderBy: { createdAt: "desc" },
+    take: 3,
+  });
+
+  const duplicateOrder = recentOrders.find((candidate) => {
+    if ((candidate.address ?? "") !== (body.deliveryType === "ENTREGA" ? address : "")) {
+      return false;
+    }
+
+    return sameOrderItems(
+      candidate.items.map((item) => ({
+        productId: item.productId,
+        variantId: item.variantId,
+        qty: item.qty,
+      })),
+      orderItems.map((item) => ({
+        productId: item.productId,
+        variantId: item.variantId,
+        qty: item.qty,
+      }))
+    );
+  });
+
+  if (duplicateOrder) {
+    return NextResponse.json({
+      orderNumber: duplicateOrder.number,
+      subtotal: Number(duplicateOrder.subtotal),
+      deliveryFee: Number(duplicateOrder.deliveryFee),
+      total: Number(duplicateOrder.total),
+      duplicate: true,
+      items: duplicateOrder.items.map((item) => ({
+        name: item.name,
+        variantName: item.variantName,
+        qty: item.qty,
+        subtotal: Number(item.subtotal),
+      })),
+    });
+  }
+
   const order = await prisma.order.create({
     data: {
       customerName,
@@ -221,7 +277,7 @@ export async function POST(request: NextRequest) {
       utmMedium: text(body.utmMedium, 200) || null,
       utmCampaign: text(body.utmCampaign, 200) || null,
       utmContent: text(body.utmContent, 200) || null,
-      sessionId: text(body.sessionId, 200) || null,
+      sessionId: sessionId || null,
       status: "NOVO",
       items: {
         create: orderItems,
@@ -229,7 +285,6 @@ export async function POST(request: NextRequest) {
     },
   });
 
-  const sessionId = text(body.sessionId, 200);
   if (sessionId) {
     await prisma.pushSubscription.updateMany({
       where: {
@@ -248,6 +303,7 @@ export async function POST(request: NextRequest) {
     subtotal,
     deliveryFee,
     total,
+    duplicate: false,
     items: orderItems.map((item) => ({
       name: item.name,
       variantName: item.variantName,
