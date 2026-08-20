@@ -40,3 +40,21 @@ export function sameOrderItems(
 ): boolean {
   return orderItemsFingerprint(first) === orderItemsFingerprint(second);
 }
+
+export function buildOrderRequestKey(input: {
+  customerPhone: string;
+  sessionId?: string | null;
+  deliveryType: string;
+  payment: string;
+  address?: string | null;
+  items: ComparableOrderItem[];
+}): string {
+  return [
+    input.customerPhone,
+    input.sessionId ?? "",
+    input.deliveryType,
+    input.payment,
+    input.address ?? "",
+    orderItemsFingerprint(input.items),
+  ].join("||");
+}
