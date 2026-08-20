@@ -192,7 +192,7 @@ function drawContain(
   y: number,
   width: number,
   height: number,
-  padding = 24
+  padding = 20
 ) {
   const usableWidth = Math.max(1, width - padding * 2);
   const usableHeight = Math.max(1, height - padding * 2);
@@ -207,29 +207,6 @@ function drawContain(
     drawWidth,
     drawHeight
   );
-}
-
-function wrappedLines(
-  context: CanvasRenderingContext2D,
-  text: string,
-  maxWidth: number
-) {
-  const words = text.split(/\s+/);
-  const lines: string[] = [];
-  let current = "";
-
-  for (const word of words) {
-    const next = current ? `${current} ${word}` : word;
-    if (context.measureText(next).width > maxWidth && current) {
-      lines.push(current);
-      current = word;
-    } else {
-      current = next;
-    }
-  }
-
-  if (current) lines.push(current);
-  return lines;
 }
 
 async function drawArtwork(
@@ -249,11 +226,15 @@ async function drawArtwork(
 
   const cream = "#FFF9FB";
   const white = "#FFFFFF";
-  const dark = "#333333";
   const muted = "#766D72";
   const pink = "#E0C0C0";
   const deep = "#8D4F5F";
   const margin = 72;
+  const footerHeight = format === "status" ? 120 : 96;
+  const imageTop = format === "status" ? 150 : 130;
+  const imageBottomGap = format === "status" ? 70 : 54;
+  const imageHeight = height - imageTop - footerHeight - imageBottomGap;
+  const imageWidth = width - margin * 2;
 
   context.fillStyle = cream;
   context.fillRect(0, 0, width, height);
@@ -263,13 +244,11 @@ async function drawArtwork(
   context.font = `700 ${format === "status" ? 40 : 34}px Georgia`;
   context.fillText(branding.storeName || "Sra Make Prudente", margin, 92);
 
-  context.textAlign = "right";
-  context.font = `700 ${format === "status" ? 28 : 24}px Arial`;
-  context.fillText(campaignLabel(kind).toUpperCase(), width - margin, 92);
-
-  const imageTop = format === "status" ? 160 : 140;
-  const imageHeight = format === "status" ? 1040 : 520;
-  const imageWidth = width - margin * 2;
+  if (kind !== "destaque") {
+    context.textAlign = "right";
+    context.font = `700 ${format === "status" ? 28 : 24}px Arial`;
+    context.fillText(campaignLabel(kind).toUpperCase(), width - margin, 92);
+  }
 
   context.fillStyle = white;
   context.fillRect(margin, imageTop, imageWidth, imageHeight);
@@ -280,7 +259,7 @@ async function drawArtwork(
   if (product.imageUrl) {
     try {
       const image = await loadImage(product.imageUrl);
-      drawContain(context, image, margin, imageTop, imageWidth, imageHeight, 30);
+      drawContain(context, image, margin, imageTop, imageWidth, imageHeight, 22);
     } catch {
       context.textAlign = "center";
       context.fillStyle = muted;
@@ -293,42 +272,6 @@ async function drawArtwork(
     }
   }
 
-  let y = imageTop + imageHeight + (format === "status" ? 72 : 48);
-  context.textAlign = "left";
-
-  if (product.brand) {
-    context.fillStyle = muted;
-    context.font = `700 ${format === "status" ? 30 : 24}px Arial`;
-    context.fillText(product.brand.toUpperCase(), margin, y);
-    y += format === "status" ? 54 : 42;
-  }
-
-  context.fillStyle = dark;
-  context.font = `700 ${format === "status" ? 58 : 44}px Georgia`;
-  const titleLines = wrappedLines(
-    context,
-    product.name,
-    width - margin * 2
-  ).slice(0, format === "status" ? 3 : 2);
-  const titleLineHeight = format === "status" ? 70 : 54;
-
-  titleLines.forEach((line, index) => {
-    context.fillText(line, margin, y + index * titleLineHeight);
-  });
-  y += titleLines.length * titleLineHeight + (format === "status" ? 24 : 16);
-
-  if (hasRealPromotion(product)) {
-    context.fillStyle = muted;
-    context.font = `500 ${format === "status" ? 30 : 24}px Arial`;
-    context.fillText(`De ${money(product.price)}`, margin, y);
-    y += format === "status" ? 52 : 40;
-  }
-
-  context.fillStyle = deep;
-  context.font = `700 ${format === "status" ? 82 : 64}px Arial`;
-  context.fillText(money(product.promoPrice ?? product.price), margin, y);
-
-  const footerHeight = format === "status" ? 120 : 96;
   context.fillStyle = deep;
   context.fillRect(0, height - footerHeight, width, footerHeight);
   context.fillStyle = white;
@@ -572,7 +515,7 @@ export function PromotionCenter({
                 Campanha pronta
               </h2>
               <p className="text-sm text-cinza">
-                Arte, descrição e link do catálogo no mesmo lugar.
+                A arte chama atenção. A descrição traz produto, preço e link.
               </p>
             </div>
           </div>
