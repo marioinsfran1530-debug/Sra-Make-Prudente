@@ -1,8 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { PromotionCenter } from "@/components/admin/PromotionCenter";
 
-const SITE_URL =
-  process.env.NEXT_PUBLIC_SITE_URL || "https://sramakeprudente.vercel.app";
+const SITE_URL = "https://sramakeprudente.com.br";
 
 export default async function AdminDivulgacaoPage() {
   const [products, settings] = await Promise.all([
