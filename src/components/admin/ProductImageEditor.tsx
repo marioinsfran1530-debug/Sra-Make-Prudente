@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { RotateCcw, RotateCw, X } from "lucide-react";
 
 const CANVAS_SIZE = 800;
@@ -54,11 +54,7 @@ export function ProductImageEditor({
     };
   }, [source]);
 
-  useEffect(() => {
-    draw();
-  }, [ready, rotation, zoom, offset]);
-
-  function getGeometry() {
+  const getGeometry = useCallback(() => {
     const image = imageRef.current;
     if (!image) return null;
 
@@ -84,19 +80,22 @@ export function ProductImageEditor({
       maxX: Math.max(0, (visibleWidth - CANVAS_SIZE) / 2),
       maxY: Math.max(0, (visibleHeight - CANVAS_SIZE) / 2),
     };
-  }
+  }, [rotation, zoom]);
 
-  function clampOffset(next: { x: number; y: number }) {
-    const geometry = getGeometry();
-    if (!geometry) return next;
+  const clampOffset = useCallback(
+    (next: { x: number; y: number }) => {
+      const geometry = getGeometry();
+      if (!geometry) return next;
 
-    return {
-      x: Math.max(-geometry.maxX, Math.min(geometry.maxX, next.x)),
-      y: Math.max(-geometry.maxY, Math.min(geometry.maxY, next.y)),
-    };
-  }
+      return {
+        x: Math.max(-geometry.maxX, Math.min(geometry.maxX, next.x)),
+        y: Math.max(-geometry.maxY, Math.min(geometry.maxY, next.y)),
+      };
+    },
+    [getGeometry]
+  );
 
-  function draw() {
+  const draw = useCallback(() => {
     const canvas = canvasRef.current;
     const context = canvas?.getContext("2d");
     const geometry = getGeometry();
@@ -125,7 +124,11 @@ export function ProductImageEditor({
       geometry.drawHeight
     );
     context.restore();
-  }
+  }, [clampOffset, getGeometry, offset, rotation]);
+
+  useEffect(() => {
+    draw();
+  }, [draw, ready]);
 
   function rotate(delta: number) {
     setRotation((current) => current + delta);
