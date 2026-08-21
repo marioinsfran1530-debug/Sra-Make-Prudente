@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Grid2X2, List } from "lucide-react";
+import { Grid2X2, ImageIcon, List } from "lucide-react";
 import { money } from "@/lib/money";
 import { computeStockStatus, STOCK_LABEL } from "@/lib/stock";
 
@@ -12,6 +12,7 @@ type Row = {
   name: string;
   brand: string;
   sku: string | null;
+  imageUrl: string | null;
   price: number;
   promoPrice: number | null;
   stockQty: number;
@@ -317,26 +318,40 @@ export function ProductsTable({ products }: { products: Row[] }) {
                 opacity: product.active ? 1 : 0.55,
               }}
             >
-              <div className="min-w-0 flex-1">
-                <div className="mb-1 flex flex-wrap gap-1">
-                  {product.featured && <Tag>Destaque</Tag>}
-                  {product.isNew && <Tag variant="cream">Novidade</Tag>}
-                  {product.bestSeller && <Tag variant="navy">Mais procurado</Tag>}
-                </div>
+              <div
+                className={
+                  viewMode === "grid"
+                    ? "flex min-w-0 items-start gap-3"
+                    : "flex min-w-0 flex-1 items-center gap-3"
+                }
+              >
+                <ProductThumbnail
+                  name={product.name}
+                  imageUrl={product.imageUrl}
+                  compact={viewMode === "list"}
+                />
 
-                <p className="truncate text-sm font-bold text-texto">{product.name}</p>
-                <p className="text-xs text-cinza">
-                  {product.brand} · {product.category.name}
-                </p>
-                {product.sku && (
-                  <p className="mt-0.5 text-[10px] text-cinza">SKU: {product.sku}</p>
-                )}
-                <p className="mt-1 text-xs text-cinza">
-                  {STOCK_LABEL[stock]} · {product.stockQty} un.
-                </p>
-                <p className="mt-1 text-sm font-bold text-rosa-profundo">
-                  {money(product.promoPrice ?? product.price)}
-                </p>
+                <div className="min-w-0 flex-1">
+                  <div className="mb-1 flex flex-wrap gap-1">
+                    {product.featured && <Tag>Destaque</Tag>}
+                    {product.isNew && <Tag variant="cream">Novidade</Tag>}
+                    {product.bestSeller && <Tag variant="navy">Mais procurado</Tag>}
+                  </div>
+
+                  <p className="truncate text-sm font-bold text-texto">{product.name}</p>
+                  <p className="text-xs text-cinza">
+                    {product.brand} · {product.category.name}
+                  </p>
+                  {product.sku && (
+                    <p className="mt-0.5 text-[10px] text-cinza">SKU: {product.sku}</p>
+                  )}
+                  <p className="mt-1 text-xs text-cinza">
+                    {STOCK_LABEL[stock]} · {product.stockQty} un.
+                  </p>
+                  <p className="mt-1 text-sm font-bold text-rosa-profundo">
+                    {money(product.promoPrice ?? product.price)}
+                  </p>
+                </div>
               </div>
 
               <div
@@ -456,6 +471,35 @@ export function ProductsTable({ products }: { products: Row[] }) {
             </button>
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+function ProductThumbnail({
+  name,
+  imageUrl,
+  compact,
+}: {
+  name: string;
+  imageUrl: string | null;
+  compact: boolean;
+}) {
+  const size = compact ? "h-11 w-11" : "h-14 w-14";
+
+  return (
+    <div
+      className={`${size} flex shrink-0 items-center justify-center overflow-hidden rounded-xl border border-rosa/10 bg-creme`}
+    >
+      {imageUrl ? (
+        <img
+          src={imageUrl}
+          alt={name}
+          loading="lazy"
+          className="h-full w-full object-cover"
+        />
+      ) : (
+        <ImageIcon size={compact ? 16 : 18} className="text-cinza/60" aria-hidden="true" />
       )}
     </div>
   );
