@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://sramakeprudente.vercel.app";
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://sramakeprudente.com.br";
 const TITLE = "Sra Make Prudente | Maquiagem, Lash, Nail e Cosméticos";
 const DESCRIPTION =
   "Confira o catálogo da Sra Make Prudente. Maquiagem, produtos para lash, nail e acessórios em Presidente Prudente. Escolha seus produtos e faça seu pedido pelo WhatsApp.";
