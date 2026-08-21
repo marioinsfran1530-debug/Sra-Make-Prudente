@@ -4,8 +4,9 @@ import { requireAdmin } from "@/lib/admin-auth";
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const { error, status } = await requireAdmin("EDITOR");
 
   if (error) {
@@ -14,11 +15,7 @@ export async function PUT(
 
   try {
     const body = await request.json();
-
-    const name =
-      typeof body.name === "string"
-        ? body.name.trim()
-        : undefined;
+    const name = typeof body.name === "string" ? body.name.trim() : undefined;
 
     if (name !== undefined && !name) {
       return NextResponse.json(
@@ -28,28 +25,18 @@ export async function PUT(
     }
 
     const category = await prisma.category.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         name,
-        description:
-          body.description === undefined
-            ? undefined
-            : body.description || null,
-        order:
-          typeof body.order === "number"
-            ? body.order
-            : undefined,
-        active:
-          typeof body.active === "boolean"
-            ? body.active
-            : undefined,
+        description: body.description === undefined ? undefined : body.description || null,
+        order: typeof body.order === "number" ? body.order : undefined,
+        active: typeof body.active === "boolean" ? body.active : undefined,
       },
     });
 
     return NextResponse.json({ category });
   } catch (error) {
     console.error("ERRO AO EDITAR CATEGORIA:", error);
-
     return NextResponse.json(
       { error: "Não foi possível editar a categoria." },
       { status: 500 }
