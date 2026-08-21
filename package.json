@@ -2,6 +2,9 @@
   "name": "sra-make-catalogo",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": "20.x"
+  },
   "scripts": {
     "dev": "next dev",
     "postinstall": "prisma generate",
