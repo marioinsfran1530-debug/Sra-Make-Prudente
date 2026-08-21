@@ -1,10 +1,12 @@
 import { BottomNav } from "@/components/BottomNav";
 import { CartProvider } from "@/components/CartProvider";
 import { DesktopStoreNav } from "@/components/DesktopStoreNav";
+import { StoreFooter } from "@/components/StoreFooter";
 import { TrackingInit } from "@/components/TrackingInit";
 import { getStoreSettings } from "@/lib/data";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://sramakeprudente.vercel.app";
+const STORE_CNPJ = process.env.NEXT_PUBLIC_STORE_CNPJ || "64.394.637/0001-92";
 
 function socialUrl(value: string | null | undefined, network: "instagram" | "facebook") {
   if (!value) return null;
@@ -60,6 +62,7 @@ export default async function LojaLayout({
         "@id": `${SITE_URL}/#store`,
         name: storeName,
         url: SITE_URL,
+        taxID: STORE_CNPJ,
         description:
           "Loja de maquiagem, lash, nail e acessórios em Presidente Prudente, com catálogo online, retirada e atendimento pelo WhatsApp.",
         areaServed: {
@@ -117,7 +120,10 @@ export default async function LojaLayout({
             storeName={storeName}
             logoUrl={settings?.logoUrl}
           />
-          <div className="pb-20">{children}</div>
+          <div className="pb-20">
+            {children}
+            <StoreFooter storeName={storeName} cnpj={STORE_CNPJ} />
+          </div>
           <BottomNav />
         </div>
       </div>
