@@ -2,6 +2,7 @@ import { BottomNav } from "@/components/BottomNav";
 import { CartProvider } from "@/components/CartProvider";
 import { DesktopStoreNav } from "@/components/DesktopStoreNav";
 import { StoreFooter } from "@/components/StoreFooter";
+import { StoreScrollReveal } from "@/components/StoreScrollReveal";
 import { TrackingInit } from "@/components/TrackingInit";
 import { getStoreSettings } from "@/lib/data";
 
@@ -108,6 +109,7 @@ export default async function LojaLayout({
   return (
     <CartProvider>
       <TrackingInit />
+      <StoreScrollReveal />
 
       <script
         type="application/ld+json"
