@@ -9,7 +9,7 @@ import { ProductListClient } from "@/components/ProductListClient";
 import { CatalogCategoryNav } from "@/components/CatalogCategoryNav";
 import { SearchBar } from "@/components/SearchBar";
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://sramakeprudente.vercel.app";
+const SITE_URL = "https://sramakeprudente.com.br";
 
 export const revalidate = 60;
 
