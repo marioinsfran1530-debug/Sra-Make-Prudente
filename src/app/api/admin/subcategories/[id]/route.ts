@@ -13,8 +13,9 @@ function slugify(value: string) {
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const { error, status } = await requireAdmin("EDITOR");
 
   if (error) {
@@ -32,9 +33,7 @@ export async function PUT(
       );
     }
 
-    const current = await prisma.subcategory.findUnique({
-      where: { id: params.id },
-    });
+    const current = await prisma.subcategory.findUnique({ where: { id } });
 
     if (!current) {
       return NextResponse.json(
@@ -49,9 +48,7 @@ export async function PUT(
       where: {
         categoryId: current.categoryId,
         slug,
-        NOT: {
-          id: current.id,
-        },
+        NOT: { id: current.id },
       },
     });
 
@@ -63,17 +60,13 @@ export async function PUT(
     }
 
     const subcategory = await prisma.subcategory.update({
-      where: { id: params.id },
-      data: {
-        name,
-        slug,
-      },
+      where: { id },
+      data: { name, slug },
     });
 
     return NextResponse.json({ subcategory });
   } catch (error) {
     console.error("ERRO AO EDITAR SUBCATEGORIA:", error);
-
     return NextResponse.json(
       { error: "Não foi possível editar a subcategoria." },
       { status: 500 }
