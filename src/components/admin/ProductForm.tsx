@@ -23,6 +23,21 @@ type ProductImage = {
   order: number;
 };
 
+type ProductLookup = {
+  gtin: string;
+  name: string | null;
+  brand: string | null;
+  description: string | null;
+  imageUrl: string | null;
+  ncm: string | null;
+  ncmDescription: string | null;
+  category: string | null;
+  avgPrice: number | null;
+  minPrice: number | null;
+  maxPrice: number | null;
+  source: "cosmos" | "open_beauty_facts";
+};
+
 type ImageEditorTarget =
   | {
       kind: "existing";
@@ -45,6 +60,38 @@ const ALLOWED_TYPES = new Set([
   "image/png",
   "image/webp",
 ]);
+
+function onlyDigits(value: string) {
+  return value.replace(/\D/g, "");
+}
+
+function isValidGtin(value: string) {
+  const digits = onlyDigits(value);
+  if (![8, 12, 13, 14].includes(digits.length)) return false;
+
+  const numbers = digits.split("").map(Number);
+  const checkDigit = numbers.pop();
+  if (checkDigit === undefined) return false;
+
+  let sum = 0;
+  for (let i = numbers.length - 1, position = 0; i >= 0; i--, position++) {
+    sum += numbers[i] * (position % 2 === 0 ? 3 : 1);
+  }
+
+  return (10 - (sum % 10)) % 10 === checkDigit;
+}
+
+function sourceLabel(source: ProductLookup["source"]) {
+  return source === "cosmos" ? "Bluesoft Cosmos" : "Open Beauty Facts";
+}
+
+function moneyOrNull(value: number | null) {
+  if (value === null) return null;
+  return value.toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  });
+}
 
 export function ProductForm({
   categories,
@@ -112,11 +159,16 @@ export function ProductForm({
   const [editorTarget, setEditorTarget] = useState<ImageEditorTarget | null>(null);
   const [editorSaving, setEditorSaving] = useState(false);
 
+  const [lookupLoading, setLookupLoading] = useState(false);
+  const [lookupResult, setLookupResult] = useState<ProductLookup | null>(null);
+  const [lookupError, setLookupError] = useState<string | null>(null);
+
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
 
   const selectedCategory = categories.find((c) => c.id === categoryId);
+  const gtinValid = isValidGtin(sku);
 
   useEffect(() => {
     const urls = newImages.map((file) => URL.createObjectURL(file));
@@ -161,6 +213,47 @@ export function ProductForm({
 
   function removeNewImage(index: number) {
     setNewImages((current) => current.filter((_, i) => i !== index));
+  }
+
+  function applyLookup(result: ProductLookup, overwrite = false) {
+    if (result.name && (overwrite || !name.trim())) setName(result.name);
+    if (result.brand && (overwrite || !brand.trim())) setBrand(result.brand);
+    if (result.description && (overwrite || !description.trim())) {
+      setDescription(result.description);
+    }
+  }
+
+  async function lookupByGtin() {
+    const gtin = onlyDigits(sku);
+    setLookupError(null);
+    setLookupResult(null);
+
+    if (!isValidGtin(gtin)) {
+      setLookupError("Digite um EAN/GTIN válido com 8, 12, 13 ou 14 dígitos.");
+      return;
+    }
+
+    setLookupLoading(true);
+    try {
+      const response = await fetch(`/api/admin/products/lookup/${gtin}`, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok || !data.product) {
+        throw new Error(data.error ?? "Produto não encontrado.");
+      }
+
+      const result = data.product as ProductLookup;
+      setSku(result.gtin || gtin);
+      setLookupResult(result);
+      applyLookup(result, false);
+    } catch (err) {
+      setLookupError(err instanceof Error ? err.message : "Não foi possível consultar o produto.");
+    } finally {
+      setLookupLoading(false);
+    }
   }
 
   async function applyImageEdit(file: File) {
@@ -327,9 +420,112 @@ export function ProductForm({
         <input value={brand} onChange={(e) => setBrand(e.target.value)} required className="input" />
       </Field>
 
-      <Field label="SKU (opcional)">
-        <input value={sku} onChange={(e) => setSku(e.target.value)} className="input" />
+      <Field label="Código de barras / SKU">
+        <div className="flex gap-2">
+          <input
+            value={sku}
+            onChange={(e) => {
+              setSku(e.target.value);
+              setLookupError(null);
+              setLookupResult(null);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && gtinValid && !lookupLoading) {
+                e.preventDefault();
+                void lookupByGtin();
+              }
+            }}
+            inputMode="numeric"
+            placeholder="EAN/GTIN ou SKU interno"
+            className="input"
+          />
+          <button
+            type="button"
+            onClick={lookupByGtin}
+            disabled={!gtinValid || lookupLoading}
+            className="flex w-12 shrink-0 items-center justify-center rounded-xl border border-rosa/20 bg-white text-lg text-rosa-profundo transition hover:bg-rosa/5 disabled:cursor-not-allowed disabled:opacity-40"
+            title={gtinValid ? "Buscar produto pelo código de barras" : "Digite um EAN/GTIN válido"}
+            aria-label="Buscar produto pelo código de barras"
+          >
+            {lookupLoading ? "…" : "🔍"}
+          </button>
+        </div>
       </Field>
+
+      <p className="-mt-2 text-[11px] leading-5 text-cinza">
+        Se for um EAN/GTIN válido, use a lupa para buscar nome, marca, descrição, foto e dados fiscais. SKU interno continua funcionando normalmente.
+      </p>
+
+      {lookupError && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+          {lookupError}
+        </div>
+      )}
+
+      {lookupResult && (
+        <div className="rounded-2xl border border-rosa/20 bg-creme/50 p-4">
+          <div className="flex gap-3">
+            {lookupResult.imageUrl ? (
+              <img
+                src={lookupResult.imageUrl}
+                alt={lookupResult.name || "Produto encontrado"}
+                className="h-20 w-20 shrink-0 rounded-xl border border-rosa/15 bg-white object-contain p-1"
+              />
+            ) : (
+              <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl border border-rosa/15 bg-white text-[10px] text-cinza">
+                Sem foto
+              </div>
+            )}
+
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-rosa-profundo">
+                Produto encontrado · {sourceLabel(lookupResult.source)}
+              </p>
+              <p className="mt-1 text-sm font-bold text-texto">
+                {lookupResult.name || "Nome não informado"}
+              </p>
+              {lookupResult.brand && (
+                <p className="mt-0.5 text-xs text-cinza">Marca: {lookupResult.brand}</p>
+              )}
+              <p className="mt-0.5 text-[11px] text-cinza">EAN/GTIN: {lookupResult.gtin}</p>
+            </div>
+          </div>
+
+          <div className="mt-3 grid gap-2 text-[11px] text-cinza sm:grid-cols-2">
+            {lookupResult.ncm && (
+              <p><span className="font-bold text-texto">NCM:</span> {lookupResult.ncm}</p>
+            )}
+            {lookupResult.category && (
+              <p><span className="font-bold text-texto">Categoria da fonte:</span> {lookupResult.category}</p>
+            )}
+            {lookupResult.avgPrice !== null && (
+              <p><span className="font-bold text-texto">Preço médio de referência:</span> {moneyOrNull(lookupResult.avgPrice)}</p>
+            )}
+            {lookupResult.minPrice !== null && lookupResult.maxPrice !== null && (
+              <p><span className="font-bold text-texto">Faixa encontrada:</span> {moneyOrNull(lookupResult.minPrice)} a {moneyOrNull(lookupResult.maxPrice)}</p>
+            )}
+          </div>
+
+          {lookupResult.ncmDescription && (
+            <p className="mt-2 text-[10px] leading-4 text-cinza">
+              {lookupResult.ncmDescription}
+            </p>
+          )}
+
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => applyLookup(lookupResult, true)}
+              className="rounded-lg bg-rosa-profundo px-3 py-2 text-xs font-bold text-white"
+            >
+              Aplicar dados ao cadastro
+            </button>
+            <span className="text-[10px] leading-4 text-cinza">
+              O preço de venda não é alterado. Revise os dados antes de salvar.
+            </span>
+          </div>
+        </div>
+      )}
 
       <Field label="Descrição">
         <textarea
