@@ -21,10 +21,7 @@ export async function POST(request: NextRequest) {
   const { error, status } = await requireAdmin("EDITOR");
 
   if (error) {
-    return NextResponse.json(
-      { error },
-      { status }
-    );
+    return NextResponse.json({ error }, { status });
   }
 
   try {
@@ -32,77 +29,65 @@ export async function POST(request: NextRequest) {
 
     const file = formData.get("file");
     const productId = formData.get("productId");
+    const imageId = formData.get("imageId");
 
     if (!(file instanceof File)) {
       return NextResponse.json(
-        {
-          error:
-            "Nenhuma imagem foi enviada.",
-        },
+        { error: "Nenhuma imagem foi enviada." },
         { status: 400 }
       );
     }
 
-    if (
-      typeof productId !== "string" ||
-      !productId
-    ) {
+    if (typeof productId !== "string" || !productId) {
       return NextResponse.json(
-        {
-          error:
-            "Produto não informado.",
-        },
+        { error: "Produto não informado." },
         { status: 400 }
       );
     }
 
     if (!ALLOWED_TYPES.has(file.type)) {
       return NextResponse.json(
-        {
-          error:
-            "Formato inválido. Use JPG, PNG ou WebP.",
-        },
+        { error: "Formato inválido. Use JPG, PNG ou WebP." },
         { status: 400 }
       );
     }
 
     if (file.size > MAX_FILE_SIZE) {
       return NextResponse.json(
-        {
-          error:
-            "A imagem original deve ter no máximo 10 MB.",
-        },
+        { error: "A imagem original deve ter no máximo 10 MB." },
         { status: 400 }
       );
     }
 
-    const product =
-      await prisma.product.findUnique({
-        where: {
-          id: productId,
-        },
-        select: {
-          id: true,
-        },
-      });
+    const product = await prisma.product.findUnique({
+      where: { id: productId },
+      select: { id: true },
+    });
 
     if (!product) {
       return NextResponse.json(
-        {
-          error:
-            "Produto não encontrado.",
-        },
+        { error: "Produto não encontrado." },
         { status: 404 }
       );
     }
 
-    const originalBuffer = Buffer.from(
-      await file.arrayBuffer()
-    );
+    const replacingImage =
+      typeof imageId === "string" && imageId
+        ? await prisma.productImage.findFirst({
+            where: { id: imageId, productId },
+          })
+        : null;
 
-    const optimizedBuffer = await sharp(
-      originalBuffer
-    )
+    if (typeof imageId === "string" && imageId && !replacingImage) {
+      return NextResponse.json(
+        { error: "Imagem não encontrada para este produto." },
+        { status: 404 }
+      );
+    }
+
+    const originalBuffer = Buffer.from(await file.arrayBuffer());
+
+    const optimizedBuffer = await sharp(originalBuffer)
       .rotate()
       .resize({
         width: MAX_WIDTH,
@@ -121,100 +106,89 @@ export async function POST(request: NextRequest) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    const fileName =
-      `${crypto.randomUUID()}.webp`;
+    const fileName = `${crypto.randomUUID()}.webp`;
+    const storagePath = `${productId}/${fileName}`;
 
-    const storagePath =
-      `${productId}/${fileName}`;
-
-    const { error: uploadError } =
-      await supabase.storage
-        .from(BUCKET)
-        .upload(
-          storagePath,
-          optimizedBuffer,
-          {
-            contentType:
-              "image/webp",
-            cacheControl:
-              "31536000",
-            upsert: false,
-          }
-        );
+    const { error: uploadError } = await supabase.storage
+      .from(BUCKET)
+      .upload(storagePath, optimizedBuffer, {
+        contentType: "image/webp",
+        cacheControl: "31536000",
+        upsert: false,
+      });
 
     if (uploadError) {
-      console.error(
-        "Erro no upload:",
-        uploadError
-      );
+      console.error("Erro no upload:", uploadError);
 
       return NextResponse.json(
-        {
-          error:
-            "Não foi possível enviar a imagem para o Storage.",
-        },
+        { error: "Não foi possível enviar a imagem para o Storage." },
         { status: 500 }
       );
     }
 
     const {
       data: { publicUrl },
-    } = supabase.storage
-      .from(BUCKET)
-      .getPublicUrl(storagePath);
+    } = supabase.storage.from(BUCKET).getPublicUrl(storagePath);
 
-    const lastImage =
-      await prisma.productImage.findFirst({
-        where: {
-          productId,
-        },
-        orderBy: {
-          order: "desc",
-        },
-        select: {
-          order: true,
-        },
-      });
+    let image;
 
-    const image =
-      await prisma.productImage.create({
-        data: {
-          productId,
-          url: publicUrl,
-          storagePath,
-          order: lastImage
-            ? lastImage.order + 1
-            : 0,
-        },
-      });
+    try {
+      if (replacingImage) {
+        image = await prisma.productImage.update({
+          where: { id: replacingImage.id },
+          data: {
+            url: publicUrl,
+            storagePath,
+          },
+        });
+      } else {
+        const lastImage = await prisma.productImage.findFirst({
+          where: { productId },
+          orderBy: { order: "desc" },
+          select: { order: true },
+        });
+
+        image = await prisma.productImage.create({
+          data: {
+            productId,
+            url: publicUrl,
+            storagePath,
+            order: lastImage ? lastImage.order + 1 : 0,
+          },
+        });
+      }
+    } catch (databaseError) {
+      await supabase.storage.from(BUCKET).remove([storagePath]).catch(() => undefined);
+      throw databaseError;
+    }
+
+    if (replacingImage?.storagePath && replacingImage.storagePath !== storagePath) {
+      const { error: removeError } = await supabase.storage
+        .from(BUCKET)
+        .remove([replacingImage.storagePath]);
+
+      if (removeError) {
+        console.warn("Não foi possível remover a imagem antiga:", removeError);
+      }
+    }
 
     return NextResponse.json({
       image: {
         id: image.id,
         url: image.url,
-        storagePath:
-          image.storagePath,
+        storagePath: image.storagePath,
         order: image.order,
       },
-
       optimization: {
-        originalBytes:
-          file.size,
-        optimizedBytes:
-          optimizedBuffer.length,
+        originalBytes: file.size,
+        optimizedBytes: optimizedBuffer.length,
       },
     });
   } catch (error) {
-    console.error(
-      "Erro ao processar upload:",
-      error
-    );
+    console.error("Erro ao processar upload:", error);
 
     return NextResponse.json(
-      {
-        error:
-          "Erro interno ao processar a imagem.",
-      },
+      { error: "Erro interno ao processar a imagem." },
       { status: 500 }
     );
   }
