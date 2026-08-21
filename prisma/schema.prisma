@@ -21,7 +21,7 @@ model Category {
   imageUrl          String?
   description       String?
   order             Int               @default(0)
-  active            Boolean           @default(true)
+  active             Boolean           @default(true)
   subcategories     Subcategory[]
   products          Product[]
   productCategories ProductCategory[]
@@ -53,28 +53,19 @@ model Product {
   description String?
   price       Decimal  @db.Decimal(10, 2)
   promoPrice  Decimal? @db.Decimal(10, 2)
-
-  // Estoque: fonte da verdade é a quantidade. StockStatus é sempre CALCULADO
-  // no código (>5 disponível, 1-5 últimas, 0 indisponível) — nunca editado
-  // diretamente pelo admin. Usado quando o produto NÃO tem variantes.
-  stockQty Int @default(0)
-
-  featured   Boolean @default(false)
-  isNew      Boolean @default(false)
-  bestSeller Boolean @default(false)
-  active     Boolean @default(true)
-
-  // Categoria principal preserva compatibilidade, subcategoria e exibição principal.
+  stockQty    Int      @default(0)
+  featured    Boolean  @default(false)
+  isNew       Boolean  @default(false)
+  bestSeller  Boolean  @default(false)
+  active      Boolean  @default(true)
   categoryId    String
   category      Category     @relation(fields: [categoryId], references: [id])
   subcategoryId String?
   subcategory   Subcategory? @relation(fields: [subcategoryId], references: [id])
-
-  // Categorias adicionais permitem que o mesmo produto apareça em mais de uma categoria.
-  categories ProductCategory[]
-  images     ProductImage[]
-  variants   ProductVariant[]
-
+  categories     ProductCategory[]
+  images         ProductImage[]
+  variants       ProductVariant[]
+  campaignLinks  CampaignLinkMetric[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -103,16 +94,35 @@ model ProductImage {
 
 model ProductVariant {
   id         String   @id @default(cuid())
-  name       String // ex: "Bege Médio"
+  name       String
   sku        String?
   price      Decimal? @db.Decimal(10, 2)
   promoPrice Decimal? @db.Decimal(10, 2)
-  stockQty   Int      @default(0) // fonte da verdade do estoque desta variante
+  stockQty   Int      @default(0)
   active     Boolean  @default(true)
   productId  String
   product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+}
+
+model CampaignLinkMetric {
+  id            String   @id @default(cuid())
+  code          String
+  productId     String
+  product       Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  utmSource     String   @default("whatsapp")
+  utmMedium     String   @default("organic")
+  utmCampaign   String
+  utmContent    String
+  clicks        Int      @default(0)
+  lastClickedAt DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([code, utmCampaign, utmContent])
+  @@index([productId])
+  @@index([utmCampaign])
 }
 
 // ---------- Pedidos ----------
@@ -145,16 +155,13 @@ model Order {
   number        Int    @unique @default(autoincrement())
   customerName  String
   customerPhone String
-
   subtotal    Decimal @db.Decimal(10, 2)
   deliveryFee Decimal @default(0) @db.Decimal(10, 2)
   total       Decimal @db.Decimal(10, 2)
-
   deliveryType delivery_type
   address      String?
   payment      payment_method
   notes        String?
-
   origin      String?
   referrer    String?
   landingPage String?
@@ -163,10 +170,8 @@ model Order {
   utmCampaign String?
   utmContent  String?
   sessionId   String?
-
   status order_status @default(NOVO)
   items  OrderItem[]
-
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -177,13 +182,10 @@ model OrderItem {
   order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   productId String
   variantId String?
-
-  // snapshot no momento da compra — nunca muda mesmo se o produto mudar depois
   name        String
   brand       String?
   sku         String?
   variantName String?
-
   qty       Int
   unitPrice Decimal @db.Decimal(10, 2)
   subtotal  Decimal @db.Decimal(10, 2)
@@ -196,7 +198,6 @@ enum admin_role {
   EDITOR
 }
 
-// id igual ao id do usuário em auth.users (Supabase Auth)
 model AdminProfile {
   id        String     @id
   email     String     @unique
