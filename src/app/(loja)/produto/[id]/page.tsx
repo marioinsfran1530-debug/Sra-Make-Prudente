@@ -2,7 +2,8 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { MessageCircle } from "lucide-react";
 import { getProductById } from "@/lib/data";
-import { ProductImage } from "@/components/ProductImage";
+import { ProductGallery } from "@/components/ProductGallery";
+import { ProductShareButton } from "@/components/ProductShareButton";
 import { Badge, StockLabel } from "@/components/Badges";
 import { AddToCartBox } from "@/components/AddToCartBox";
 import { ProductViewTracker } from "@/components/ViewTrackers";
@@ -62,7 +63,6 @@ export default async function ProdutoPage({
   const product = await getProductById(params.id);
   if (!product) notFound();
 
-  const mainImage = product.images[0]?.url ?? null;
   const productUrl = `${SITE_URL}/produto/${product.id}`;
   const categoryUrl = `${SITE_URL}/categoria/${product.category.slug}`;
   const currentPrice = product.promoPrice ?? product.price;
@@ -140,22 +140,17 @@ export default async function ProdutoPage({
 
       <div className="mx-auto w-full max-w-6xl">
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-[0.9fr_1.1fr] lg:gap-6 lg:items-start">
-          {/* IMAGEM */}
-          <div className="overflow-hidden rounded-3xl border border-rosa/10 bg-white">
-            <ProductImage
-              name={product.name}
-              imageUrl={mainImage}
-              className="w-full aspect-square lg:h-[calc(100vh-150px)] lg:max-h-[620px]"
-            />
-          </div>
+          <ProductGallery name={product.name} images={product.images} />
 
-          {/* INFORMAÇÕES */}
           <div className="rounded-3xl border border-rosa/10 bg-white p-5 lg:p-5">
-            <div className="flex items-center gap-1 mb-3">
-              {product.isNew && <Badge tone="dourado">Novidade</Badge>}
-              {product.bestSeller && (
-                <Badge tone="navy">Mais vendido</Badge>
-              )}
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-1">
+                {product.isNew && <Badge tone="dourado">Novidade</Badge>}
+                {product.bestSeller && (
+                  <Badge tone="navy">Mais vendido</Badge>
+                )}
+              </div>
+              <ProductShareButton name={product.name} url={productUrl} />
             </div>
 
             <p className="text-xs font-semibold uppercase tracking-wide text-cinza">
