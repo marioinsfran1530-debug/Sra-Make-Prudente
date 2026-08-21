@@ -23,14 +23,14 @@ function normalizeCategoryIds(primaryCategoryId: string, categoryIds: unknown) {
   const ids = Array.isArray(categoryIds)
     ? categoryIds.filter((id): id is string => typeof id === "string" && id.length > 0)
     : [];
-
   return Array.from(new Set([primaryCategoryId, ...ids]));
 }
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const { error, status } = await requireAdmin("EDITOR");
   if (error) return NextResponse.json({ error }, { status });
 
@@ -50,7 +50,7 @@ export async function PUT(
 
   const product = await prisma.$transaction(async (tx) => {
     const current = await tx.product.findUnique({
-      where: { id: params.id },
+      where: { id },
       select: { categoryId: true },
     });
 
@@ -59,7 +59,7 @@ export async function PUT(
     const primaryCategoryId = String(body.categoryId ?? current.categoryId);
 
     const updatedProduct = await tx.product.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         ...(body.name !== undefined && { name: body.name }),
         ...(body.brand !== undefined && { brand: body.brand }),
@@ -67,10 +67,7 @@ export async function PUT(
         ...(body.description !== undefined && { description: body.description || null }),
         ...(body.price !== undefined && { price: Number(body.price) }),
         ...(body.promoPrice !== undefined && {
-          promoPrice:
-            body.promoPrice === null || body.promoPrice === ""
-              ? null
-              : Number(body.promoPrice),
+          promoPrice: body.promoPrice === null || body.promoPrice === "" ? null : Number(body.promoPrice),
         }),
         ...(body.stockQty !== undefined && { stockQty: Number(body.stockQty) }),
         ...(body.featured !== undefined && { featured: !!body.featured }),
@@ -84,21 +81,19 @@ export async function PUT(
 
     if (categoriesProvided) {
       const categoryIds = normalizeCategoryIds(primaryCategoryId, body.categoryIds);
-      await tx.productCategory.deleteMany({ where: { productId: params.id } });
+      await tx.productCategory.deleteMany({ where: { productId: id } });
       await tx.productCategory.createMany({
-        data: categoryIds.map((categoryId) => ({ productId: params.id, categoryId })),
+        data: categoryIds.map((categoryId) => ({ productId: id, categoryId })),
         skipDuplicates: true,
       });
     }
 
     if (variantsProvided) {
-      const receivedIds = variants
-        .map((variant) => variant.id)
-        .filter((id): id is string => Boolean(id));
+      const receivedIds = variants.map((variant) => variant.id).filter((variantId): variantId is string => Boolean(variantId));
 
       await tx.productVariant.deleteMany({
         where: {
-          productId: params.id,
+          productId: id,
           ...(receivedIds.length > 0 ? { id: { notIn: receivedIds } } : {}),
         },
       });
@@ -106,16 +101,12 @@ export async function PUT(
       for (const variant of variants) {
         if (variant.id) {
           await tx.productVariant.update({
-            where: { id: variant.id, productId: params.id },
+            where: { id: variant.id, productId: id },
             data: { name: variant.name, stockQty: variant.stockQty },
           });
         } else {
           await tx.productVariant.create({
-            data: {
-              productId: params.id,
-              name: variant.name,
-              stockQty: variant.stockQty,
-            },
+            data: { productId: id, name: variant.name, stockQty: variant.stockQty },
           });
         }
       }
@@ -129,19 +120,15 @@ export async function PUT(
 
 export async function DELETE(
   _request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const { error, status } = await requireAdmin("EDITOR");
   if (error) return NextResponse.json({ error }, { status });
 
   const product = await prisma.product.findUnique({
-    where: { id: params.id },
-    select: {
-      id: true,
-      images: {
-        select: { storagePath: true },
-      },
-    },
+    where: { id },
+    select: { id: true, images: { select: { storagePath: true } } },
   });
 
   if (!product) {
@@ -150,37 +137,26 @@ export async function DELETE(
 
   const orderInProgress = await prisma.orderItem.findFirst({
     where: {
-      productId: params.id,
-      order: {
-        status: { in: [...OPEN_ORDER_STATUSES] },
-      },
+      productId: id,
+      order: { status: { in: [...OPEN_ORDER_STATUSES] } },
     },
     select: { id: true },
   });
 
   if (orderInProgress) {
     return NextResponse.json(
-      {
-        error:
-          "Este produto está ligado a um pedido em andamento. Finalize ou cancele o pedido antes de excluir.",
-      },
+      { error: "Este produto está ligado a um pedido em andamento. Finalize ou cancele o pedido antes de excluir." },
       { status: 409 }
     );
   }
 
-  await prisma.product.delete({
-    where: { id: params.id },
-  });
+  await prisma.product.delete({ where: { id } });
 
   const storagePaths = product.images
     .map((image) => image.storagePath)
     .filter((path): path is string => Boolean(path));
 
-  if (
-    storagePaths.length > 0 &&
-    process.env.NEXT_PUBLIC_SUPABASE_URL &&
-    process.env.SUPABASE_SERVICE_ROLE_KEY
-  ) {
+  if (storagePaths.length > 0 && process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
       process.env.SUPABASE_SERVICE_ROLE_KEY
