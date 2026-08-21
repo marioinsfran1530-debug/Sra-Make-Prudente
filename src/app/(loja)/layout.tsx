@@ -6,7 +6,7 @@ import { StoreScrollReveal } from "@/components/StoreScrollReveal";
 import { TrackingInit } from "@/components/TrackingInit";
 import { getStoreSettings } from "@/lib/data";
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://sramakeprudente.com.br";
+const SITE_URL = "https://sramakeprudente.com.br";
 const STORE_CNPJ = process.env.NEXT_PUBLIC_STORE_CNPJ || "64.394.637/0001-92";
 
 function socialUrl(value: string | null | undefined, network: "instagram" | "facebook") {
