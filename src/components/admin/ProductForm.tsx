@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { ProductImageEditor } from "@/components/admin/ProductImageEditor";
 
 type Category = {
   id: string;
@@ -21,6 +22,20 @@ type ProductImage = {
   storagePath?: string | null;
   order: number;
 };
+
+type ImageEditorTarget =
+  | {
+      kind: "existing";
+      image: ProductImage;
+      source: string;
+      fileName: string;
+    }
+  | {
+      kind: "new";
+      index: number;
+      source: string;
+      fileName: string;
+    };
 
 const MAX_IMAGES = 5;
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
@@ -88,12 +103,14 @@ export function ProductForm({
     initial?.variants ?? []
   );
 
-  const [existingImages] = useState<ProductImage[]>(
+  const [existingImages, setExistingImages] = useState<ProductImage[]>(
     [...(initial?.images ?? [])].sort((a, b) => a.order - b.order)
   );
 
   const [newImages, setNewImages] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
+  const [editorTarget, setEditorTarget] = useState<ImageEditorTarget | null>(null);
+  const [editorSaving, setEditorSaving] = useState(false);
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -144,6 +161,57 @@ export function ProductForm({
 
   function removeNewImage(index: number) {
     setNewImages((current) => current.filter((_, i) => i !== index));
+  }
+
+  async function applyImageEdit(file: File) {
+    if (!editorTarget) return;
+    setImageError(null);
+
+    if (editorTarget.kind === "new") {
+      setNewImages((current) =>
+        current.map((currentFile, index) =>
+          index === editorTarget.index ? file : currentFile
+        )
+      );
+      setEditorTarget(null);
+      return;
+    }
+
+    if (!initial?.id) return;
+
+    setEditorSaving(true);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("productId", initial.id);
+      formData.append("imageId", editorTarget.image.id);
+
+      const response = await fetch("/api/admin/products/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok || !data.image) {
+        throw new Error(data.error ?? "Não foi possível atualizar a imagem.");
+      }
+
+      setExistingImages((current) =>
+        current.map((image) =>
+          image.id === editorTarget.image.id ? data.image : image
+        )
+      );
+      setEditorTarget(null);
+      router.refresh();
+    } catch (err) {
+      setImageError(
+        err instanceof Error ? err.message : "Não foi possível atualizar a imagem."
+      );
+    } finally {
+      setEditorSaving(false);
+    }
   }
 
   function changePrimaryCategory(nextCategoryId: string) {
@@ -382,6 +450,9 @@ export function ProductForm({
           <p className="text-[11px] text-cinza mt-1">
             Até {MAX_IMAGES} imagens. JPG, PNG ou WebP, máximo de 5 MB cada.
           </p>
+          <p className="mt-1 text-[11px] text-cinza">
+            O catálogo usa enquadramento quadrado para manter os cards alinhados. Use “Ajustar” quando precisar girar, aproximar ou reposicionar a foto.
+          </p>
         </div>
 
         {existingImages.length > 0 && (
@@ -393,10 +464,24 @@ export function ProductForm({
               >
                 <img src={image.url} alt={`Imagem ${index + 1}`} className="w-full h-full object-cover" />
                 {index === 0 && (
-                  <span className="absolute left-1.5 bottom-1.5 rounded-full bg-white/90 px-2 py-1 text-[9px] font-bold text-texto">
+                  <span className="absolute left-1.5 top-1.5 rounded-full bg-white/90 px-2 py-1 text-[9px] font-bold text-texto">
                     Principal
                   </span>
                 )}
+                <button
+                  type="button"
+                  onClick={() =>
+                    setEditorTarget({
+                      kind: "existing",
+                      image,
+                      source: image.url,
+                      fileName: `${name || "produto"}.jpg`,
+                    })
+                  }
+                  className="absolute bottom-1.5 right-1.5 rounded-lg bg-white/95 px-2 py-1 text-[10px] font-bold text-rosa-profundo shadow"
+                >
+                  Ajustar
+                </button>
               </div>
             ))}
           </div>
@@ -417,6 +502,20 @@ export function ProductForm({
                   aria-label={`Remover imagem ${index + 1}`}
                 >
                   ×
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setEditorTarget({
+                      kind: "new",
+                      index,
+                      source: preview,
+                      fileName: newImages[index]?.name || `${name || "produto"}.jpg`,
+                    })
+                  }
+                  className="absolute bottom-1.5 right-1.5 rounded-lg bg-white/95 px-2 py-1 text-[10px] font-bold text-rosa-profundo shadow"
+                >
+                  Ajustar
                 </button>
               </div>
             ))}
@@ -542,6 +641,18 @@ export function ProductForm({
             ? "Salvar alterações"
             : "Criar produto"}
       </button>
+
+      {editorTarget && (
+        <ProductImageEditor
+          source={editorTarget.source}
+          fileName={editorTarget.fileName}
+          saving={editorSaving}
+          onCancel={() => {
+            if (!editorSaving) setEditorTarget(null);
+          }}
+          onApply={applyImageEdit}
+        />
+      )}
 
       <style jsx>{`
         .input {
