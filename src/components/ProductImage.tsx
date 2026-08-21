@@ -19,18 +19,14 @@ export function ProductImage({
   }, [imageUrl]);
 
   if (imageUrl && !failed) {
+    // eslint-disable-next-line @next/next/no-img-element
     return (
-      <div
-        className={`relative overflow-hidden bg-[#FFF8FA] ${className}`}
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={imageUrl}
-          alt={name}
-          onError={() => setFailed(true)}
-          className="block h-full w-full object-contain object-center p-1.5"
-        />
-      </div>
+      <img
+        src={imageUrl}
+        alt={name}
+        onError={() => setFailed(true)}
+        className={`object-cover bg-white ${className}`}
+      />
     );
   }
 
