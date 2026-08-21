@@ -5,6 +5,11 @@ export default async function AdminProdutosPage() {
   const products = await prisma.product.findMany({
     include: {
       category: true,
+      images: {
+        orderBy: { order: "asc" },
+        take: 1,
+        select: { url: true },
+      },
       variants: {
         where: { active: true },
         select: { stockQty: true },
@@ -18,6 +23,7 @@ export default async function AdminProdutosPage() {
     name: product.name,
     brand: product.brand,
     sku: product.sku,
+    imageUrl: product.images[0]?.url ?? null,
     price: Number(product.price),
     promoPrice: product.promoPrice ? Number(product.promoPrice) : null,
     stockQty: product.variants.length
