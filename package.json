@@ -16,7 +16,7 @@
     "test:orders": "rm -rf .tmp-tests && tsc src/lib/order-rules.ts --outDir .tmp-tests --module commonjs --target ES2020 --esModuleInterop --skipLibCheck && node --test tests/order-rules.test.cjs",
     "test:order-validation": "rm -rf .tmp-tests && tsc src/lib/order-validation.ts --outDir .tmp-tests --module commonjs --target ES2020 --esModuleInterop --skipLibCheck && node --test tests/order-validation.test.cjs",
     "test:order-safety": "rm -rf .tmp-tests && tsc src/lib/order-request-safety.ts --outDir .tmp-tests --module commonjs --target ES2020 --esModuleInterop --skipLibCheck && node --test tests/order-request-safety.test.cjs",
-    "test:checkout-resilience": "rm -rf .tmp-tests && tsc src/lib/order-client-resilience.ts --outDir .tmp-tests --module commonjs --target ES2020 --esModuleInterop --skipLibCheck && node --test tests/checkout-resilience.test.cjs",
+    "test:checkout-resilience": "rm -rf .tmp-tests && tsc src/lib/order-client-resilience.ts --outDir .tmp-tests --module commonjs --target ES2020 --esModuleInterop --skipLibCheck && node --test tests/order-client-resilience.test.cjs",
     "test": "npm run test:stock && npm run test:orders && npm run test:order-validation && npm run test:order-safety && npm run test:checkout-resilience",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev"
