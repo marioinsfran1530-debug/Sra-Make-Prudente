@@ -13,8 +13,7 @@ import { waLink } from "@/lib/whatsapp";
 
 export const revalidate = 60;
 
-const SITE_URL =
-  process.env.NEXT_PUBLIC_SITE_URL || "https://sramakeprudente.com.br";
+const SITE_URL = "https://sramakeprudente.com.br";
 
 function jsonLd(data: Record<string, unknown>) {
   return JSON.stringify(data).replace(/</g, "\\u003c");
