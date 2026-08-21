@@ -7,11 +7,8 @@ export type AdminSession = {
   role: "ADMIN" | "EDITOR";
 };
 
-// Valida a identidade no Supabase Auth e depois confirma que existe um
-// perfil administrativo ativo na nossa base. Assim, ter apenas um cookie de
-// sessão não é suficiente para acessar recursos protegidos.
 export async function getAdminSession(): Promise<AdminSession | null> {
-  const supabase = createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient();
   const {
     data: { user },
     error,
