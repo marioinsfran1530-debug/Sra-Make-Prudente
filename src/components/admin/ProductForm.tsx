@@ -35,7 +35,7 @@ type ProductLookup = {
   avgPrice: number | null;
   minPrice: number | null;
   maxPrice: number | null;
-  source: "cosmos" | "open_beauty_facts";
+  source: "cosmos" | "open_beauty_facts" | "open_food_facts";
 };
 
 type ImageEditorTarget =
@@ -82,7 +82,9 @@ function isValidGtin(value: string) {
 }
 
 function sourceLabel(source: ProductLookup["source"]) {
-  return source === "cosmos" ? "Bluesoft Cosmos" : "Open Beauty Facts";
+  if (source === "cosmos") return "Bluesoft Cosmos";
+  if (source === "open_food_facts") return "Open Food Facts";
+  return "Open Beauty Facts";
 }
 
 function moneyOrNull(value: number | null) {
@@ -162,6 +164,7 @@ export function ProductForm({
   const [lookupLoading, setLookupLoading] = useState(false);
   const [lookupResult, setLookupResult] = useState<ProductLookup | null>(null);
   const [lookupError, setLookupError] = useState<string | null>(null);
+  const [importingLookupImage, setImportingLookupImage] = useState(false);
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -220,6 +223,55 @@ export function ProductForm({
     if (result.brand && (overwrite || !brand.trim())) setBrand(result.brand);
     if (result.description && (overwrite || !description.trim())) {
       setDescription(result.description);
+    }
+  }
+
+  async function importLookupImage(result: ProductLookup) {
+    if (!result.imageUrl) return;
+
+    setImageError(null);
+
+    if (existingImages.length + newImages.length >= MAX_IMAGES) {
+      setImageError(`Você já atingiu o limite de ${MAX_IMAGES} imagens.`);
+      return;
+    }
+
+    const fileName = `ean-${result.gtin}-fonte`;
+    if (newImages.some((file) => file.name.startsWith(fileName))) {
+      setImageError("Essa foto sugerida já foi adicionada ao produto.");
+      return;
+    }
+
+    setImportingLookupImage(true);
+    try {
+      const response = await fetch(
+        `/api/admin/products/lookup/image?url=${encodeURIComponent(result.imageUrl)}`,
+        { headers: { Accept: "image/*" } }
+      );
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error ?? "Não foi possível importar a foto sugerida.");
+      }
+
+      const blob = await response.blob();
+      if (!ALLOWED_TYPES.has(blob.type)) {
+        throw new Error("A foto sugerida está em um formato não suportado.");
+      }
+
+      if (blob.size > MAX_FILE_SIZE) {
+        throw new Error("A foto sugerida deve ter no máximo 5 MB.");
+      }
+
+      const extension = blob.type === "image/png" ? "png" : blob.type === "image/webp" ? "webp" : "jpg";
+      const file = new File([blob], `${fileName}.${extension}`, { type: blob.type });
+      setNewImages((current) => [...current, file]);
+    } catch (err) {
+      setImageError(
+        err instanceof Error ? err.message : "Não foi possível importar a foto sugerida."
+      );
+    } finally {
+      setImportingLookupImage(false);
     }
   }
 
@@ -420,7 +472,7 @@ export function ProductForm({
         <input value={brand} onChange={(e) => setBrand(e.target.value)} required className="input" />
       </Field>
 
-      <Field label="Código de barras / SKU">
+      <Field label="Código de barras / SKU (opcional)">
         <div className="flex gap-2">
           <input
             value={sku}
@@ -453,7 +505,7 @@ export function ProductForm({
       </Field>
 
       <p className="-mt-2 text-[11px] leading-5 text-cinza">
-        Se for um EAN/GTIN válido, use a lupa para buscar nome, marca, descrição, foto e dados fiscais. SKU interno continua funcionando normalmente.
+        O código é opcional. Se for um EAN/GTIN válido, use a lupa para buscar nome, marca, descrição, foto e dados fiscais. SKU interno continua funcionando normalmente.
       </p>
 
       {lookupError && (
@@ -520,8 +572,18 @@ export function ProductForm({
             >
               Aplicar dados ao cadastro
             </button>
+            {lookupResult.imageUrl && (
+              <button
+                type="button"
+                onClick={() => void importLookupImage(lookupResult)}
+                disabled={importingLookupImage || existingImages.length + newImages.length >= MAX_IMAGES}
+                className="rounded-lg border border-rosa-profundo/25 bg-white px-3 py-2 text-xs font-bold text-rosa-profundo disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {importingLookupImage ? "Importando foto..." : "Usar esta foto"}
+              </button>
+            )}
             <span className="text-[10px] leading-4 text-cinza">
-              O preço de venda não é alterado. Revise os dados antes de salvar.
+              O preço não é alterado. A foto só entra se você escolher “Usar esta foto”.
             </span>
           </div>
         </div>
@@ -647,7 +709,7 @@ export function ProductForm({
             Até {MAX_IMAGES} imagens. JPG, PNG ou WebP, máximo de 5 MB cada.
           </p>
           <p className="mt-1 text-[11px] text-cinza">
-            O catálogo usa enquadramento quadrado para manter os cards alinhados. Use “Ajustar” quando precisar girar, aproximar ou reposicionar a foto.
+            A foto encontrada pela busca pode ser usada como sugestão. Ela é copiada para o Storage da loja quando você escolhe “Usar esta foto”, evitando depender do link externo. Você também pode tirar uma foto própria ou escolher da galeria.
           </p>
         </div>
 
@@ -825,7 +887,7 @@ export function ProductForm({
 
       <button
         type="submit"
-        disabled={saving}
+        disabled={saving || importingLookupImage}
         className="mt-2 py-3 rounded-full font-bold text-sm text-white disabled:opacity-50"
         style={{ backgroundColor: "#E4127B" }}
       >
