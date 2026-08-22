@@ -54,37 +54,24 @@ function firstText(...values: unknown[]) {
   return null;
 }
 
-async function lookupCosmos(gtin: string): Promise<LookupResult | null> {
-  const token = process.env.COSMOS_API_TOKEN?.trim();
-  const userAgent = process.env.COSMOS_API_USER_AGENT?.trim();
-  if (!token || !userAgent) return null;
+function normalizeCosmosProduct(data: any, gtin: string): LookupResult | null {
+  if (!data || typeof data !== "object") return null;
 
-  const response = await fetch(`https://cosmos.bluesoft.com.br/api/gtins/${gtin}.json`, {
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      "X-Cosmos-Token": token,
-      "User-Agent": userAgent,
-    },
-    cache: "no-store",
-    signal: AbortSignal.timeout(8000),
-  });
+  const description = firstText(data.description, data.name);
+  const brand = firstText(data.brand?.name, data.brand);
+  const ncm = firstText(data.ncm?.code, data.ncm_code);
+  const ncmDescription = firstText(
+    data.ncm?.full_description,
+    data.ncm?.description,
+    data.ncm_description
+  );
+  const category = firstText(data.gpc?.description, data.category?.description, data.category);
+  const imageUrl = firstText(data.thumbnail, data.picture, data.image_url, data.image);
 
-  if (response.status === 404 || response.status === 422) return null;
-  if (!response.ok) {
-    throw new Error(`COSMOS_${response.status}`);
-  }
-
-  const data = await response.json();
-  const description = firstText(data.description);
-  const brand = firstText(data.brand?.name);
-  const ncm = firstText(data.ncm?.code);
-  const ncmDescription = firstText(data.ncm?.full_description, data.ncm?.description);
-  const category = firstText(data.gpc?.description);
-  const imageUrl = firstText(data.thumbnail);
+  if (!description && !brand && !ncm && !imageUrl) return null;
 
   return {
-    gtin,
+    gtin: String(data.gtin ?? gtin),
     name: description,
     brand,
     description,
@@ -97,6 +84,81 @@ async function lookupCosmos(gtin: string): Promise<LookupResult | null> {
     maxPrice: asNumber(data.max_price),
     source: "cosmos",
   };
+}
+
+function cosmosHeaders(token: string, userAgent: string) {
+  return {
+    Accept: "application/json",
+    "Content-Type": "application/json",
+    "X-Cosmos-Token": token,
+    "User-Agent": userAgent,
+  };
+}
+
+async function fetchCosmosJson(url: string, token: string, userAgent: string) {
+  const response = await fetch(url, {
+    headers: cosmosHeaders(token, userAgent),
+    cache: "no-store",
+    signal: AbortSignal.timeout(8000),
+  });
+
+  if (response.status === 404 || response.status === 422) return null;
+  if (!response.ok) throw new Error(`COSMOS_${response.status}`);
+  return response.json();
+}
+
+async function lookupCosmos(gtin: string): Promise<LookupResult | null> {
+  const token = process.env.COSMOS_API_TOKEN?.trim();
+  const userAgent = process.env.COSMOS_API_USER_AGENT?.trim();
+  if (!token || !userAgent) return null;
+
+  // Endpoint oficial atual documentado pelo Cosmos.
+  const directUrls = [
+    `https://api.cosmos.bluesoft.com.br/gtins/${gtin}.json`,
+    // Compatibilidade com o endpoint legado ainda publicado em parte da documentação.
+    `https://cosmos.bluesoft.com.br/api/gtins/${gtin}.json`,
+  ];
+
+  for (const url of directUrls) {
+    try {
+      const data = await fetchCosmosJson(url, token, userAgent);
+      const product = normalizeCosmosProduct(data, gtin);
+      if (product) return product;
+    } catch (error) {
+      if (url === directUrls[directUrls.length - 1]) throw error;
+    }
+  }
+
+  // Alguns itens aparecem na busca pública antes de responderem no recurso /gtins.
+  // Nesses casos usamos a busca oficial por descrição/GTIN como segunda estratégia.
+  const searchUrls = [
+    `https://api.cosmos.bluesoft.com.br/products?query=${encodeURIComponent(gtin)}&per_page=10`,
+    `https://cosmos.bluesoft.com.br/api/products?query=${encodeURIComponent(gtin)}&per_page=10`,
+  ];
+
+  for (const url of searchUrls) {
+    try {
+      const data = await fetchCosmosJson(url, token, userAgent);
+      const candidates = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.products)
+          ? data.products
+          : Array.isArray(data?.items)
+            ? data.items
+            : [];
+
+      const exact = candidates.find(
+        (item: any) => onlyDigits(String(item?.gtin ?? item?.code ?? "")) === gtin
+      );
+      const candidate = exact ?? candidates[0];
+      const product = normalizeCosmosProduct(candidate, gtin);
+      if (product) return product;
+    } catch (error) {
+      if (url === searchUrls[searchUrls.length - 1]) throw error;
+    }
+  }
+
+  return null;
 }
 
 async function lookupOpenBeautyFacts(gtin: string): Promise<LookupResult | null> {
