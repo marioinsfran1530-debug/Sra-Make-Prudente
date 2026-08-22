@@ -80,8 +80,7 @@ export async function GET(request: NextRequest) {
     }
 
     // O Cosmos pode devolver AVIF, GIF, WebP ou até um Content-Type genérico.
-    // Em vez de confiar apenas no cabeçalho HTTP, deixamos o Sharp validar os bytes
-    // e normalizamos toda imagem válida para WebP antes de enviar ao navegador.
+    // Validamos os bytes com Sharp e normalizamos toda imagem válida para WebP.
     let normalizedBuffer: Buffer;
     try {
       normalizedBuffer = await sharp(originalBuffer, { animated: false })
@@ -101,11 +100,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    return new NextResponse(normalizedBuffer, {
+    // Next.js 16 / DOM BodyInit não aceita diretamente o tipo genérico de Buffer
+    // do Node 24. Copiar para Uint8Array cria um corpo Web API compatível.
+    const body = new Uint8Array(normalizedBuffer);
+
+    return new NextResponse(body, {
       status: 200,
       headers: {
         "Content-Type": "image/webp",
-        "Content-Length": String(normalizedBuffer.length),
+        "Content-Length": String(body.byteLength),
         "Cache-Control": "private, no-store",
       },
     });
