@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 
+type LookupSource = "cosmos" | "open_beauty_facts" | "open_food_facts";
+
 type LookupResult = {
   gtin: string;
   name: string | null;
@@ -13,7 +15,7 @@ type LookupResult = {
   avgPrice: number | null;
   minPrice: number | null;
   maxPrice: number | null;
-  source: "cosmos" | "open_beauty_facts";
+  source: LookupSource;
 };
 
 function onlyDigits(value: string) {
@@ -45,6 +47,13 @@ function asNumber(value: unknown) {
   return null;
 }
 
+function firstText(...values: unknown[]) {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return null;
+}
+
 async function lookupCosmos(gtin: string): Promise<LookupResult | null> {
   const token = process.env.COSMOS_API_TOKEN?.trim();
   const userAgent = process.env.COSMOS_API_USER_AGENT?.trim();
@@ -67,17 +76,12 @@ async function lookupCosmos(gtin: string): Promise<LookupResult | null> {
   }
 
   const data = await response.json();
-  const description = typeof data.description === "string" ? data.description.trim() : null;
-  const brand = typeof data.brand?.name === "string" ? data.brand.name.trim() : null;
-  const ncm = typeof data.ncm?.code === "string" ? data.ncm.code : null;
-  const ncmDescription =
-    typeof data.ncm?.full_description === "string"
-      ? data.ncm.full_description
-      : typeof data.ncm?.description === "string"
-        ? data.ncm.description
-        : null;
-  const category = typeof data.gpc?.description === "string" ? data.gpc.description : null;
-  const imageUrl = typeof data.thumbnail === "string" && data.thumbnail ? data.thumbnail : null;
+  const description = firstText(data.description);
+  const brand = firstText(data.brand?.name);
+  const ncm = firstText(data.ncm?.code);
+  const ncmDescription = firstText(data.ncm?.full_description, data.ncm?.description);
+  const category = firstText(data.gpc?.description);
+  const imageUrl = firstText(data.thumbnail);
 
   return {
     gtin,
@@ -125,18 +129,9 @@ async function lookupOpenBeautyFacts(gtin: string): Promise<LookupResult | null>
   if (data?.status !== 1 || !data.product) return null;
 
   const product = data.product;
-  const name =
-    (typeof product.product_name_pt === "string" && product.product_name_pt.trim()) ||
-    (typeof product.product_name === "string" && product.product_name.trim()) ||
-    null;
-  const description =
-    (typeof product.generic_name_pt === "string" && product.generic_name_pt.trim()) ||
-    (typeof product.generic_name === "string" && product.generic_name.trim()) ||
-    name;
-  const imageUrl =
-    (typeof product.image_front_url === "string" && product.image_front_url) ||
-    (typeof product.image_url === "string" && product.image_url) ||
-    null;
+  const name = firstText(product.product_name_pt, product.product_name);
+  const description = firstText(product.generic_name_pt, product.generic_name, name);
+  const imageUrl = firstText(product.image_front_url, product.image_url);
 
   return {
     gtin,
@@ -151,6 +146,56 @@ async function lookupOpenBeautyFacts(gtin: string): Promise<LookupResult | null>
     minPrice: null,
     maxPrice: null,
     source: "open_beauty_facts",
+  };
+}
+
+async function lookupOpenFoodFacts(gtin: string): Promise<LookupResult | null> {
+  const fields = [
+    "code",
+    "product_name",
+    "product_name_pt",
+    "generic_name",
+    "generic_name_pt",
+    "brands",
+    "image_front_url",
+    "image_url",
+    "categories",
+  ].join(",");
+
+  const response = await fetch(
+    `https://world.openfoodfacts.org/api/v2/product/${gtin}.json?fields=${encodeURIComponent(fields)}`,
+    {
+      headers: {
+        Accept: "application/json",
+        "User-Agent": "SraMakePrudente/1.0 (catalog product lookup)",
+      },
+      cache: "no-store",
+      signal: AbortSignal.timeout(8000),
+    }
+  );
+
+  if (!response.ok) return null;
+  const data = await response.json();
+  if (data?.status !== 1 || !data.product) return null;
+
+  const product = data.product;
+  const name = firstText(product.product_name_pt, product.product_name);
+  const description = firstText(product.generic_name_pt, product.generic_name, name);
+  const imageUrl = firstText(product.image_front_url, product.image_url);
+
+  return {
+    gtin,
+    name,
+    brand: typeof product.brands === "string" ? product.brands.split(",")[0]?.trim() || null : null,
+    description,
+    imageUrl,
+    ncm: null,
+    ncmDescription: null,
+    category: typeof product.categories === "string" ? product.categories.split(",")[0]?.trim() || null : null,
+    avgPrice: null,
+    minPrice: null,
+    maxPrice: null,
+    source: "open_food_facts",
   };
 }
 
@@ -171,19 +216,33 @@ export async function GET(
     );
   }
 
+  const cosmosConfigured = Boolean(
+    process.env.COSMOS_API_TOKEN?.trim() && process.env.COSMOS_API_USER_AGENT?.trim()
+  );
   let cosmosUnavailable = false;
 
-  try {
-    const cosmos = await lookupCosmos(gtin);
-    if (cosmos) return NextResponse.json({ product: cosmos });
-  } catch {
-    cosmosUnavailable = true;
+  if (cosmosConfigured) {
+    try {
+      const cosmos = await lookupCosmos(gtin);
+      if (cosmos) return NextResponse.json({ product: cosmos, cosmosConfigured: true });
+    } catch {
+      cosmosUnavailable = true;
+    }
   }
 
   try {
     const openBeautyFacts = await lookupOpenBeautyFacts(gtin);
     if (openBeautyFacts) {
-      return NextResponse.json({ product: openBeautyFacts, cosmosUnavailable });
+      return NextResponse.json({ product: openBeautyFacts, cosmosConfigured, cosmosUnavailable });
+    }
+  } catch {
+    // Continua para a base genérica.
+  }
+
+  try {
+    const openFoodFacts = await lookupOpenFoodFacts(gtin);
+    if (openFoodFacts) {
+      return NextResponse.json({ product: openFoodFacts, cosmosConfigured, cosmosUnavailable });
     }
   } catch {
     // Retorna mensagem controlada abaixo.
@@ -191,12 +250,13 @@ export async function GET(
 
   return NextResponse.json(
     {
-      error: cosmosUnavailable
-        ? "Não foi possível consultar o Cosmos e o produto não foi encontrado na base alternativa."
-        : "Produto não encontrado nas bases consultadas.",
-      cosmosConfigured: Boolean(
-        process.env.COSMOS_API_TOKEN?.trim() && process.env.COSMOS_API_USER_AGENT?.trim()
-      ),
+      error: !cosmosConfigured
+        ? "O Bluesoft Cosmos ainda não está configurado neste ambiente. Configure COSMOS_API_TOKEN e COSMOS_API_USER_AGENT na Vercel. O produto também não foi encontrado nas bases abertas alternativas."
+        : cosmosUnavailable
+          ? "A consulta ao Bluesoft Cosmos falhou no momento e o produto não foi encontrado nas bases alternativas."
+          : "Produto não encontrado no Bluesoft Cosmos nem nas bases alternativas.",
+      cosmosConfigured,
+      cosmosUnavailable,
     },
     { status: 404 }
   );
