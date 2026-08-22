@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import sharp from "sharp";
 import { requireAdmin } from "@/lib/admin-auth";
 
 const MAX_REMOTE_IMAGE_SIZE = 10 * 1024 * 1024;
-const ALLOWED_IMAGE_TYPES = new Set([
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-]);
+const MAX_WIDTH = 1200;
+const MAX_HEIGHT = 1200;
 
 function isAllowedHost(hostname: string) {
   const host = hostname.toLowerCase();
@@ -50,7 +48,7 @@ export async function GET(request: NextRequest) {
   try {
     const response = await fetch(sourceUrl, {
       headers: {
-        Accept: "image/avif,image/webp,image/png,image/jpeg,image/*",
+        Accept: "image/avif,image/webp,image/png,image/jpeg,image/gif,image/*,*/*;q=0.8",
         "User-Agent": "SraMakePrudente/1.0 (product image import)",
       },
       cache: "no-store",
@@ -65,14 +63,6 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const contentType = response.headers.get("content-type")?.split(";")[0]?.trim();
-    if (!contentType || !ALLOWED_IMAGE_TYPES.has(contentType)) {
-      return NextResponse.json(
-        { error: "A foto sugerida está em um formato não suportado." },
-        { status: 415 }
-      );
-    }
-
     const declaredSize = Number(response.headers.get("content-length") || 0);
     if (declaredSize > MAX_REMOTE_IMAGE_SIZE) {
       return NextResponse.json(
@@ -81,19 +71,41 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const buffer = Buffer.from(await response.arrayBuffer());
-    if (buffer.length > MAX_REMOTE_IMAGE_SIZE) {
+    const originalBuffer = Buffer.from(await response.arrayBuffer());
+    if (originalBuffer.length > MAX_REMOTE_IMAGE_SIZE) {
       return NextResponse.json(
         { error: "A foto sugerida é maior que 10 MB." },
         { status: 413 }
       );
     }
 
-    return new NextResponse(buffer, {
+    // O Cosmos pode devolver AVIF, GIF, WebP ou até um Content-Type genérico.
+    // Em vez de confiar apenas no cabeçalho HTTP, deixamos o Sharp validar os bytes
+    // e normalizamos toda imagem válida para WebP antes de enviar ao navegador.
+    let normalizedBuffer: Buffer;
+    try {
+      normalizedBuffer = await sharp(originalBuffer, { animated: false })
+        .rotate()
+        .resize({
+          width: MAX_WIDTH,
+          height: MAX_HEIGHT,
+          fit: "inside",
+          withoutEnlargement: true,
+        })
+        .webp({ quality: 82, effort: 4 })
+        .toBuffer();
+    } catch {
+      return NextResponse.json(
+        { error: "A foto sugerida não pôde ser convertida para um formato compatível." },
+        { status: 415 }
+      );
+    }
+
+    return new NextResponse(normalizedBuffer, {
       status: 200,
       headers: {
-        "Content-Type": contentType,
-        "Content-Length": String(buffer.length),
+        "Content-Type": "image/webp",
+        "Content-Length": String(normalizedBuffer.length),
         "Cache-Control": "private, no-store",
       },
     });
