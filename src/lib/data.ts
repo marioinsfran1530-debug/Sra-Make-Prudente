@@ -16,6 +16,50 @@ const PRODUCT_INCLUDE = {
   variants: { where: { active: true }, orderBy: { createdAt: "asc" as const } },
 };
 
+function normalizeSearchText(value: string | null | undefined) {
+  return (value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("pt-BR")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function productMatchesSearch(
+  product: {
+    name: string;
+    brand: string;
+    sku: string | null;
+    description: string | null;
+    category: { name: string };
+    subcategory: { name: string } | null;
+    categories: { category: { name: string } }[];
+    variants: { name: string }[];
+  },
+  query: string,
+) {
+  const terms = normalizeSearchText(query).split(" ").filter(Boolean);
+  if (terms.length === 0) return true;
+
+  const searchableText = normalizeSearchText(
+    [
+      product.name,
+      product.brand,
+      product.sku,
+      product.description,
+      product.category.name,
+      product.subcategory?.name,
+      ...product.categories.map((item) => item.category.name),
+      ...product.variants.map((variant) => variant.name),
+    ]
+      .filter(Boolean)
+      .join(" "),
+  );
+
+  return terms.every((term) => searchableText.includes(term));
+}
+
 function mapProduct<
   T extends {
     id: string;
@@ -122,29 +166,6 @@ export async function getProducts(filters: ProductFilters = {}) {
   if (filters.maxPrice) {
     where.price = { lte: filters.maxPrice };
   }
-  if (filters.search) {
-    const q = filters.search;
-    const searchConditions = [
-      { name: { contains: q, mode: "insensitive" } },
-      { brand: { contains: q, mode: "insensitive" } },
-      { category: { name: { contains: q, mode: "insensitive" } } },
-      {
-        categories: {
-          some: {
-            category: { name: { contains: q, mode: "insensitive" } },
-          },
-        },
-      },
-      { subcategory: { name: { contains: q, mode: "insensitive" } } },
-    ];
-
-    if (where.OR) {
-      where.AND = [{ OR: where.OR }, { OR: searchConditions }];
-      delete where.OR;
-    } else {
-      where.OR = searchConditions;
-    }
-  }
 
   const products = await prisma.product.findMany({
     where,
@@ -152,7 +173,11 @@ export async function getProducts(filters: ProductFilters = {}) {
     orderBy: { createdAt: "desc" },
   });
 
-  return products.map(mapProduct);
+  const filteredProducts = filters.search
+    ? products.filter((product) => productMatchesSearch(product, filters.search!))
+    : products;
+
+  return filteredProducts.map(mapProduct);
 }
 
 export const getProductById = cache(async (id: string) => {
