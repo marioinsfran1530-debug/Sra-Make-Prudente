@@ -1,11 +1,15 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
-const SITE_URL = "https://sramakeprudente.com.br";
+const SITE_URL = "https://www.sramakeprudente.com.br";
 const TITLE = "Sra Make Prudente | Maquiagem, Lash, Nail e Cosméticos";
 const DESCRIPTION =
-  "Confira o catálogo da Sra Make Prudente. Maquiagem, produtos para lash, nail e acessórios em Presidente Prudente. Escolha seus produtos e faça seu pedido pelo WhatsApp.";
+  "Loja de maquiagem e cosméticos em Presidente Prudente/SP. Encontre maquiagem, lash, nail, skincare e acessórios, com atendimento personalizado, retirada e entrega.";
 const SOCIAL_IMAGE_URL = `${SITE_URL}/icon-512.png`;
+
+function jsonLd(data: Record<string, unknown>) {
+  return JSON.stringify(data).replace(/</g, "\\u003c");
+}
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -15,6 +19,7 @@ export const metadata: Metadata = {
   },
   description: DESCRIPTION,
   applicationName: "Sra Make Prudente",
+  alternates: { canonical: "/" },
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [{ url: "/favicon-32.png", sizes: "32x32", type: "image/png" }],
@@ -35,7 +40,17 @@ export const metadata: Metadata = {
     description: DESCRIPTION,
     images: [SOCIAL_IMAGE_URL],
   },
-  robots: { index: true, follow: true },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
+  },
 };
 
 export const viewport: Viewport = {
@@ -50,9 +65,80 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const storeStructuredData = {
+    "@context": "https://schema.org",
+    "@type": "Store",
+    "@id": `${SITE_URL}/#store`,
+    name: "Sra Make Prudente",
+    legalName: "Sra Make Prudente",
+    url: SITE_URL,
+    logo: `${SITE_URL}/icon-512.png`,
+    image: `${SITE_URL}/icon-512.png`,
+    description: DESCRIPTION,
+    telephone: "+55 18 99124-8713",
+    priceRange: "R$",
+    address: {
+      "@type": "PostalAddress",
+      streetAddress: "Avenida Brasil, 373 - Box 202",
+      addressLocality: "Presidente Prudente",
+      addressRegion: "SP",
+      postalCode: "19010-031",
+      addressCountry: "BR",
+    },
+    areaServed: {
+      "@type": "City",
+      name: "Presidente Prudente",
+    },
+    openingHoursSpecification: [
+      {
+        "@type": "OpeningHoursSpecification",
+        dayOfWeek: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+        opens: "09:00",
+        closes: "17:00",
+      },
+      {
+        "@type": "OpeningHoursSpecification",
+        dayOfWeek: "Saturday",
+        opens: "09:00",
+        closes: "15:00",
+      },
+    ],
+    sameAs: ["https://www.instagram.com/sramakeprudente/"],
+    knowsAbout: [
+      "Maquiagem",
+      "Cosméticos",
+      "Lash",
+      "Cílios",
+      "Nail",
+      "Unhas",
+      "Skincare",
+      "Acessórios de beleza",
+    ],
+  };
+
+  const websiteStructuredData = {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "@id": `${SITE_URL}/#website`,
+    url: SITE_URL,
+    name: "Sra Make Prudente",
+    inLanguage: "pt-BR",
+    publisher: { "@id": `${SITE_URL}/#store` },
+  };
+
   return (
     <html lang="pt-BR">
-      <body>{children}</body>
+      <body>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: jsonLd(storeStructuredData) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: jsonLd(websiteStructuredData) }}
+        />
+        {children}
+      </body>
     </html>
   );
 }
