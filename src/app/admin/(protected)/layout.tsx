@@ -5,6 +5,7 @@ import { ExternalLink } from "lucide-react";
 import { getAdminSession } from "@/lib/admin-auth";
 import { LogoutButton } from "@/components/admin/LogoutButton";
 import { AdminNav } from "@/components/admin/AdminNav";
+import { AdminImageUploadOptimizer } from "@/components/admin/AdminImageUploadOptimizer";
 
 export const metadata: Metadata = {
   robots: { index: false, follow: false },
@@ -26,6 +27,8 @@ export default async function AdminLayout({
 
   return (
     <div className="min-h-screen bg-creme">
+      <AdminImageUploadOptimizer />
+
       <header className="px-6 py-4 border-b border-rosa/20 bg-white">
         <div className="flex items-start justify-between gap-4">
           <div>
