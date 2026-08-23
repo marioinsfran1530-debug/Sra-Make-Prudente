@@ -73,3 +73,52 @@ export async function PUT(
     );
   }
 }
+
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  const { error, status } = await requireAdmin("EDITOR");
+
+  if (error) {
+    return NextResponse.json({ error }, { status });
+  }
+
+  try {
+    const current = await prisma.subcategory.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        name: true,
+        _count: { select: { products: true } },
+      },
+    });
+
+    if (!current) {
+      return NextResponse.json(
+        { error: "Subcategoria não encontrada." },
+        { status: 404 }
+      );
+    }
+
+    await prisma.$transaction([
+      prisma.product.updateMany({
+        where: { subcategoryId: id },
+        data: { subcategoryId: null },
+      }),
+      prisma.subcategory.delete({ where: { id } }),
+    ]);
+
+    return NextResponse.json({
+      success: true,
+      detachedProducts: current._count.products,
+    });
+  } catch (error) {
+    console.error("ERRO AO EXCLUIR SUBCATEGORIA:", error);
+    return NextResponse.json(
+      { error: "Não foi possível excluir a subcategoria." },
+      { status: 500 }
+    );
+  }
+}
