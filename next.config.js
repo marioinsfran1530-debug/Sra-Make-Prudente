@@ -33,6 +33,15 @@ const nextConfig = {
       },
     ],
   },
+  async redirects() {
+    return [
+      {
+        source: "/categoria/make",
+        destination: "/categoria/maquiagem",
+        permanent: true,
+      },
+    ];
+  },
   async headers() {
     return [
       {
