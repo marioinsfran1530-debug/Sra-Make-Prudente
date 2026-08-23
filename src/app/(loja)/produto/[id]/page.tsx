@@ -13,7 +13,7 @@ import { waLink } from "@/lib/whatsapp";
 
 export const revalidate = 60;
 
-const SITE_URL = "https://sramakeprudente.com.br";
+const SITE_URL = "https://www.sramakeprudente.com.br";
 type ProductParams = Promise<{ id: string }>;
 
 function jsonLd(data: Record<string, unknown>) {
@@ -27,7 +27,7 @@ export async function generateMetadata({ params }: { params: ProductParams }): P
 
   const description =
     product.description?.trim() ||
-    `${product.name} da ${product.brand} no catálogo da Sra Make Prudente em Presidente Prudente.`;
+    `${product.name} da ${product.brand} na Sra Make Prudente em Presidente Prudente/SP. Consulte disponibilidade e compre pelo catálogo.`;
   const canonical = `${SITE_URL}/produto/${product.id}`;
   const mainImage = product.images[0]?.url;
   const title = `${product.name} — ${product.brand}`;
