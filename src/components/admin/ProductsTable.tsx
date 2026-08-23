@@ -27,6 +27,16 @@ type Row = {
 type ViewMode = "list" | "grid";
 type VitrineField = "featured" | "isNew" | "bestSeller";
 
+function normalizeSearchText(value: string | null | undefined) {
+  return (value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("pt-BR")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export function ProductsTable({ products }: { products: Row[] }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
@@ -51,14 +61,15 @@ export function ProductsTable({ products }: { products: Row[] }) {
   }, [products]);
 
   const filtered = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
+    const searchTerms = normalizeSearchText(query).split(" ").filter(Boolean);
 
     return products.filter((product) => {
-      const matchesQuery =
-        !normalizedQuery ||
-        product.name.toLowerCase().includes(normalizedQuery) ||
-        product.brand.toLowerCase().includes(normalizedQuery) ||
-        Boolean(product.sku?.toLowerCase().includes(normalizedQuery));
+      const searchableText = normalizeSearchText(
+        [product.name, product.brand, product.sku, product.category.name]
+          .filter(Boolean)
+          .join(" ")
+      );
+      const matchesQuery = searchTerms.every((term) => searchableText.includes(term));
 
       const matchesCategory = !categoryId || product.categoryId === categoryId;
       const stockStatus = computeStockStatus(product.stockQty);
@@ -179,7 +190,7 @@ export function ProductsTable({ products }: { products: Row[] }) {
               setQuery(event.target.value);
               resetPage();
             }}
-            placeholder="Buscar por nome, marca ou SKU..."
+            placeholder="Buscar por nome, marca, categoria ou SKU..."
             className="flex-1 rounded-xl border border-rosa/20 bg-white px-4 py-2.5 text-sm outline-none"
           />
 
