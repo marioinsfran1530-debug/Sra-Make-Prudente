@@ -14,7 +14,7 @@ import { SearchBar } from "@/components/SearchBar";
 
 export const revalidate = 60;
 
-const SITE_URL = "https://sramakeprudente.com.br";
+const SITE_URL = "https://www.sramakeprudente.com.br";
 
 type CategoryParams = Promise<{ slug: string }>;
 
@@ -31,7 +31,7 @@ export async function generateMetadata({
   const title = `${category.name} em Presidente Prudente`;
   const description =
     category.description?.trim() ||
-    `${category.name} na Sra Make Prudente. Encontre produtos, escolha pelo catálogo e finalize seu atendimento pelo WhatsApp em Presidente Prudente/SP.`;
+    `${category.name} na Sra Make Prudente, loja de maquiagem e cosméticos em Presidente Prudente/SP. Veja produtos, disponibilidade e compre pelo catálogo.`;
   const image = category.imageUrl || undefined;
 
   return {
@@ -76,13 +76,31 @@ export default async function CategoriaPage({ params }: { params: CategoryParams
     ],
   };
 
+  const collectionJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    "@id": `${canonicalUrl}#collection`,
+    url: canonicalUrl,
+    name: `${category.name} em Presidente Prudente`,
+    description:
+      category.description?.trim() ||
+      `${category.name} disponível na Sra Make Prudente em Presidente Prudente/SP.`,
+    isPartOf: { "@id": `${SITE_URL}/#website` },
+    about: { "@id": `${SITE_URL}/#store` },
+    inLanguage: "pt-BR",
+  };
+
   return (
     <main>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionJsonLd) }} />
       <CategoryViewTracker categorySlug={slug} />
       <div className="px-4 pt-4 pb-3">
         <p className="text-[11px] font-bold uppercase tracking-widest text-rosa-profundo">Categoria</p>
-        <p className="font-serif font-bold text-2xl text-texto mt-1">{category.name}</p>
+        <h1 className="font-serif font-bold text-2xl text-texto mt-1">{category.name}</h1>
+        {category.description ? (
+          <p className="mt-2 max-w-3xl text-sm leading-relaxed text-cinza">{category.description}</p>
+        ) : null}
       </div>
       <div className="mb-3"><SearchBar /></div>
       <CatalogCategoryNav categories={categories} activeCategory={slug} />
