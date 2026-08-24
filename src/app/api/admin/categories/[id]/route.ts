@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin-auth";
+import { indexNowPaths, notifyIndexNow } from "@/lib/indexnow";
 
 export async function PUT(
   request: NextRequest,
@@ -33,6 +34,12 @@ export async function PUT(
         active: typeof body.active === "boolean" ? body.active : undefined,
       },
     });
+
+    await notifyIndexNow([
+      indexNowPaths.category(category.slug),
+      indexNowPaths.catalog,
+      indexNowPaths.sitemap,
+    ]);
 
     return NextResponse.json({ category });
   } catch (error) {
