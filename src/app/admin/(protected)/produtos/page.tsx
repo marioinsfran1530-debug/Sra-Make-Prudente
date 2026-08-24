@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { ProductsTable } from "@/components/admin/ProductsTable";
 
@@ -39,7 +40,18 @@ export default async function AdminProdutosPage() {
 
   return (
     <div>
-      <h1 className="font-serif font-bold text-xl text-texto mb-4">Produtos</h1>
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="font-serif font-bold text-xl text-texto">Produtos</h1>
+          <p className="mt-1 text-xs text-cinza">Cadastre, revise estoque e acompanhe a qualidade dos dados enviados ao catálogo.</p>
+        </div>
+        <Link
+          href="/admin/produtos/qualidade"
+          className="rounded-xl border border-rosa/20 bg-white px-4 py-2.5 text-xs font-bold text-rosa-profundo"
+        >
+          Qualidade dos cadastros
+        </Link>
+      </div>
       <ProductsTable products={rows} />
     </div>
   );
