@@ -33,6 +33,7 @@ export function ProductCard({ product }: { product: PublicProduct }) {
         variantName: null,
         name: product.name,
         brand: product.brand,
+        category: product.category.name,
         sku: product.sku,
         price: product.promoPrice ?? product.price,
         imageUrl: mainImage,

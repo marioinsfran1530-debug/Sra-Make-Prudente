@@ -22,7 +22,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
   const [loaded, setLoaded] = useState(false);
 
-  // carrega do localStorage uma vez, no client
   useEffect(() => {
     try {
       const raw = window.localStorage.getItem(STORAGE_KEY);
@@ -33,7 +32,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setLoaded(true);
   }, []);
 
-  // persiste a cada mudança, depois do load inicial
   useEffect(() => {
     if (!loaded) return;
     try {
@@ -55,10 +53,15 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       }
       return [...prev, { ...item, qty }];
     });
+
     trackEvent("add_to_cart", {
       productId: item.productId,
       variantId: item.variantId,
+      variantName: item.variantName,
       name: item.name,
+      brand: item.brand,
+      category: item.category,
+      sku: item.sku,
       qty,
       price: item.price,
     });
@@ -80,12 +83,32 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     []
   );
 
-  const removeItem = useCallback((productId: string, variantId: string | null) => {
-    setItems((prev) =>
-      prev.filter((i) => !(i.productId === productId && i.variantId === variantId))
-    );
-    trackEvent("remove_from_cart", { productId, variantId });
-  }, []);
+  const removeItem = useCallback(
+    (productId: string, variantId: string | null) => {
+      const removed = items.find(
+        (i) => i.productId === productId && i.variantId === variantId
+      );
+
+      setItems((prev) =>
+        prev.filter((i) => !(i.productId === productId && i.variantId === variantId))
+      );
+
+      if (removed) {
+        trackEvent("remove_from_cart", {
+          productId: removed.productId,
+          variantId: removed.variantId,
+          variantName: removed.variantName,
+          name: removed.name,
+          brand: removed.brand,
+          category: removed.category,
+          sku: removed.sku,
+          qty: removed.qty,
+          price: removed.price,
+        });
+      }
+    },
+    [items]
+  );
 
   const clear = useCallback(() => setItems([]), []);
 
