@@ -98,7 +98,14 @@ export default async function ProdutoPage({ params }: { params: ProductParams })
     <main className="px-4 py-4 lg:px-6 lg:py-4">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(productStructuredData) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(breadcrumbStructuredData) }} />
-      <ProductViewTracker productId={product.id} name={product.name} />
+      <ProductViewTracker
+        productId={product.id}
+        name={product.name}
+        brand={product.brand}
+        category={product.category.name}
+        sku={product.sku}
+        price={currentPrice}
+      />
       <div className="mx-auto w-full max-w-6xl">
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-[0.9fr_1.1fr] lg:gap-6 lg:items-start">
           <ProductGallery name={product.name} images={product.images} />

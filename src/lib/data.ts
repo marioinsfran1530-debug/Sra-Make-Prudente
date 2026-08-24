@@ -77,7 +77,7 @@ function mapProduct<
     subcategory: { id: string; name: string; slug: string } | null;
     categories: { category: { id: string; name: string; slug: string } }[];
     images: { id: string; url: string; alt: string | null }[];
-    variants: { id: string; name: string; stockQty: number; active: boolean; price: unknown; promoPrice: unknown }[];
+    variants: { id: string; name: string; sku: string | null; stockQty: number; active: boolean; price: unknown; promoPrice: unknown }[];
   }
 >(p: T) {
   const stock: StockStatus = productStockStatus(p);
@@ -100,6 +100,7 @@ function mapProduct<
     variants: p.variants.map((v) => ({
       id: v.id,
       name: v.name,
+      sku: v.sku,
       stock: productStockStatus({ stockQty: v.stockQty, variants: undefined }),
       price: v.price !== null ? Number(v.price) : null,
       promoPrice: v.promoPrice !== null ? Number(v.promoPrice) : null,

@@ -127,7 +127,11 @@ export default function CarrinhoPage() {
             <button
               type="button"
               onClick={() => {
-                trackEvent("begin_checkout", { itemCount: items.length, subtotal });
+                trackEvent("begin_checkout", {
+                  itemCount: items.reduce((total, item) => total + item.qty, 0),
+                  subtotal,
+                  items,
+                });
                 router.push("/checkout");
               }}
               className="w-full py-3.5 rounded-xl font-bold text-sm text-white flex items-center justify-center gap-2 shadow-sm"
