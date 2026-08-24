@@ -228,9 +228,13 @@ export async function POST(request: NextRequest) {
   const result = await prisma.$transaction(async (tx) => {
     // Serializa somente pedidos com a mesma assinatura. Assim, dois envios
     // simultâneos do mesmo checkout não conseguem criar duas vendas antes da
-    // verificação de duplicidade terminar.
-    await tx.$queryRaw<Array<{ pg_advisory_xact_lock: null }>>`
-      SELECT pg_advisory_xact_lock(hashtext(${requestKey}))
+    // verificação de duplicidade terminar. A subconsulta impede que o Prisma
+    // tente desserializar o retorno `void` de pg_advisory_xact_lock().
+    await tx.$queryRaw<Array<{ locked: number }>>`
+      SELECT 1::int AS locked
+      FROM (
+        SELECT pg_advisory_xact_lock(hashtext(${requestKey}))
+      ) AS advisory_lock
     `;
 
     const recentOrders = await tx.order.findMany({
