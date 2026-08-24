@@ -26,11 +26,10 @@ jobs:
       - name: Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: npm
+          node-version: 24
 
       - name: Instalar dependências
-        run: npm ci
+        run: npm install --no-audit --no-fund
 
       - name: Gerar Prisma Client
         run: npx prisma generate
