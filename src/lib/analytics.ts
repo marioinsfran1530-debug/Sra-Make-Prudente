@@ -45,14 +45,15 @@ function stringValue(value: unknown) {
 
 function toGA4Item(payload: EcommerceItemPayload) {
   const productId = stringValue(payload.productId);
+  const variantId = stringValue(payload.variantId);
   if (!productId) return undefined;
 
   return {
-    item_id: productId,
+    item_id: variantId || productId,
     item_name: stringValue(payload.name),
     item_brand: stringValue(payload.brand),
     item_category: stringValue(payload.category),
-    item_variant: stringValue(payload.variantName) || stringValue(payload.variantId),
+    item_variant: stringValue(payload.variantName) || variantId,
     item_sku: stringValue(payload.sku),
     price: numberValue(payload.price),
     quantity: numberValue(payload.qty) ?? 1,
