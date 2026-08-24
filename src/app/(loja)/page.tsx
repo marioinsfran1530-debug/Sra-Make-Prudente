@@ -15,7 +15,6 @@ import {
   Instagram,
   Facebook,
   Sparkles,
-  Store,
   ShoppingCart,
 } from "lucide-react";
 import { waLink } from "@/lib/whatsapp";
@@ -164,11 +163,11 @@ export default async function HomePage() {
               <div className="mt-4 grid max-w-2xl grid-cols-1 gap-2 sm:grid-cols-2">
                 <div className="flex items-center gap-3 rounded-2xl border border-white/25 bg-white/90 px-3.5 py-2.5 text-[#23142A] shadow-sm backdrop-blur">
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#FFF0F7] text-rosa-profundo">
-                    <Store size={16} />
+                    <Truck size={16} />
                   </div>
                   <div>
-                    <p className="text-xs font-bold">Retire na loja</p>
-                    <p className="text-[10px] text-cinza">Compre e retire no Centro</p>
+                    <p className="text-xs font-bold">Retirada ou entrega</p>
+                    <p className="text-[10px] text-cinza">Escolha como prefere receber</p>
                   </div>
                 </div>
 
