@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin-auth";
+import { indexNowPaths, notifyIndexNow } from "@/lib/indexnow";
 
 type VariantInput = {
   id?: string;
@@ -115,6 +116,12 @@ export async function PUT(
     return updatedProduct;
   });
 
+  await notifyIndexNow([
+    indexNowPaths.product(product.id),
+    indexNowPaths.catalog,
+    indexNowPaths.sitemap,
+  ]);
+
   return NextResponse.json({ product });
 }
 
@@ -170,6 +177,12 @@ export async function DELETE(
       console.error("Produto excluído, mas houve falha ao limpar imagens:", storageError);
     }
   }
+
+  await notifyIndexNow([
+    indexNowPaths.product(id),
+    indexNowPaths.catalog,
+    indexNowPaths.sitemap,
+  ]);
 
   return NextResponse.json({ ok: true });
 }
