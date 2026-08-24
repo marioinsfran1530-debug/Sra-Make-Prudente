@@ -74,8 +74,7 @@ const COLOR_TERMS = [
   ["transparente", "Transparente"],
 ] as const;
 
-function inferColor(values: Array<string | null | undefined>) {
-  const text = normalizedText(values.filter(Boolean).join(" "));
+function findColor(text: string) {
   for (const [term, label] of COLOR_TERMS) {
     const pattern = new RegExp(`(^|[^a-z0-9])${term}([^a-z0-9]|$)`);
     if (pattern.test(text)) return label;
@@ -83,16 +82,36 @@ function inferColor(values: Array<string | null | undefined>) {
   return null;
 }
 
-function inferAudience(name: string, category: string) {
-  const text = normalizedText(`${name} ${category}`);
+function inferColor(name: string, description?: string | null) {
+  const normalizedName = normalizedText(name);
+  const normalizedDescription = normalizedText(description || "");
+  const ambiguous = /\b(incolor|variad[oa]s?|sortid[oa]s?|colorid[oa]s?|multicolor)\b/;
 
-  if (/\b(bebe|baby|infantil|crianca|kids?)\b/.test(text)) {
-    return { ageGroup: "kids", gender: "unisex" } as const;
-  }
+  // Não inventa uma cor para produtos explicitamente incolores ou de cores variadas.
+  if (ambiguous.test(normalizedName) || ambiguous.test(normalizedDescription)) return null;
 
-  // O catálogo é de beleza e acessórios. Para itens sem indicação infantil,
-  // o público comercial do feed é adulto e não depende de gênero.
-  return { ageGroup: "adult", gender: "unisex" } as const;
+  // O nome do produto é a fonte mais confiável para uma cor declarada.
+  const nameColor = findColor(normalizedName);
+  if (nameColor) return nameColor;
+
+  // Na descrição, só considera cor quando ela estiver declarada como atributo.
+  const explicitColor = normalizedDescription.match(/\bcor\s*[:\-]?\s*([a-z]+)/);
+  if (explicitColor) return findColor(explicitColor[1]);
+
+  return null;
+}
+
+function inferAudience(name: string, brand: string, category: string) {
+  const text = normalizedText(`${name} ${brand} ${category}`);
+
+  const ageGroup = /\b(bebe|baby|infantil|crianca|kids?)\b/.test(text) ? "kids" : "adult";
+  const gender = /\b(masculino|masculina|homem|men)\b/.test(text)
+    ? "male"
+    : /\b(feminino|feminina|mulher|women)\b/.test(text)
+      ? "female"
+      : "unisex";
+
+  return { ageGroup, gender } as const;
 }
 
 function validImageUrl(value?: string | null) {
@@ -136,12 +155,8 @@ export async function GET() {
         `${product.name} da ${product.brand}. Disponível no catálogo da Sra Make Prudente em Presidente Prudente/SP.`;
       const gtin = validGtin(product.sku);
       const productUrl = `${SITE_URL}/produto/${product.id}`;
-      const color = inferColor([
-        product.name,
-        product.description,
-        ...product.variants.map((variant) => variant.name),
-      ]);
-      const audience = inferAudience(product.name, product.category.name);
+      const color = inferColor(product.name, product.description);
+      const audience = inferAudience(product.name, product.brand, product.category.name);
 
       return `
     <item>
