@@ -14,10 +14,12 @@ export type AnalyticsEvent =
   | "store_location_click";
 
 type Fbq = (...args: unknown[]) => void;
+type Gtag = (...args: unknown[]) => void;
 
 declare global {
   interface Window {
     fbq?: Fbq;
+    gtag?: Gtag;
   }
 }
 
@@ -27,6 +29,82 @@ function numberValue(value: unknown) {
 
 function stringValue(value: unknown) {
   return typeof value === "string" && value.trim() ? value : undefined;
+}
+
+function sendGA4Event(event: AnalyticsEvent, payload: Record<string, unknown>) {
+  const gtag = window.gtag;
+  if (!gtag) return;
+
+  const productId = stringValue(payload.productId);
+  const productName = stringValue(payload.name);
+  const variantId = stringValue(payload.variantId);
+  const price = numberValue(payload.price);
+  const qty = numberValue(payload.qty) ?? 1;
+  const item = productId
+    ? {
+        item_id: variantId || productId,
+        item_name: productName,
+        price,
+        quantity: qty,
+      }
+    : undefined;
+
+  switch (event) {
+    case "product_view":
+      gtag("event", "view_item", {
+        currency: "BRL",
+        value: price,
+        items: item ? [item] : undefined,
+      });
+      return;
+    case "add_to_cart":
+      gtag("event", "add_to_cart", {
+        currency: "BRL",
+        value: price !== undefined ? price * qty : undefined,
+        items: item ? [item] : undefined,
+      });
+      return;
+    case "remove_from_cart":
+      gtag("event", "remove_from_cart", {
+        currency: "BRL",
+        items: item ? [item] : undefined,
+      });
+      return;
+    case "begin_checkout":
+      gtag("event", "begin_checkout", {
+        currency: "BRL",
+        value: numberValue(payload.subtotal),
+        number_of_items: numberValue(payload.itemCount),
+      });
+      return;
+    case "whatsapp_click":
+      gtag("event", "whatsapp_click", {
+        context: stringValue(payload.context),
+        order_number: stringValue(payload.orderNumber),
+      });
+      return;
+    case "order_created":
+      gtag("event", "generate_lead", {
+        currency: "BRL",
+        value: numberValue(payload.total),
+        order_number: stringValue(payload.orderNumber),
+      });
+      return;
+    case "search":
+      gtag("event", "search", { search_term: stringValue(payload.query) });
+      return;
+    case "category_view":
+      gtag("event", "category_view", { category_slug: stringValue(payload.categorySlug) });
+      return;
+    case "store_location_click":
+      gtag("event", "store_location_click");
+      return;
+    case "order_push_opt_in":
+      gtag("event", "order_push_opt_in", { result: payload.result });
+      return;
+    case "page_view":
+      return;
+  }
 }
 
 function sendMetaPixelEvent(event: AnalyticsEvent, payload: Record<string, unknown>) {
@@ -43,108 +121,53 @@ function sendMetaPixelEvent(event: AnalyticsEvent, payload: Record<string, unkno
     case "page_view":
       fbq("track", "PageView");
       return;
-
     case "product_view":
-      fbq("track", "ViewContent", {
-        content_ids: productId ? [productId] : undefined,
-        content_name: productName,
-        content_type: "product",
-      });
+      fbq("track", "ViewContent", { content_ids: productId ? [productId] : undefined, content_name: productName, content_type: "product" });
       return;
-
     case "category_view":
-      fbq("trackCustom", "CategoryView", {
-        category_slug: stringValue(payload.categorySlug),
-      });
+      fbq("trackCustom", "CategoryView", { category_slug: stringValue(payload.categorySlug) });
       return;
-
     case "search":
-      fbq("track", "Search", {
-        search_string: stringValue(payload.query),
-        result_count: numberValue(payload.resultCount),
-      });
+      fbq("track", "Search", { search_string: stringValue(payload.query), result_count: numberValue(payload.resultCount) });
       return;
-
     case "add_to_cart": {
       const value = price !== undefined ? price * qty : undefined;
       fbq("track", "AddToCart", {
         content_ids: productId ? [productId] : undefined,
         content_name: productName,
         content_type: "product",
-        contents: productId
-          ? [
-              {
-                id: variantId || productId,
-                quantity: qty,
-                item_price: price,
-              },
-            ]
-          : undefined,
+        contents: productId ? [{ id: variantId || productId, quantity: qty, item_price: price }] : undefined,
         value,
         currency: "BRL",
       });
       return;
     }
-
     case "begin_checkout":
-      fbq("track", "InitiateCheckout", {
-        num_items: numberValue(payload.itemCount),
-        value: numberValue(payload.subtotal),
-        currency: "BRL",
-      });
+      fbq("track", "InitiateCheckout", { num_items: numberValue(payload.itemCount), value: numberValue(payload.subtotal), currency: "BRL" });
       return;
-
     case "order_created": {
       const total = numberValue(payload.total);
       const orderNumber = stringValue(payload.orderNumber);
-
-      // O catálogo não cobra online. Portanto, pedido criado é tratado como Lead,
-      // e não como Purchase, para não inflar compras/pagamentos no Meta Ads.
-      fbq("track", "Lead", {
-        value: total,
-        currency: "BRL",
-        order_number: orderNumber,
-      });
-      fbq("trackCustom", "OrderCreated", {
-        value: total,
-        currency: "BRL",
-        order_number: orderNumber,
-        duplicate: payload.duplicate === true,
-      });
+      fbq("track", "Lead", { value: total, currency: "BRL", order_number: orderNumber });
+      fbq("trackCustom", "OrderCreated", { value: total, currency: "BRL", order_number: orderNumber, duplicate: payload.duplicate === true });
       return;
     }
-
     case "whatsapp_click":
-      fbq("track", "Contact", {
-        content_name: "WhatsApp",
-        context: stringValue(payload.context),
-        order_number: stringValue(payload.orderNumber),
-      });
+      fbq("track", "Contact", { content_name: "WhatsApp", context: stringValue(payload.context), order_number: stringValue(payload.orderNumber) });
       return;
-
     case "remove_from_cart":
-      fbq("trackCustom", "RemoveFromCart", {
-        product_id: productId,
-        variant_id: variantId,
-      });
+      fbq("trackCustom", "RemoveFromCart", { product_id: productId, variant_id: variantId });
       return;
-
     case "order_push_opt_in":
-      fbq("trackCustom", "OrderPushOptIn", {
-        result: payload.result,
-      });
+      fbq("trackCustom", "OrderPushOptIn", { result: payload.result });
       return;
-
     case "store_location_click":
       fbq("trackCustom", "StoreLocationClick");
       return;
   }
 }
 
-export function trackEvent(
-  event: AnalyticsEvent,
-  payload: Record<string, unknown> = {}
-) {
+export function trackEvent(event: AnalyticsEvent, payload: Record<string, unknown> = {}) {
   if (typeof window === "undefined") return;
 
   const record = {
@@ -159,5 +182,6 @@ export function trackEvent(
     console.debug("[analytics]", record);
   }
 
+  sendGA4Event(event, payload);
   sendMetaPixelEvent(event, payload);
 }
