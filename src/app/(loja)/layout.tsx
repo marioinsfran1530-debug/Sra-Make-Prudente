@@ -1,6 +1,7 @@
 import { BottomNav } from "@/components/BottomNav";
 import { CartProvider } from "@/components/CartProvider";
 import { DesktopStoreNav } from "@/components/DesktopStoreNav";
+import { MetaPixel } from "@/components/MetaPixel";
 import { StoreFooter } from "@/components/StoreFooter";
 import { StoreScrollReveal } from "@/components/StoreScrollReveal";
 import { TrackingInit } from "@/components/TrackingInit";
@@ -108,6 +109,7 @@ export default async function LojaLayout({
 
   return (
     <CartProvider>
+      <MetaPixel />
       <TrackingInit />
       <StoreScrollReveal />
 
