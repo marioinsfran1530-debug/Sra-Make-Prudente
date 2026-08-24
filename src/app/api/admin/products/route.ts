@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin-auth";
+import { indexNowPaths, notifyIndexNow } from "@/lib/indexnow";
 
 function normalizeCategoryIds(primaryCategoryId: string, categoryIds: unknown) {
   const ids = Array.isArray(categoryIds)
@@ -72,6 +73,13 @@ export async function POST(request: NextRequest) {
       categories: { include: { category: true } },
     },
   });
+
+  await notifyIndexNow([
+    indexNowPaths.product(product.id),
+    indexNowPaths.catalog,
+    indexNowPaths.sitemap,
+    ...product.categories.map(({ category }) => indexNowPaths.category(category.slug)),
+  ]);
 
   return NextResponse.json({ product });
 }
