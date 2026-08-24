@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
       featured: !!body.featured,
       isNew: !!body.isNew,
       bestSeller: !!body.bestSeller,
-      active: body.active ?? true,
+      active: typeof body.active === "boolean" ? body.active : true,
       categoryId,
       subcategoryId,
       categories: {
