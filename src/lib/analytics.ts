@@ -1,4 +1,4 @@
-import { getOrCreateSessionId } from "@/lib/tracking";
+import { getAcquisitionData, getOrCreateSessionId } from "@/lib/tracking";
 
 export type AnalyticsEvent =
   | "page_view"
@@ -69,6 +69,51 @@ function ga4ItemsFromPayload(payload: Record<string, unknown>) {
 
   const item = toGA4Item(payload as EcommerceItemPayload);
   return item ? [item] : [];
+}
+
+function eventValue(event: AnalyticsEvent, payload: Record<string, unknown>) {
+  if (event === "begin_checkout") return numberValue(payload.subtotal);
+  if (event === "order_created") return numberValue(payload.total);
+
+  if (event === "product_view" || event === "add_to_cart" || event === "remove_from_cart") {
+    const price = numberValue(payload.price);
+    const qty = numberValue(payload.qty) ?? 1;
+    return price !== undefined ? price * qty : undefined;
+  }
+
+  return undefined;
+}
+
+function sendFirstPartyEvent(event: AnalyticsEvent, payload: Record<string, unknown>) {
+  const acquisition = getAcquisitionData();
+  const body = {
+    event,
+    sessionId: getOrCreateSessionId(),
+    productId: stringValue(payload.productId),
+    variantId: stringValue(payload.variantId),
+    categorySlug: stringValue(payload.categorySlug),
+    query: stringValue(payload.query),
+    context: stringValue(payload.context),
+    value: eventValue(event, payload),
+    quantity: numberValue(payload.qty),
+    itemCount: numberValue(payload.itemCount),
+    pagePath: stringValue(payload.path) || window.location.pathname,
+    origin: acquisition.origin,
+    landingPage: acquisition.landingPage,
+    utmSource: acquisition.utmSource,
+    utmMedium: acquisition.utmMedium,
+    utmCampaign: acquisition.utmCampaign,
+    utmContent: acquisition.utmContent,
+  };
+
+  void fetch("/api/analytics", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    keepalive: true,
+  }).catch(() => {
+    // Analytics nunca deve bloquear a experiência da loja.
+  });
 }
 
 function sendGA4Event(event: AnalyticsEvent, payload: Record<string, unknown>) {
@@ -213,6 +258,7 @@ export function trackEvent(event: AnalyticsEvent, payload: Record<string, unknow
     console.debug("[analytics]", record);
   }
 
+  sendFirstPartyEvent(event, payload);
   sendGA4Event(event, payload);
   sendMetaPixelEvent(event, payload);
 }
