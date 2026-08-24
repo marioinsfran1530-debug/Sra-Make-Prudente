@@ -21,6 +21,9 @@ export const metadata: Metadata = {
   applicationName: "Sra Make Prudente",
   alternates: { canonical: "/" },
   manifest: "/manifest.webmanifest",
+  verification: {
+    google: "waC6jBl3IyhXL_nQhs90X6YCZYUie2RXV0MT9EAXA9Y",
+  },
   icons: {
     icon: [{ url: "/favicon-32.png", sizes: "32x32", type: "image/png" }],
     apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
