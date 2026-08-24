@@ -141,39 +141,37 @@ export type ProductFilters = {
 };
 
 export async function getProducts(filters: ProductFilters = {}) {
+  const where: Record<string, unknown> = { active: true };
+
+  if (filters.categorySlug) {
+    where.OR = [
+      { category: { slug: filters.categorySlug } },
+      {
+        categories: {
+          some: {
+            category: { slug: filters.categorySlug },
+          },
+        },
+      },
+    ];
+  }
+  if (filters.subcategorySlug) {
+    where.subcategory = { slug: filters.subcategorySlug };
+  }
+  if (filters.brand) {
+    where.brand = filters.brand;
+  }
+  if (filters.featured) where.featured = true;
+  if (filters.isNew) where.isNew = true;
+  if (filters.bestSeller) where.bestSeller = true;
+  if (filters.maxPrice) {
+    where.price = { lte: filters.maxPrice };
+  }
+
   const products = await prisma.product.findMany({
-    where: {
-      active: true,
-      ...(filters.featured ? { featured: true } : {}),
-      ...(filters.isNew ? { isNew: true } : {}),
-      ...(filters.bestSeller ? { bestSeller: true } : {}),
-      ...(filters.brand ? { brand: filters.brand } : {}),
-      ...(filters.categorySlug
-        ? {
-            OR: [
-              { category: { slug: filters.categorySlug, active: true } },
-              {
-                categories: {
-                  some: { category: { slug: filters.categorySlug, active: true } },
-                },
-              },
-            ],
-          }
-        : {}),
-      ...(filters.subcategorySlug
-        ? { subcategory: { slug: filters.subcategorySlug, active: true } }
-        : {}),
-      ...(filters.maxPrice !== undefined
-        ? {
-            OR: [
-              { promoPrice: { lte: filters.maxPrice } },
-              { promoPrice: null, price: { lte: filters.maxPrice } },
-            ],
-          }
-        : {}),
-    },
+    where,
     include: PRODUCT_INCLUDE,
-    orderBy: [{ featured: "desc" }, { createdAt: "desc" }],
+    orderBy: { createdAt: "desc" },
   });
 
   const filteredProducts = filters.search
@@ -183,14 +181,18 @@ export async function getProducts(filters: ProductFilters = {}) {
   return filteredProducts.map(mapProduct);
 }
 
-export async function getProductById(id: string) {
+export const getProductById = cache(async (id: string) => {
   const product = await prisma.product.findFirst({
     where: { id, active: true },
     include: PRODUCT_INCLUDE,
   });
 
   return product ? mapProduct(product) : null;
-}
+});
+
+export const getStoreSettings = cache(async () => {
+  return prisma.storeSettings.findFirst();
+});
 
 export async function getBrands() {
   const rows = await prisma.product.findMany({
@@ -200,5 +202,5 @@ export async function getBrands() {
     orderBy: { brand: "asc" },
   });
 
-  return rows.map((row) => row.brand);
+  return rows.map((r) => r.brand);
 }
