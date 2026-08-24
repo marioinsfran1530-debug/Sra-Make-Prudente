@@ -83,9 +83,16 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     []
   );
 
-  const removeItem = useCallback((productId: string, variantId: string | null) => {
-    setItems((prev) => {
-      const removed = prev.find((i) => i.productId === productId && i.variantId === variantId);
+  const removeItem = useCallback(
+    (productId: string, variantId: string | null) => {
+      const removed = items.find(
+        (i) => i.productId === productId && i.variantId === variantId
+      );
+
+      setItems((prev) =>
+        prev.filter((i) => !(i.productId === productId && i.variantId === variantId))
+      );
+
       if (removed) {
         trackEvent("remove_from_cart", {
           productId: removed.productId,
@@ -99,9 +106,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           price: removed.price,
         });
       }
-      return prev.filter((i) => !(i.productId === productId && i.variantId === variantId));
-    });
-  }, []);
+    },
+    [items]
+  );
 
   const clear = useCallback(() => setItems([]), []);
 
