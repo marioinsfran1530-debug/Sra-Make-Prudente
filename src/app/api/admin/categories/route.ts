@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin-auth";
+import { indexNowPaths, notifyIndexNow } from "@/lib/indexnow";
 
 function slugify(s: string) {
   return s
@@ -38,6 +39,12 @@ export async function POST(request: NextRequest) {
       active: body.active ?? true,
     },
   });
+
+  await notifyIndexNow([
+    indexNowPaths.category(category.slug),
+    indexNowPaths.catalog,
+    indexNowPaths.sitemap,
+  ]);
 
   return NextResponse.json({ category });
 }
