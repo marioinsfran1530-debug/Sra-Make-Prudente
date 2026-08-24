@@ -17,6 +17,7 @@ export function AdminNav({
 
   const items: Item[] = [
     { href: "/admin", label: "Dashboard" },
+    { href: "/admin/analise", label: "Análise" },
     { href: "/admin/produtos", label: "Produtos" },
     { href: "/admin/categorias", label: "Categorias" },
     { href: "/admin/pedidos", label: "Pedidos" },
