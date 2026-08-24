@@ -62,169 +62,153 @@ export default async function AnalisePage({
   const range = getPeriodRange(period);
   const where = range ? { createdAt: range } : {};
 
-  try {
-    const [eventGroups, visitors, originGroups, searchGroups, productGroups, campaignGroups] =
-      await Promise.all([
-        prisma.analyticsEvent.groupBy({
-          by: ["event"],
-          where,
-          _count: { _all: true },
-        }),
-        prisma.analyticsEvent.findMany({
-          where: { ...where, event: "page_view" },
-          select: { sessionId: true },
-          distinct: ["sessionId"],
-        }),
-        prisma.analyticsEvent.groupBy({
-          by: ["origin"],
-          where: { ...where, origin: { not: null } },
-          _count: { _all: true },
-          orderBy: { _count: { origin: "desc" } },
-          take: 8,
-        }),
-        prisma.analyticsEvent.groupBy({
-          by: ["query"],
-          where: { ...where, event: "search", query: { not: null } },
-          _count: { _all: true },
-          orderBy: { _count: { query: "desc" } },
-          take: 10,
-        }),
-        prisma.analyticsEvent.groupBy({
-          by: ["productId"],
-          where: { ...where, event: "product_view", productId: { not: null } },
-          _count: { _all: true },
-          orderBy: { _count: { productId: "desc" } },
-          take: 10,
-        }),
-        prisma.analyticsEvent.groupBy({
-          by: ["utmCampaign"],
-          where: { ...where, utmCampaign: { not: null } },
-          _count: { _all: true },
-          orderBy: { _count: { utmCampaign: "desc" } },
-          take: 8,
-        }),
-      ]);
+  const [eventGroups, visitors, originGroups, searchGroups, productGroups, campaignGroups] =
+    await Promise.all([
+      prisma.analyticsEvent.groupBy({
+        by: ["event"],
+        where,
+        _count: { _all: true },
+      }),
+      prisma.analyticsEvent.findMany({
+        where: { ...where, event: "page_view" },
+        select: { sessionId: true },
+        distinct: ["sessionId"],
+      }),
+      prisma.analyticsEvent.groupBy({
+        by: ["origin"],
+        where: { ...where, origin: { not: null } },
+        _count: { _all: true },
+        orderBy: { _count: { origin: "desc" } },
+        take: 8,
+      }),
+      prisma.analyticsEvent.groupBy({
+        by: ["query"],
+        where: { ...where, event: "search", query: { not: null } },
+        _count: { _all: true },
+        orderBy: { _count: { query: "desc" } },
+        take: 10,
+      }),
+      prisma.analyticsEvent.groupBy({
+        by: ["productId"],
+        where: { ...where, event: "product_view", productId: { not: null } },
+        _count: { _all: true },
+        orderBy: { _count: { productId: "desc" } },
+        take: 10,
+      }),
+      prisma.analyticsEvent.groupBy({
+        by: ["utmCampaign"],
+        where: { ...where, utmCampaign: { not: null } },
+        _count: { _all: true },
+        orderBy: { _count: { utmCampaign: "desc" } },
+        take: 8,
+      }),
+    ]);
 
-    const eventCount = new Map(eventGroups.map((item) => [item.event, item._count._all]));
-    const visitorCount = visitors.length;
-    const productViews = eventCount.get("product_view") ?? 0;
-    const addToCart = eventCount.get("add_to_cart") ?? 0;
-    const checkout = eventCount.get("begin_checkout") ?? 0;
-    const orders = eventCount.get("order_created") ?? 0;
-    const whatsapp = eventCount.get("whatsapp_click") ?? 0;
-    const searches = eventCount.get("search") ?? 0;
+  const eventCount = new Map(eventGroups.map((item) => [item.event, item._count._all]));
+  const visitorCount = visitors.length;
+  const productViews = eventCount.get("product_view") ?? 0;
+  const addToCart = eventCount.get("add_to_cart") ?? 0;
+  const checkout = eventCount.get("begin_checkout") ?? 0;
+  const orders = eventCount.get("order_created") ?? 0;
+  const whatsapp = eventCount.get("whatsapp_click") ?? 0;
+  const searches = eventCount.get("search") ?? 0;
 
-    const productIds = productGroups
-      .map((item) => item.productId)
-      .filter((id): id is string => Boolean(id));
-    const products = productIds.length
-      ? await prisma.product.findMany({
-          where: { id: { in: productIds } },
-          select: { id: true, name: true, brand: true },
-        })
-      : [];
-    const productMap = new Map(products.map((product) => [product.id, product]));
+  const productIds = productGroups
+    .map((item) => item.productId)
+    .filter((id): id is string => Boolean(id));
+  const products = productIds.length
+    ? await prisma.product.findMany({
+        where: { id: { in: productIds } },
+        select: { id: true, name: true, brand: true },
+      })
+    : [];
+  const productMap = new Map(products.map((product) => [product.id, product]));
 
-    return (
-      <div className="mx-auto max-w-7xl">
-        <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-wider text-rosa-profundo">Dados próprios</p>
-            <h1 className="font-serif text-2xl font-bold text-texto">Análise do catálogo</h1>
-            <p className="mt-1 text-sm text-cinza">
-              Eventos anônimos registrados pelo próprio catálogo. GA4 e Meta continuam funcionando em paralelo.
-            </p>
-          </div>
-          <Link href="/admin/produtos/qualidade" className="rounded-xl border border-rosa/20 bg-white px-4 py-2.5 text-xs font-bold text-rosa-profundo">
-            Qualidade dos cadastros
-          </Link>
+  return (
+    <div className="mx-auto max-w-7xl">
+      <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-wider text-rosa-profundo">Dados próprios</p>
+          <h1 className="font-serif text-2xl font-bold text-texto">Análise do catálogo</h1>
+          <p className="mt-1 text-sm text-cinza">
+            Eventos anônimos registrados pelo próprio catálogo. GA4 e Meta continuam funcionando em paralelo.
+          </p>
         </div>
+        <Link href="/admin/produtos/qualidade" className="rounded-xl border border-rosa/20 bg-white px-4 py-2.5 text-xs font-bold text-rosa-profundo">
+          Qualidade dos cadastros
+        </Link>
+      </div>
 
-        <div className="mb-5 flex flex-wrap gap-2">
-          {PERIODS.map((item) => {
-            const active = item.value === period;
-            return (
-              <Link
-                key={item.value}
-                href={item.value === "7d" ? "/admin/analise" : `/admin/analise?period=${item.value}`}
-                className={`rounded-xl border px-3 py-2 text-xs font-bold ${active ? "border-rosa-profundo bg-rosa-profundo text-white" : "border-rosa/15 bg-white text-cinza"}`}
-              >
-                {item.label}
-              </Link>
-            );
+      <div className="mb-5 flex flex-wrap gap-2">
+        {PERIODS.map((item) => {
+          const active = item.value === period;
+          return (
+            <Link
+              key={item.value}
+              href={item.value === "7d" ? "/admin/analise" : `/admin/analise?period=${item.value}`}
+              className={`rounded-xl border px-3 py-2 text-xs font-bold ${active ? "border-rosa-profundo bg-rosa-profundo text-white" : "border-rosa/15 bg-white text-cinza"}`}
+            >
+              {item.label}
+            </Link>
+          );
+        })}
+      </div>
+
+      <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+        <Metric label="Visitantes identificados" value={visitorCount} />
+        <Metric label="Produtos visualizados" value={productViews} />
+        <Metric label="Adições ao carrinho" value={addToCart} />
+        <Metric label="Checkouts iniciados" value={checkout} />
+        <Metric label="Pedidos criados" value={orders} />
+        <Metric label="Cliques no WhatsApp" value={whatsapp} />
+      </div>
+
+      <section className="mb-6 rounded-2xl bg-white p-5 shadow-sm">
+        <div className="mb-4">
+          <h2 className="font-bold text-texto">Funil real do catálogo</h2>
+          <p className="text-xs text-cinza">A taxa usa visitantes identificados como base. Um visitante pode gerar vários eventos.</p>
+        </div>
+        <div className="grid gap-3 md:grid-cols-5">
+          <FunnelStep label="Visitantes" value={visitorCount} rate="100%" />
+          <FunnelStep label="Visualizações" value={productViews} rate={pct(conversion(productViews, visitorCount))} />
+          <FunnelStep label="Carrinhos" value={addToCart} rate={pct(conversion(addToCart, visitorCount))} />
+          <FunnelStep label="Checkout" value={checkout} rate={pct(conversion(checkout, visitorCount))} />
+          <FunnelStep label="Pedidos" value={orders} rate={pct(conversion(orders, visitorCount))} />
+        </div>
+      </section>
+
+      <div className="grid gap-5 xl:grid-cols-2">
+        <Panel title="Produtos mais visualizados" empty="Ainda não há visualizações de produto neste período.">
+          {productGroups.map((item, index) => {
+            const product = item.productId ? productMap.get(item.productId) : null;
+            return <Row key={item.productId ?? index} label={product ? `${product.name} · ${product.brand}` : "Produto não identificado"} value={item._count._all} />;
           })}
-        </div>
+        </Panel>
 
-        <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-          <Metric label="Visitantes identificados" value={visitorCount} />
-          <Metric label="Produtos visualizados" value={productViews} />
-          <Metric label="Adições ao carrinho" value={addToCart} />
-          <Metric label="Checkouts iniciados" value={checkout} />
-          <Metric label="Pedidos criados" value={orders} />
-          <Metric label="Cliques no WhatsApp" value={whatsapp} />
-        </div>
+        <Panel title={`Buscas internas (${searches})`} empty="Ainda não há buscas registradas neste período.">
+          {searchGroups.map((item, index) => (
+            <Row key={item.query ?? index} label={item.query ?? "Busca sem termo"} value={item._count._all} />
+          ))}
+        </Panel>
 
-        <section className="mb-6 rounded-2xl bg-white p-5 shadow-sm">
-          <div className="mb-4 flex items-center justify-between">
-            <div>
-              <h2 className="font-bold text-texto">Funil real do catálogo</h2>
-              <p className="text-xs text-cinza">A taxa usa visitantes identificados como base. Um visitante pode gerar vários eventos.</p>
-            </div>
-          </div>
-          <div className="grid gap-3 md:grid-cols-5">
-            <FunnelStep label="Visitantes" value={visitorCount} rate="100%" />
-            <FunnelStep label="Visualizações" value={productViews} rate={pct(conversion(productViews, visitorCount))} />
-            <FunnelStep label="Carrinhos" value={addToCart} rate={pct(conversion(addToCart, visitorCount))} />
-            <FunnelStep label="Checkout" value={checkout} rate={pct(conversion(checkout, visitorCount))} />
-            <FunnelStep label="Pedidos" value={orders} rate={pct(conversion(orders, visitorCount))} />
-          </div>
-        </section>
+        <Panel title="Origem dos acessos/eventos" empty="Ainda não há origem identificada neste período.">
+          {originGroups.map((item, index) => (
+            <Row key={item.origin ?? index} label={item.origin ?? "Não identificada"} value={item._count._all} />
+          ))}
+        </Panel>
 
-        <div className="grid gap-5 xl:grid-cols-2">
-          <Panel title="Produtos mais visualizados" empty="Ainda não há visualizações de produto neste período.">
-            {productGroups.map((item, index) => {
-              const product = item.productId ? productMap.get(item.productId) : null;
-              return (
-                <Row key={item.productId ?? index} label={product ? `${product.name} · ${product.brand}` : "Produto não identificado"} value={item._count._all} />
-              );
-            })}
-          </Panel>
-
-          <Panel title={`Buscas internas (${searches})`} empty="Ainda não há buscas registradas neste período.">
-            {searchGroups.map((item, index) => (
-              <Row key={item.query ?? index} label={item.query ?? "Busca sem termo"} value={item._count._all} />
-            ))}
-          </Panel>
-
-          <Panel title="Origem dos acessos/eventos" empty="Ainda não há origem identificada neste período.">
-            {originGroups.map((item, index) => (
-              <Row key={item.origin ?? index} label={item.origin ?? "Não identificada"} value={item._count._all} />
-            ))}
-          </Panel>
-
-          <Panel title="Campanhas UTM" empty="Ainda não há campanhas UTM registradas neste período.">
-            {campaignGroups.map((item, index) => (
-              <Row key={item.utmCampaign ?? index} label={item.utmCampaign ?? "Sem campanha"} value={item._count._all} />
-            ))}
-          </Panel>
-        </div>
-
-        <p className="mt-5 text-[11px] leading-5 text-cinza">
-          Estes números são dados first-party do catálogo e começam a acumular somente após a ativação desta coleta. Eles não recuperam visitas anteriores. Para audiência e atribuição publicitária, compare também com GA4 e Meta.
-        </p>
+        <Panel title="Campanhas UTM" empty="Ainda não há campanhas UTM registradas neste período.">
+          {campaignGroups.map((item, index) => (
+            <Row key={item.utmCampaign ?? index} label={item.utmCampaign ?? "Sem campanha"} value={item._count._all} />
+          ))}
+        </Panel>
       </div>
-    );
-  } catch (error) {
-    console.error("Falha ao carregar analytics próprio:", error);
-    return (
-      <div className="mx-auto max-w-3xl rounded-2xl border border-amber-200 bg-amber-50 p-6">
-        <h1 className="font-serif text-xl font-bold text-texto">Análise do catálogo</h1>
-        <p className="mt-2 text-sm text-amber-800">
-          A estrutura do painel está pronta, mas a tabela de analytics ainda não está disponível neste banco. Aplique a migration pendente antes de usar os números próprios.
-        </p>
-      </div>
-    );
-  }
+
+      <p className="mt-5 text-[11px] leading-5 text-cinza">
+        Estes números são dados first-party do catálogo e começam a acumular somente após a ativação desta coleta. Eles não recuperam visitas anteriores. Para audiência e atribuição publicitária, compare também com GA4 e Meta.
+      </p>
+    </div>
+  );
 }
 
 function Metric({ label, value }: { label: string; value: number }) {
