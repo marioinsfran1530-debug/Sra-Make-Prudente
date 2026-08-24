@@ -16,6 +16,18 @@ export type AnalyticsEvent =
 type Fbq = (...args: unknown[]) => void;
 type Gtag = (...args: unknown[]) => void;
 
+type EcommerceItemPayload = {
+  productId?: unknown;
+  variantId?: unknown;
+  variantName?: unknown;
+  name?: unknown;
+  brand?: unknown;
+  category?: unknown;
+  sku?: unknown;
+  price?: unknown;
+  qty?: unknown;
+};
+
 declare global {
   interface Window {
     fbq?: Fbq;
@@ -31,50 +43,68 @@ function stringValue(value: unknown) {
   return typeof value === "string" && value.trim() ? value : undefined;
 }
 
+function toGA4Item(payload: EcommerceItemPayload) {
+  const productId = stringValue(payload.productId);
+  if (!productId) return undefined;
+
+  return {
+    item_id: productId,
+    item_name: stringValue(payload.name),
+    item_brand: stringValue(payload.brand),
+    item_category: stringValue(payload.category),
+    item_variant: stringValue(payload.variantName) || stringValue(payload.variantId),
+    item_sku: stringValue(payload.sku),
+    price: numberValue(payload.price),
+    quantity: numberValue(payload.qty) ?? 1,
+  };
+}
+
+function ga4ItemsFromPayload(payload: Record<string, unknown>) {
+  if (Array.isArray(payload.items)) {
+    return payload.items
+      .map((item) => (item && typeof item === "object" ? toGA4Item(item as EcommerceItemPayload) : undefined))
+      .filter((item): item is NonNullable<ReturnType<typeof toGA4Item>> => Boolean(item));
+  }
+
+  const item = toGA4Item(payload as EcommerceItemPayload);
+  return item ? [item] : [];
+}
+
 function sendGA4Event(event: AnalyticsEvent, payload: Record<string, unknown>) {
   const gtag = window.gtag;
   if (!gtag) return;
 
-  const productId = stringValue(payload.productId);
-  const productName = stringValue(payload.name);
-  const variantId = stringValue(payload.variantId);
+  const items = ga4ItemsFromPayload(payload);
   const price = numberValue(payload.price);
   const qty = numberValue(payload.qty) ?? 1;
-  const item = productId
-    ? {
-        item_id: variantId || productId,
-        item_name: productName,
-        price,
-        quantity: qty,
-      }
-    : undefined;
 
   switch (event) {
     case "product_view":
       gtag("event", "view_item", {
         currency: "BRL",
         value: price,
-        items: item ? [item] : undefined,
+        items,
       });
       return;
     case "add_to_cart":
       gtag("event", "add_to_cart", {
         currency: "BRL",
         value: price !== undefined ? price * qty : undefined,
-        items: item ? [item] : undefined,
+        items,
       });
       return;
     case "remove_from_cart":
       gtag("event", "remove_from_cart", {
         currency: "BRL",
-        items: item ? [item] : undefined,
+        value: price !== undefined ? price * qty : undefined,
+        items,
       });
       return;
     case "begin_checkout":
       gtag("event", "begin_checkout", {
         currency: "BRL",
         value: numberValue(payload.subtotal),
-        number_of_items: numberValue(payload.itemCount),
+        items,
       });
       return;
     case "whatsapp_click":
