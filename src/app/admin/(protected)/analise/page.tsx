@@ -76,6 +76,35 @@ function conversion(part: number, total: number) {
   return total > 0 ? (part / total) * 100 : 0;
 }
 
+function getDataMaturity(visitorCount: number) {
+  if (visitorCount < 10) {
+    return {
+      label: "Coleta inicial",
+      detail: "Amostra muito pequena. Use os números apenas para confirmar que a coleta está funcionando; evite decisões de preço, estoque ou campanha.",
+      tone: "border-amber-200 bg-amber-50 text-amber-800",
+    };
+  }
+  if (visitorCount < 50) {
+    return {
+      label: "Amostra pequena",
+      detail: "Já é possível observar sinais, mas diferenças entre produtos e campanhas ainda podem oscilar bastante.",
+      tone: "border-amber-200 bg-amber-50 text-amber-800",
+    };
+  }
+  if (visitorCount < 200) {
+    return {
+      label: "Dados em formação",
+      detail: "O volume já ajuda a comparar tendências. Confirme padrões em mais de um período antes de mudanças relevantes.",
+      tone: "border-rosa/20 bg-rosa/5 text-texto",
+    };
+  }
+  return {
+    label: "Amostra maior",
+    detail: "Há volume operacional para comparações mais úteis. Continue considerando período, origem e contexto antes de concluir causa e efeito.",
+    tone: "border-green-200 bg-green-50 text-green-800",
+  };
+}
+
 export default async function AnalisePage({
   searchParams,
 }: {
@@ -146,6 +175,7 @@ export default async function AnalisePage({
   const finalizedRevenue = Number(finalizedAggregate._sum.value ?? 0);
   const whatsapp = eventCount.get("whatsapp_click") ?? 0;
   const searches = eventCount.get("search") ?? 0;
+  const maturity = getDataMaturity(visitorCount);
 
   const productIds = productGroups
     .map((item) => item.productId)
@@ -196,6 +226,18 @@ export default async function AnalisePage({
           );
         })}
       </div>
+
+      <section className={`mb-5 rounded-2xl border p-4 ${maturity.tone}`}>
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wide opacity-70">Maturidade da amostra</p>
+            <p className="mt-1 text-base font-extrabold">{maturity.label}</p>
+          </div>
+          <p className="text-xs font-bold">{visitorCount.toLocaleString("pt-BR")} visitantes identificados no período</p>
+        </div>
+        <p className="mt-2 max-w-4xl text-xs leading-5 opacity-90">{maturity.detail}</p>
+        <p className="mt-2 text-[10px] opacity-70">Faixa operacional de orientação; não representa significância estatística nem garante causalidade.</p>
+      </section>
 
       <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-8">
         <Metric label="Visitantes identificados" value={visitorCount} />
