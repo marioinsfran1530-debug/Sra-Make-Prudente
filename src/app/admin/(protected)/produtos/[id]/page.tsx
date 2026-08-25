@@ -42,6 +42,7 @@ export default async function EditarProdutoPage({
           description: product.description,
           price: Number(product.price),
           promoPrice: product.promoPrice ? Number(product.promoPrice) : null,
+          costPrice: product.costPrice === null ? null : Number(product.costPrice),
           stockQty: product.stockQty,
           featured: product.featured,
           isNew: product.isNew,

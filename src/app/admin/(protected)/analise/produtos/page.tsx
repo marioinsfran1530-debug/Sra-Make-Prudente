@@ -59,6 +59,8 @@ type ProductRow = {
   finalizedOrders: number;
   unitsSold: number;
   revenue: number;
+  revenueWithCost: number;
+  knownCost: number;
 };
 
 function signal(row: ProductRow) {
@@ -104,6 +106,7 @@ export default async function ProductPerformancePage({
             productId: true,
             qty: true,
             subtotal: true,
+            unitCost: true,
           },
         },
       },
@@ -115,7 +118,15 @@ export default async function ProductPerformancePage({
   function ensure(productId: string) {
     const current = stats.get(productId);
     if (current) return current;
-    const fresh = { views: 0, carts: 0, finalizedOrders: 0, unitsSold: 0, revenue: 0 };
+    const fresh = {
+      views: 0,
+      carts: 0,
+      finalizedOrders: 0,
+      unitsSold: 0,
+      revenue: 0,
+      revenueWithCost: 0,
+      knownCost: 0,
+    };
     stats.set(productId, fresh);
     return fresh;
   }
@@ -131,8 +142,13 @@ export default async function ProductPerformancePage({
     const productsInOrder = new Set<string>();
     for (const item of order.items) {
       const current = ensure(item.productId);
+      const subtotal = Number(item.subtotal);
       current.unitsSold += item.qty;
-      current.revenue += Number(item.subtotal);
+      current.revenue += subtotal;
+      if (item.unitCost !== null) {
+        current.revenueWithCost += subtotal;
+        current.knownCost += Number(item.unitCost) * item.qty;
+      }
       productsInOrder.add(item.productId);
     }
     for (const productId of productsInOrder) {
@@ -148,15 +164,27 @@ export default async function ProductPerformancePage({
       })
     : [];
 
+  const emptyStats = {
+    views: 0,
+    carts: 0,
+    finalizedOrders: 0,
+    unitsSold: 0,
+    revenue: 0,
+    revenueWithCost: 0,
+    knownCost: 0,
+  };
+
   const rows: ProductRow[] = products
-    .map((product) => ({ ...product, ...(stats.get(product.id) ?? { views: 0, carts: 0, finalizedOrders: 0, unitsSold: 0, revenue: 0 }) }))
+    .map((product) => ({ ...product, ...(stats.get(product.id) ?? emptyStats) }))
     .sort((a, b) => b.views - a.views || b.carts - a.carts || b.revenue - a.revenue);
 
   const totalViews = rows.reduce((sum, item) => sum + item.views, 0);
   const totalCarts = rows.reduce((sum, item) => sum + item.carts, 0);
   const totalUnits = rows.reduce((sum, item) => sum + item.unitsSold, 0);
   const totalRevenue = rows.reduce((sum, item) => sum + item.revenue, 0);
-  const opportunityCount = rows.filter((item) => item.views >= 5 && item.finalizedOrders === 0).length;
+  const revenueWithCost = rows.reduce((sum, item) => sum + item.revenueWithCost, 0);
+  const totalKnownCost = rows.reduce((sum, item) => sum + item.knownCost, 0);
+  const knownGrossProfit = revenueWithCost - totalKnownCost;
 
   return (
     <div className="mx-auto max-w-7xl">
@@ -165,7 +193,7 @@ export default async function ProductPerformancePage({
           <p className="text-xs font-bold uppercase tracking-wider text-rosa-profundo">Inteligência comercial</p>
           <h1 className="font-serif text-2xl font-bold text-texto">Desempenho dos produtos</h1>
           <p className="mt-1 max-w-3xl text-sm text-cinza">
-            Cruza comportamento do catálogo com vendas realmente finalizadas para mostrar quais produtos atraem atenção, geram intenção e convertem.
+            Cruza comportamento do catálogo com vendas realmente finalizadas. Quando o custo é informado, também calcula lucro bruto e margem sem expor esse valor ao cliente.
           </p>
         </div>
         <Link href="/admin/analise" className="rounded-xl border border-rosa/20 bg-white px-4 py-2.5 text-xs font-bold text-rosa-profundo">
@@ -188,19 +216,20 @@ export default async function ProductPerformancePage({
         })}
       </div>
 
-      <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-5">
+      <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         <Metric label="Visualizações" value={totalViews} />
         <Metric label="Carrinhos" value={totalCarts} />
         <Metric label="Unidades vendidas" value={totalUnits} />
         <Metric label="Receita finalizada" value={money(totalRevenue)} />
-        <Metric label="Oportunidades" value={opportunityCount} />
+        <Metric label="Lucro bruto conhecido" value={money(knownGrossProfit)} />
+        <Metric label="Receita com custo informado" value={pct(revenueWithCost, totalRevenue)} />
       </div>
 
       <section className="overflow-hidden rounded-2xl bg-white shadow-sm">
         <div className="border-b border-rosa/10 px-5 py-4">
           <h2 className="font-bold text-texto">Produto por produto</h2>
           <p className="mt-1 text-[11px] text-cinza">
-            Carrinho / visualização mede intenção. Venda só considera pedidos com status FINALIZADO.
+            Venda só considera pedidos FINALIZADOS. Custo e margem aparecem apenas nas vendas que possuem custo registrado.
           </p>
         </div>
 
@@ -208,7 +237,7 @@ export default async function ProductPerformancePage({
           <p className="p-6 text-sm text-cinza">Ainda não há dados suficientes neste período.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-[920px] w-full text-left text-xs">
+            <table className="min-w-[1120px] w-full text-left text-xs">
               <thead className="bg-creme/70 text-[10px] uppercase tracking-wide text-cinza">
                 <tr>
                   <th className="px-4 py-3">Produto</th>
@@ -218,12 +247,16 @@ export default async function ProductPerformancePage({
                   <th className="px-3 py-3 text-right">Pedidos finais</th>
                   <th className="px-3 py-3 text-right">Unidades</th>
                   <th className="px-3 py-3 text-right">Receita</th>
+                  <th className="px-3 py-3 text-right">Lucro bruto</th>
+                  <th className="px-3 py-3 text-right">Margem</th>
                   <th className="px-4 py-3">Sinal</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-rosa/10">
                 {rows.map((row) => {
                   const status = signal(row);
+                  const hasCost = row.revenueWithCost > 0;
+                  const grossProfit = row.revenueWithCost - row.knownCost;
                   return (
                     <tr key={row.id} className="align-middle">
                       <td className="px-4 py-3">
@@ -236,6 +269,8 @@ export default async function ProductPerformancePage({
                       <td className="px-3 py-3 text-right font-semibold text-texto">{row.finalizedOrders}</td>
                       <td className="px-3 py-3 text-right font-semibold text-texto">{row.unitsSold}</td>
                       <td className="px-3 py-3 text-right font-bold text-texto">{money(row.revenue)}</td>
+                      <td className="px-3 py-3 text-right font-bold text-texto">{hasCost ? money(grossProfit) : "—"}</td>
+                      <td className="px-3 py-3 text-right font-bold text-texto">{hasCost ? pct(grossProfit, row.revenueWithCost) : "—"}</td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-bold ${status.tone}`}>{status.label}</span>
                       </td>
@@ -249,7 +284,7 @@ export default async function ProductPerformancePage({
       </section>
 
       <div className="mt-5 rounded-2xl border border-rosa/15 bg-white p-4 text-[11px] leading-5 text-cinza">
-        <strong className="text-texto">Como interpretar:</strong> muita visualização e pouco carrinho sugere revisar preço, foto, descrição ou oferta. Carrinhos sem venda indicam intenção que não chegou ao fechamento. Produtos com venda finalizada comprovam conversão. Os eventos de comportamento só existem a partir da ativação do analytics próprio, portanto os primeiros dias ainda terão amostra pequena.
+        <strong className="text-texto">Como interpretar:</strong> muita visualização e pouco carrinho sugere revisar preço, foto, descrição ou oferta. Carrinhos sem venda indicam intenção que não chegou ao fechamento. O lucro bruto considera receita menos custo do produto e não desconta frete, taxas, impostos ou despesas operacionais. Vendas antigas sem custo registrado continuam sem margem calculada para não inventarmos histórico.
       </div>
     </div>
   );

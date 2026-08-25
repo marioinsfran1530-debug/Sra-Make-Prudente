@@ -53,6 +53,7 @@ model Product {
   description String?
   price       Decimal  @db.Decimal(10, 2)
   promoPrice  Decimal? @db.Decimal(10, 2)
+  costPrice   Decimal? @db.Decimal(10, 2)
   stockQty    Int      @default(0)
   featured    Boolean  @default(false)
   isNew       Boolean  @default(false)
@@ -187,8 +188,9 @@ model OrderItem {
   sku         String?
   variantName String?
   qty       Int
-  unitPrice Decimal @db.Decimal(10, 2)
-  subtotal  Decimal @db.Decimal(10, 2)
+  unitPrice Decimal  @db.Decimal(10, 2)
+  unitCost  Decimal? @db.Decimal(10, 2)
+  subtotal  Decimal  @db.Decimal(10, 2)
 }
 
 // ---------- Analytics próprio ----------
