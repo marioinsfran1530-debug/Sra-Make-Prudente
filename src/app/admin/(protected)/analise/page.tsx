@@ -45,6 +45,10 @@ function pct(value: number) {
   return `${value.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
 }
 
+function money(value: number) {
+  return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
 function conversion(part: number, total: number) {
   return total > 0 ? (part / total) * 100 : 0;
 }
@@ -62,7 +66,7 @@ export default async function AnalisePage({
   const range = getPeriodRange(period);
   const where = range ? { createdAt: range } : {};
 
-  const [eventGroups, visitors, originGroups, searchGroups, productGroups, campaignGroups] =
+  const [eventGroups, visitors, originGroups, searchGroups, productGroups, campaignGroups, finalizedAggregate] =
     await Promise.all([
       prisma.analyticsEvent.groupBy({
         by: ["event"],
@@ -102,6 +106,11 @@ export default async function AnalisePage({
         orderBy: { _count: { utmCampaign: "desc" } },
         take: 8,
       }),
+      prisma.analyticsEvent.aggregate({
+        where: { ...where, event: "order_finalized" },
+        _count: { _all: true },
+        _sum: { value: true },
+      }),
     ]);
 
   const eventCount = new Map(eventGroups.map((item) => [item.event, item._count._all]));
@@ -109,7 +118,9 @@ export default async function AnalisePage({
   const productViews = eventCount.get("product_view") ?? 0;
   const addToCart = eventCount.get("add_to_cart") ?? 0;
   const checkout = eventCount.get("begin_checkout") ?? 0;
-  const orders = eventCount.get("order_created") ?? 0;
+  const ordersCreated = eventCount.get("order_created") ?? 0;
+  const finalizedSales = finalizedAggregate._count._all;
+  const finalizedRevenue = Number(finalizedAggregate._sum.value ?? 0);
   const whatsapp = eventCount.get("whatsapp_click") ?? 0;
   const searches = eventCount.get("search") ?? 0;
 
@@ -134,9 +145,10 @@ export default async function AnalisePage({
             Eventos anônimos registrados pelo próprio catálogo. GA4 e Meta continuam funcionando em paralelo.
           </p>
         </div>
-        <Link href="/admin/produtos/qualidade" className="rounded-xl border border-rosa/20 bg-white px-4 py-2.5 text-xs font-bold text-rosa-profundo">
-          Qualidade dos cadastros
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link href="/admin/analise/buscas" className="rounded-xl border border-rosa/20 bg-white px-4 py-2.5 text-xs font-bold text-rosa-profundo">Ver buscas</Link>
+          <Link href="/admin/produtos/qualidade" className="rounded-xl border border-rosa/20 bg-white px-4 py-2.5 text-xs font-bold text-rosa-profundo">Qualidade dos cadastros</Link>
+        </div>
       </div>
 
       <div className="mb-5 flex flex-wrap gap-2">
@@ -154,27 +166,31 @@ export default async function AnalisePage({
         })}
       </div>
 
-      <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+      <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-8">
         <Metric label="Visitantes identificados" value={visitorCount} />
         <Metric label="Produtos visualizados" value={productViews} />
         <Metric label="Adições ao carrinho" value={addToCart} />
         <Metric label="Checkouts iniciados" value={checkout} />
-        <Metric label="Pedidos criados" value={orders} />
+        <Metric label="Pedidos criados" value={ordersCreated} />
+        <Metric label="Vendas finalizadas" value={finalizedSales} />
+        <Metric label="Receita finalizada" value={money(finalizedRevenue)} />
         <Metric label="Cliques no WhatsApp" value={whatsapp} />
       </div>
 
       <section className="mb-6 rounded-2xl bg-white p-5 shadow-sm">
         <div className="mb-4">
           <h2 className="font-bold text-texto">Funil real do catálogo</h2>
-          <p className="text-xs text-cinza">A taxa usa visitantes identificados como base. Um visitante pode gerar vários eventos.</p>
+          <p className="text-xs text-cinza">Pedido criado não é tratado como venda. A venda só entra após o status FINALIZADO no painel.</p>
         </div>
-        <div className="grid gap-3 md:grid-cols-5">
+        <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
           <FunnelStep label="Visitantes" value={visitorCount} rate="100%" />
           <FunnelStep label="Visualizações" value={productViews} rate={pct(conversion(productViews, visitorCount))} />
           <FunnelStep label="Carrinhos" value={addToCart} rate={pct(conversion(addToCart, visitorCount))} />
           <FunnelStep label="Checkout" value={checkout} rate={pct(conversion(checkout, visitorCount))} />
-          <FunnelStep label="Pedidos" value={orders} rate={pct(conversion(orders, visitorCount))} />
+          <FunnelStep label="Pedidos" value={ordersCreated} rate={pct(conversion(ordersCreated, visitorCount))} />
+          <FunnelStep label="Vendas" value={finalizedSales} rate={pct(conversion(finalizedSales, visitorCount))} />
         </div>
+        <p className="mt-3 text-[11px] text-cinza">Conversão de pedido criado em venda finalizada: <strong className="text-texto">{pct(conversion(finalizedSales, ordersCreated))}</strong>.</p>
       </section>
 
       <div className="grid gap-5 xl:grid-cols-2">
@@ -211,8 +227,8 @@ export default async function AnalisePage({
   );
 }
 
-function Metric({ label, value }: { label: string; value: number }) {
-  return <div className="rounded-2xl bg-white p-4 shadow-sm"><p className="text-2xl font-extrabold text-texto">{value.toLocaleString("pt-BR")}</p><p className="mt-1 text-[11px] text-cinza">{label}</p></div>;
+function Metric({ label, value }: { label: string; value: number | string }) {
+  return <div className="rounded-2xl bg-white p-4 shadow-sm"><p className="text-2xl font-extrabold text-texto">{typeof value === "number" ? value.toLocaleString("pt-BR") : value}</p><p className="mt-1 text-[11px] text-cinza">{label}</p></div>;
 }
 
 function FunnelStep({ label, value, rate }: { label: string; value: number; rate: string }) {
