@@ -36,6 +36,15 @@ const ANALYSIS_AREAS = [
   },
 ];
 
+const FUNNEL_EVENTS = [
+  "page_view",
+  "product_view",
+  "add_to_cart",
+  "begin_checkout",
+  "order_created",
+  "order_finalized",
+] as const;
+
 function getSaoPauloDateParts() {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/Sao_Paulo",
@@ -74,6 +83,17 @@ function money(value: number) {
 
 function conversion(part: number, total: number) {
   return total > 0 ? (part / total) * 100 : 0;
+}
+
+function sourceLabel(origin: string) {
+  if (origin === "meta") return "Meta";
+  if (origin === "direto") return "Direto";
+  if (origin === "facebook.com") return "Facebook";
+  if (origin === "instagram" || origin === "instagram.com") return "Instagram";
+  if (origin === "google" || origin === "google.com") return "Google";
+  if (origin === "tiktok" || origin === "tiktok.com") return "TikTok";
+  if (origin === "vercel.com") return "Vercel";
+  return origin;
 }
 
 function getDataMaturity(visitorCount: number) {
@@ -118,7 +138,7 @@ export default async function AnalisePage({
   const range = getPeriodRange(period);
   const where = range ? { createdAt: range } : {};
 
-  const [eventGroups, visitors, originGroups, searchGroups, productGroups, campaignGroups, finalizedAggregate] =
+  const [eventGroups, stageRows, sourcePageGroups, searchGroups, productGroups, campaignGroups, finalizedAggregate] =
     await Promise.all([
       prisma.analyticsEvent.groupBy({
         by: ["event"],
@@ -126,16 +146,14 @@ export default async function AnalisePage({
         _count: { _all: true },
       }),
       prisma.analyticsEvent.findMany({
-        where: { ...where, event: "page_view" },
-        select: { sessionId: true },
-        distinct: ["sessionId"],
+        where: { ...where, event: { in: [...FUNNEL_EVENTS] } },
+        select: { origin: true, event: true, sessionId: true, pagePath: true },
+        distinct: ["origin", "event", "sessionId", "pagePath"],
       }),
       prisma.analyticsEvent.groupBy({
-        by: ["origin"],
-        where: { ...where, origin: { not: null } },
+        by: ["origin", "pagePath"],
+        where: { ...where, event: "page_view", origin: { not: null } },
         _count: { _all: true },
-        orderBy: { _count: { origin: "desc" } },
-        take: 8,
       }),
       prisma.analyticsEvent.groupBy({
         by: ["query"],
@@ -166,7 +184,73 @@ export default async function AnalisePage({
     ]);
 
   const eventCount = new Map(eventGroups.map((item) => [item.event, item._count._all]));
-  const visitorCount = visitors.length;
+  const stageVisitors = new Map<string, Set<string>>();
+  const sourceMap = new Map<
+    string,
+    {
+      origin: string;
+      visitors: Set<string>;
+      productVisitors: Set<string>;
+      cartVisitors: Set<string>;
+      checkoutVisitors: Set<string>;
+      orderVisitors: Set<string>;
+      saleVisitors: Set<string>;
+      pageViews: number;
+      homePageViews: number;
+    }
+  >();
+
+  function getSource(origin: string) {
+    let source = sourceMap.get(origin);
+    if (!source) {
+      source = {
+        origin,
+        visitors: new Set<string>(),
+        productVisitors: new Set<string>(),
+        cartVisitors: new Set<string>(),
+        checkoutVisitors: new Set<string>(),
+        orderVisitors: new Set<string>(),
+        saleVisitors: new Set<string>(),
+        pageViews: 0,
+        homePageViews: 0,
+      };
+      sourceMap.set(origin, source);
+    }
+    return source;
+  }
+
+  for (const row of stageRows) {
+    let globalSet = stageVisitors.get(row.event);
+    if (!globalSet) {
+      globalSet = new Set<string>();
+      stageVisitors.set(row.event, globalSet);
+    }
+    globalSet.add(row.sessionId);
+
+    if (!row.origin) continue;
+    const source = getSource(row.origin);
+    if (row.event === "page_view") source.visitors.add(row.sessionId);
+    if (row.event === "product_view") source.productVisitors.add(row.sessionId);
+    if (row.event === "add_to_cart") source.cartVisitors.add(row.sessionId);
+    if (row.event === "begin_checkout") source.checkoutVisitors.add(row.sessionId);
+    if (row.event === "order_created") source.orderVisitors.add(row.sessionId);
+    if (row.event === "order_finalized") source.saleVisitors.add(row.sessionId);
+  }
+
+  for (const row of sourcePageGroups) {
+    if (!row.origin) continue;
+    const source = getSource(row.origin);
+    source.pageViews += row._count._all;
+    if (row.pagePath === "/") source.homePageViews += row._count._all;
+  }
+
+  const acquisitionSources = Array.from(sourceMap.values())
+    .filter((source) => source.visitors.size > 0 || source.pageViews > 0)
+    .sort((a, b) => b.visitors.size - a.visitors.size || b.pageViews - a.pageViews)
+    .slice(0, 6);
+
+  const visitorCount = stageVisitors.get("page_view")?.size ?? 0;
+  const pageViews = eventCount.get("page_view") ?? 0;
   const productViews = eventCount.get("product_view") ?? 0;
   const addToCart = eventCount.get("add_to_cart") ?? 0;
   const checkout = eventCount.get("begin_checkout") ?? 0;
@@ -175,6 +259,11 @@ export default async function AnalisePage({
   const finalizedRevenue = Number(finalizedAggregate._sum.value ?? 0);
   const whatsapp = eventCount.get("whatsapp_click") ?? 0;
   const searches = eventCount.get("search") ?? 0;
+  const productVisitors = stageVisitors.get("product_view")?.size ?? 0;
+  const cartVisitors = stageVisitors.get("add_to_cart")?.size ?? 0;
+  const checkoutVisitors = stageVisitors.get("begin_checkout")?.size ?? 0;
+  const orderVisitors = stageVisitors.get("order_created")?.size ?? 0;
+  const saleVisitors = stageVisitors.get("order_finalized")?.size ?? 0;
   const maturity = getDataMaturity(visitorCount);
 
   const productIds = productGroups
@@ -239,9 +328,10 @@ export default async function AnalisePage({
         <p className="mt-2 text-[10px] opacity-70">Faixa operacional de orientação; não representa significância estatística nem garante causalidade.</p>
       </section>
 
-      <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-8">
+      <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
         <Metric label="Visitantes identificados" value={visitorCount} />
-        <Metric label="Produtos visualizados" value={productViews} />
+        <Metric label="Páginas vistas" value={pageViews} />
+        <Metric label="Views de produto" value={productViews} />
         <Metric label="Adições ao carrinho" value={addToCart} />
         <Metric label="Checkouts iniciados" value={checkout} />
         <Metric label="Pedidos criados" value={ordersCreated} />
@@ -253,17 +343,45 @@ export default async function AnalisePage({
       <section className="mb-6 rounded-2xl bg-white p-5 shadow-sm">
         <div className="mb-4">
           <h2 className="font-bold text-texto">Funil real do catálogo</h2>
-          <p className="text-xs text-cinza">Pedido criado não é tratado como venda. A venda só entra após o status FINALIZADO no painel.</p>
+          <p className="text-xs text-cinza">O funil usa visitantes anônimos únicos por etapa. Os cards acima mostram o volume total de ações.</p>
         </div>
         <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
           <FunnelStep label="Visitantes" value={visitorCount} rate="100%" />
-          <FunnelStep label="Visualizações" value={productViews} rate={pct(conversion(productViews, visitorCount))} />
-          <FunnelStep label="Carrinhos" value={addToCart} rate={pct(conversion(addToCart, visitorCount))} />
-          <FunnelStep label="Checkout" value={checkout} rate={pct(conversion(checkout, visitorCount))} />
-          <FunnelStep label="Pedidos" value={ordersCreated} rate={pct(conversion(ordersCreated, visitorCount))} />
-          <FunnelStep label="Vendas" value={finalizedSales} rate={pct(conversion(finalizedSales, visitorCount))} />
+          <FunnelStep label="Viram produto" value={productVisitors} rate={pct(conversion(productVisitors, visitorCount))} />
+          <FunnelStep label="Carrinho" value={cartVisitors} rate={pct(conversion(cartVisitors, visitorCount))} />
+          <FunnelStep label="Checkout" value={checkoutVisitors} rate={pct(conversion(checkoutVisitors, visitorCount))} />
+          <FunnelStep label="Pedidos" value={orderVisitors} rate={pct(conversion(orderVisitors, visitorCount))} />
+          <FunnelStep label="Vendas" value={saleVisitors} rate={pct(conversion(saleVisitors, visitorCount))} />
         </div>
-        <p className="mt-3 text-[11px] text-cinza">Conversão de pedido criado em venda finalizada: <strong className="text-texto">{pct(conversion(finalizedSales, ordersCreated))}</strong>.</p>
+        <p className="mt-3 text-[11px] text-cinza">Pedido criado não é tratado como venda. Venda só entra após o status FINALIZADO.</p>
+      </section>
+
+      <section className="mb-6 rounded-2xl bg-white p-5 shadow-sm">
+        <div className="mb-4">
+          <h2 className="font-bold text-texto">Aquisição por origem</h2>
+          <p className="mt-1 text-xs leading-5 text-cinza">
+            Mostra quem trouxe os visitantes e até onde eles avançaram. Visitantes e etapas são pessoas anônimas identificadas; páginas e Home são visualizações.
+          </p>
+        </div>
+        {acquisitionSources.length ? (
+          <div className="grid gap-3 lg:grid-cols-2">
+            {acquisitionSources.map((source) => (
+              <AcquisitionCard
+                key={source.origin}
+                origin={source.origin}
+                visitors={source.visitors.size}
+                pageViews={source.pageViews}
+                homePageViews={source.homePageViews}
+                productVisitors={source.productVisitors.size}
+                cartVisitors={source.cartVisitors.size}
+                orderVisitors={source.orderVisitors.size}
+                saleVisitors={source.saleVisitors.size}
+              />
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-cinza">Ainda não há origem identificada neste período.</p>
+        )}
       </section>
 
       <div className="grid gap-5 xl:grid-cols-2">
@@ -280,13 +398,7 @@ export default async function AnalisePage({
           ))}
         </Panel>
 
-        <Panel title="Origem dos acessos/eventos" empty="Ainda não há origem identificada neste período.">
-          {originGroups.map((item, index) => (
-            <Row key={item.origin ?? index} label={item.origin ?? "Não identificada"} value={item._count._all} />
-          ))}
-        </Panel>
-
-        <Panel title="Campanhas UTM" empty="Ainda não há campanhas UTM registradas neste período.">
+        <Panel title="Eventos por campanha UTM" empty="Ainda não há campanhas UTM registradas neste período.">
           {campaignGroups.map((item, index) => (
             <Row key={item.utmCampaign ?? index} label={item.utmCampaign ?? "Sem campanha"} value={item._count._all} />
           ))}
@@ -306,6 +418,52 @@ function Metric({ label, value }: { label: string; value: number | string }) {
 
 function FunnelStep({ label, value, rate }: { label: string; value: number; rate: string }) {
   return <div className="rounded-xl border border-rosa/10 bg-creme/50 p-4"><p className="text-[10px] font-bold uppercase tracking-wide text-cinza">{label}</p><p className="mt-1 text-xl font-extrabold text-texto">{value.toLocaleString("pt-BR")}</p><p className="mt-1 text-xs font-bold text-rosa-profundo">{rate}</p></div>;
+}
+
+function AcquisitionCard({
+  origin,
+  visitors,
+  pageViews,
+  homePageViews,
+  productVisitors,
+  cartVisitors,
+  orderVisitors,
+  saleVisitors,
+}: {
+  origin: string;
+  visitors: number;
+  pageViews: number;
+  homePageViews: number;
+  productVisitors: number;
+  cartVisitors: number;
+  orderVisitors: number;
+  saleVisitors: number;
+}) {
+  return (
+    <div className="rounded-xl border border-rosa/10 bg-creme/40 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="font-bold text-texto">{sourceLabel(origin)}</p>
+          {origin === "vercel.com" ? <p className="mt-0.5 text-[10px] text-cinza">Origem técnica; normalmente preview ou acesso interno.</p> : null}
+        </div>
+        <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-rosa-profundo">
+          {visitors.toLocaleString("pt-BR")} visitantes
+        </span>
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
+        <SourceMetric label="Páginas" value={pageViews} />
+        <SourceMetric label="Home" value={homePageViews} />
+        <SourceMetric label="Viram produto" value={productVisitors} />
+        <SourceMetric label="Carrinho" value={cartVisitors} />
+        <SourceMetric label="Pedidos" value={orderVisitors} />
+        <SourceMetric label="Vendas" value={saleVisitors} />
+      </div>
+    </div>
+  );
+}
+
+function SourceMetric({ label, value }: { label: string; value: number }) {
+  return <div><p className="text-base font-extrabold text-texto">{value.toLocaleString("pt-BR")}</p><p className="text-[10px] text-cinza">{label}</p></div>;
 }
 
 function Panel({ title, empty, children }: { title: string; empty: string; children: React.ReactNode }) {
