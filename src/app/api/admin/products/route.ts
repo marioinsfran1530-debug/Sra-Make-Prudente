@@ -99,6 +99,7 @@ export async function POST(request: NextRequest) {
       description: data.description,
       price: data.price,
       promoPrice: data.promoPrice,
+      costPrice: data.costPrice,
       stockQty: data.stockQty,
       featured: !!body.featured,
       isNew: !!body.isNew,
