@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
   const value = numberField(body.value);
   const eventItemCount =
     event === "search"
-      ? integerField(body.resultCount)
+      ? integerField(body.resultCount ?? body.itemCount)
       : integerField(body.itemCount);
 
   await prisma.analyticsEvent.create({
