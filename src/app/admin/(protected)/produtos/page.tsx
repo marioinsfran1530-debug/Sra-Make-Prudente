@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { ProductsTable } from "@/components/admin/ProductsTable";
 
@@ -40,17 +39,11 @@ export default async function AdminProdutosPage() {
 
   return (
     <div>
-      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="font-serif font-bold text-xl text-texto">Produtos</h1>
-          <p className="mt-1 text-xs text-cinza">Cadastre produtos e mantenha preços, estoque e disponibilidade atualizados.</p>
-        </div>
-        <Link
-          href="/admin/produtos/novo"
-          className="rounded-xl bg-rosa-profundo px-4 py-2.5 text-xs font-bold text-white"
-        >
-          Novo produto
-        </Link>
+      <div className="mb-4">
+        <h1 className="font-serif font-bold text-xl text-texto">Produtos</h1>
+        <p className="mt-1 text-xs text-cinza">
+          Cadastre produtos e mantenha preços, estoque e disponibilidade atualizados.
+        </p>
       </div>
       <ProductsTable products={rows} />
     </div>
