@@ -11,17 +11,35 @@ function sinceDays(days: number) {
 
 export default async function SearchAnalysisPage() {
   const since = sinceDays(30);
+  const reportableContext = [
+    { context: null },
+    { context: { not: "search_submit" } },
+  ];
 
   const [totalSearches, zeroResultSearches, popularQueries, zeroResultQueries] = await Promise.all([
     prisma.analyticsEvent.count({
-      where: { event: "search", createdAt: { gte: since } },
+      where: {
+        event: "search",
+        createdAt: { gte: since },
+        OR: reportableContext,
+      },
     }),
     prisma.analyticsEvent.count({
-      where: { event: "search", itemCount: 0, createdAt: { gte: since } },
+      where: {
+        event: "search",
+        itemCount: 0,
+        createdAt: { gte: since },
+        OR: reportableContext,
+      },
     }),
     prisma.analyticsEvent.groupBy({
       by: ["query"],
-      where: { event: "search", query: { not: null }, createdAt: { gte: since } },
+      where: {
+        event: "search",
+        query: { not: null },
+        createdAt: { gte: since },
+        OR: reportableContext,
+      },
       _count: { _all: true },
       orderBy: { _count: { query: "desc" } },
       take: 20,
@@ -33,6 +51,7 @@ export default async function SearchAnalysisPage() {
         itemCount: 0,
         query: { not: null },
         createdAt: { gte: since },
+        OR: reportableContext,
       },
       _count: { _all: true },
       orderBy: { _count: { query: "desc" } },

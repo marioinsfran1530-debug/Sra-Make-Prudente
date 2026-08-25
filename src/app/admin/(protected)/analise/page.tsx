@@ -96,6 +96,11 @@ function sourceLabel(origin: string) {
   return origin;
 }
 
+function isTechnicalOrigin(origin: string | null) {
+  const normalized = origin?.trim().toLowerCase() ?? "";
+  return normalized.includes("vercel") || normalized.includes("preview");
+}
+
 function getDataMaturity(visitorCount: number) {
   if (visitorCount < 10) {
     return {
@@ -138,53 +143,76 @@ export default async function AnalisePage({
   const range = getPeriodRange(period);
   const where = range ? { createdAt: range } : {};
 
-  const [eventGroups, stageRows, sourcePageGroups, searchGroups, productGroups, campaignGroups, finalizedAggregate] =
-    await Promise.all([
-      prisma.analyticsEvent.groupBy({
-        by: ["event"],
-        where,
-        _count: { _all: true },
-      }),
-      prisma.analyticsEvent.findMany({
-        where: { ...where, event: { in: [...FUNNEL_EVENTS] } },
-        select: { origin: true, event: true, sessionId: true, pagePath: true },
-        distinct: ["origin", "event", "sessionId", "pagePath"],
-      }),
-      prisma.analyticsEvent.groupBy({
-        by: ["origin", "pagePath"],
-        where: { ...where, event: "page_view", origin: { not: null } },
-        _count: { _all: true },
-      }),
-      prisma.analyticsEvent.groupBy({
-        by: ["query"],
-        where: { ...where, event: "search", query: { not: null } },
-        _count: { _all: true },
-        orderBy: { _count: { query: "desc" } },
-        take: 10,
-      }),
-      prisma.analyticsEvent.groupBy({
-        by: ["productId"],
-        where: { ...where, event: "product_view", productId: { not: null } },
-        _count: { _all: true },
-        orderBy: { _count: { productId: "desc" } },
-        take: 10,
-      }),
-      prisma.analyticsEvent.groupBy({
-        by: ["utmCampaign"],
-        where: { ...where, utmCampaign: { not: null } },
-        _count: { _all: true },
-        orderBy: { _count: { utmCampaign: "desc" } },
-        take: 8,
-      }),
-      prisma.analyticsEvent.aggregate({
-        where: { ...where, event: "order_finalized" },
-        _count: { _all: true },
-        _sum: { value: true },
-      }),
-    ]);
+  const [
+    eventGroups,
+    stageRows,
+    sourcePageGroups,
+    searchGroups,
+    reportableSearchCount,
+    productGroups,
+    campaignGroups,
+    finalizedAggregate,
+  ] = await Promise.all([
+    prisma.analyticsEvent.groupBy({
+      by: ["event"],
+      where,
+      _count: { _all: true },
+    }),
+    prisma.analyticsEvent.findMany({
+      where: { ...where, event: { in: [...FUNNEL_EVENTS] } },
+      select: { origin: true, event: true, sessionId: true, pagePath: true },
+      distinct: ["origin", "event", "sessionId", "pagePath"],
+    }),
+    prisma.analyticsEvent.groupBy({
+      by: ["origin", "pagePath"],
+      where: { ...where, event: "page_view", origin: { not: null } },
+      _count: { _all: true },
+    }),
+    prisma.analyticsEvent.groupBy({
+      by: ["query"],
+      where: {
+        ...where,
+        event: "search",
+        query: { not: null },
+        OR: [{ context: null }, { context: { not: "search_submit" } }],
+      },
+      _count: { _all: true },
+      orderBy: { _count: { query: "desc" } },
+      take: 10,
+    }),
+    prisma.analyticsEvent.count({
+      where: {
+        ...where,
+        event: "search",
+        OR: [{ context: null }, { context: { not: "search_submit" } }],
+      },
+    }),
+    prisma.analyticsEvent.groupBy({
+      by: ["productId"],
+      where: { ...where, event: "product_view", productId: { not: null } },
+      _count: { _all: true },
+      orderBy: { _count: { productId: "desc" } },
+      take: 10,
+    }),
+    prisma.analyticsEvent.groupBy({
+      by: ["utmCampaign"],
+      where: { ...where, utmCampaign: { not: null } },
+      _count: { _all: true },
+      orderBy: { _count: { utmCampaign: "desc" } },
+      take: 8,
+    }),
+    prisma.analyticsEvent.aggregate({
+      where: { ...where, event: "order_finalized" },
+      _count: { _all: true },
+      _sum: { value: true },
+    }),
+  ]);
 
   const eventCount = new Map(eventGroups.map((item) => [item.event, item._count._all]));
   const stageVisitors = new Map<string, Set<string>>();
+  const technicalSessions = new Set<string>();
+  let technicalPageViews = 0;
+
   const sourceMap = new Map<
     string,
     {
@@ -220,6 +248,11 @@ export default async function AnalisePage({
   }
 
   for (const row of stageRows) {
+    if (isTechnicalOrigin(row.origin)) {
+      technicalSessions.add(row.sessionId);
+      continue;
+    }
+
     let globalSet = stageVisitors.get(row.event);
     if (!globalSet) {
       globalSet = new Set<string>();
@@ -239,6 +272,10 @@ export default async function AnalisePage({
 
   for (const row of sourcePageGroups) {
     if (!row.origin) continue;
+    if (isTechnicalOrigin(row.origin)) {
+      technicalPageViews += row._count._all;
+      continue;
+    }
     const source = getSource(row.origin);
     source.pageViews += row._count._all;
     if (row.pagePath === "/") source.homePageViews += row._count._all;
@@ -247,7 +284,7 @@ export default async function AnalisePage({
   const acquisitionSources = Array.from(sourceMap.values())
     .filter((source) => source.visitors.size > 0 || source.pageViews > 0)
     .sort((a, b) => b.visitors.size - a.visitors.size || b.pageViews - a.pageViews)
-    .slice(0, 6);
+    .slice(0, 8);
 
   const visitorCount = stageVisitors.get("page_view")?.size ?? 0;
   const pageViews = eventCount.get("page_view") ?? 0;
@@ -258,7 +295,7 @@ export default async function AnalisePage({
   const finalizedSales = finalizedAggregate._count._all;
   const finalizedRevenue = Number(finalizedAggregate._sum.value ?? 0);
   const whatsapp = eventCount.get("whatsapp_click") ?? 0;
-  const searches = eventCount.get("search") ?? 0;
+  const searches = reportableSearchCount;
   const productVisitors = stageVisitors.get("product_view")?.size ?? 0;
   const cartVisitors = stageVisitors.get("add_to_cart")?.size ?? 0;
   const checkoutVisitors = stageVisitors.get("begin_checkout")?.size ?? 0;
@@ -322,7 +359,7 @@ export default async function AnalisePage({
             <p className="text-[10px] font-bold uppercase tracking-wide opacity-70">Maturidade da amostra</p>
             <p className="mt-1 text-base font-extrabold">{maturity.label}</p>
           </div>
-          <p className="text-xs font-bold">{visitorCount.toLocaleString("pt-BR")} visitantes identificados no período</p>
+          <p className="text-xs font-bold">{visitorCount.toLocaleString("pt-BR")} visitantes comerciais identificados no período</p>
         </div>
         <p className="mt-2 max-w-4xl text-xs leading-5 opacity-90">{maturity.detail}</p>
         <p className="mt-2 text-[10px] opacity-70">Faixa operacional de orientação; não representa significância estatística nem garante causalidade.</p>
@@ -341,9 +378,20 @@ export default async function AnalisePage({
       </div>
 
       <section className="mb-6 rounded-2xl bg-white p-5 shadow-sm">
-        <div className="mb-4">
-          <h2 className="font-bold text-texto">Funil real do catálogo</h2>
-          <p className="text-xs text-cinza">O funil usa visitantes anônimos únicos por etapa. Os cards acima mostram o volume total de ações.</p>
+        <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div>
+            <h2 className="font-bold text-texto">Funil real do catálogo</h2>
+            <p className="mt-1 text-xs leading-5 text-cinza">
+              Usa visitantes anônimos únicos por etapa e exclui origens técnicas de Vercel/preview do funil comercial.
+            </p>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-right">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Métrica técnica separada</p>
+            <p className="mt-0.5 text-sm font-extrabold text-slate-700">
+              {technicalSessions.size.toLocaleString("pt-BR")} sessões excluídas
+            </p>
+            <p className="text-[10px] text-slate-500">{technicalPageViews.toLocaleString("pt-BR")} páginas Vercel/preview</p>
+          </div>
         </div>
         <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
           <FunnelStep label="Visitantes" value={visitorCount} rate="100%" />
@@ -358,15 +406,15 @@ export default async function AnalisePage({
 
       <section className="mb-6 rounded-2xl bg-white p-5 shadow-sm">
         <div className="mb-4">
-          <h2 className="font-bold text-texto">Aquisição por origem</h2>
+          <h2 className="font-bold text-texto">Funil por origem</h2>
           <p className="mt-1 text-xs leading-5 text-cinza">
-            Mostra quem trouxe os visitantes e até onde eles avançaram. Visitantes e etapas são pessoas anônimas identificadas; páginas e Home são visualizações.
+            Mostra diretamente visitante → produto → carrinho → pedido para cada origem comercial. Vercel/preview fica fora desta comparação e aparece apenas como métrica técnica acima.
           </p>
         </div>
         {acquisitionSources.length ? (
           <div className="grid gap-3 lg:grid-cols-2">
             {acquisitionSources.map((source) => (
-              <AcquisitionCard
+              <SourceFunnelCard
                 key={source.origin}
                 origin={source.origin}
                 visitors={source.visitors.size}
@@ -374,13 +422,14 @@ export default async function AnalisePage({
                 homePageViews={source.homePageViews}
                 productVisitors={source.productVisitors.size}
                 cartVisitors={source.cartVisitors.size}
+                checkoutVisitors={source.checkoutVisitors.size}
                 orderVisitors={source.orderVisitors.size}
                 saleVisitors={source.saleVisitors.size}
               />
             ))}
           </div>
         ) : (
-          <p className="text-xs text-cinza">Ainda não há origem identificada neste período.</p>
+          <p className="text-xs text-cinza">Ainda não há origem comercial identificada neste período.</p>
         )}
       </section>
 
@@ -413,20 +462,32 @@ export default async function AnalisePage({
 }
 
 function Metric({ label, value }: { label: string; value: number | string }) {
-  return <div className="rounded-2xl bg-white p-4 shadow-sm"><p className="text-2xl font-extrabold text-texto">{typeof value === "number" ? value.toLocaleString("pt-BR") : value}</p><p className="mt-1 text-[11px] text-cinza">{label}</p></div>;
+  return (
+    <div className="rounded-2xl bg-white p-4 shadow-sm">
+      <p className="text-2xl font-extrabold text-texto">{typeof value === "number" ? value.toLocaleString("pt-BR") : value}</p>
+      <p className="mt-1 text-[11px] text-cinza">{label}</p>
+    </div>
+  );
 }
 
 function FunnelStep({ label, value, rate }: { label: string; value: number; rate: string }) {
-  return <div className="rounded-xl border border-rosa/10 bg-creme/50 p-4"><p className="text-[10px] font-bold uppercase tracking-wide text-cinza">{label}</p><p className="mt-1 text-xl font-extrabold text-texto">{value.toLocaleString("pt-BR")}</p><p className="mt-1 text-xs font-bold text-rosa-profundo">{rate}</p></div>;
+  return (
+    <div className="rounded-xl border border-rosa/10 bg-creme/50 p-4">
+      <p className="text-[10px] font-bold uppercase tracking-wide text-cinza">{label}</p>
+      <p className="mt-1 text-xl font-extrabold text-texto">{value.toLocaleString("pt-BR")}</p>
+      <p className="mt-1 text-xs font-bold text-rosa-profundo">{rate}</p>
+    </div>
+  );
 }
 
-function AcquisitionCard({
+function SourceFunnelCard({
   origin,
   visitors,
   pageViews,
   homePageViews,
   productVisitors,
   cartVisitors,
+  checkoutVisitors,
   orderVisitors,
   saleVisitors,
 }: {
@@ -436,6 +497,7 @@ function AcquisitionCard({
   homePageViews: number;
   productVisitors: number;
   cartVisitors: number;
+  checkoutVisitors: number;
   orderVisitors: number;
   saleVisitors: number;
 }) {
@@ -444,33 +506,55 @@ function AcquisitionCard({
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="font-bold text-texto">{sourceLabel(origin)}</p>
-          {origin === "vercel.com" ? <p className="mt-0.5 text-[10px] text-cinza">Origem técnica; normalmente preview ou acesso interno.</p> : null}
+          <p className="mt-0.5 text-[10px] text-cinza">{pageViews.toLocaleString("pt-BR")} páginas · {homePageViews.toLocaleString("pt-BR")} Home</p>
         </div>
         <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-rosa-profundo">
           {visitors.toLocaleString("pt-BR")} visitantes
         </span>
       </div>
-      <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
-        <SourceMetric label="Páginas" value={pageViews} />
-        <SourceMetric label="Home" value={homePageViews} />
-        <SourceMetric label="Viram produto" value={productVisitors} />
-        <SourceMetric label="Carrinho" value={cartVisitors} />
-        <SourceMetric label="Pedidos" value={orderVisitors} />
-        <SourceMetric label="Vendas" value={saleVisitors} />
+
+      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <SourceFunnelStep label="Visitantes" value={visitors} rate="100%" />
+        <SourceFunnelStep label="Produto" value={productVisitors} rate={pct(conversion(productVisitors, visitors))} />
+        <SourceFunnelStep label="Carrinho" value={cartVisitors} rate={pct(conversion(cartVisitors, visitors))} />
+        <SourceFunnelStep label="Pedido" value={orderVisitors} rate={pct(conversion(orderVisitors, visitors))} />
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-cinza">
+        <span>Checkout: <strong className="text-texto">{checkoutVisitors.toLocaleString("pt-BR")}</strong></span>
+        <span>Vendas: <strong className="text-texto">{saleVisitors.toLocaleString("pt-BR")}</strong></span>
       </div>
     </div>
   );
 }
 
-function SourceMetric({ label, value }: { label: string; value: number }) {
-  return <div><p className="text-base font-extrabold text-texto">{value.toLocaleString("pt-BR")}</p><p className="text-[10px] text-cinza">{label}</p></div>;
+function SourceFunnelStep({ label, value, rate }: { label: string; value: number; rate: string }) {
+  return (
+    <div className="rounded-lg border border-rosa/10 bg-white p-3">
+      <p className="text-[9px] font-bold uppercase tracking-wide text-cinza">{label}</p>
+      <p className="mt-1 text-base font-extrabold text-texto">{value.toLocaleString("pt-BR")}</p>
+      <p className="mt-0.5 text-[10px] font-bold text-rosa-profundo">{rate}</p>
+    </div>
+  );
 }
 
 function Panel({ title, empty, children }: { title: string; empty: string; children: React.ReactNode }) {
   const hasChildren = Array.isArray(children) ? children.length > 0 : Boolean(children);
-  return <section className="rounded-2xl bg-white p-5 shadow-sm"><h2 className="mb-3 font-bold text-texto">{title}</h2>{hasChildren ? <div className="divide-y divide-rosa/10">{children}</div> : <p className="text-xs text-cinza">{empty}</p>}</section>;
+  return (
+    <section className="rounded-2xl bg-white p-5 shadow-sm">
+      <h2 className="mb-3 font-bold text-texto">{title}</h2>
+      {hasChildren ? <div className="divide-y divide-rosa/10">{children}</div> : <p className="text-xs text-cinza">{empty}</p>}
+    </section>
+  );
 }
 
 function Row({ label, value }: { label: string; value: number }) {
-  return <div className="flex items-center justify-between gap-4 py-2.5"><p className="min-w-0 truncate text-xs font-semibold text-texto">{label}</p><span className="shrink-0 rounded-full bg-creme px-2.5 py-1 text-[11px] font-bold text-rosa-profundo">{value.toLocaleString("pt-BR")}</span></div>;
+  return (
+    <div className="flex items-center justify-between gap-4 py-2.5">
+      <p className="min-w-0 truncate text-xs font-semibold text-texto">{label}</p>
+      <span className="shrink-0 rounded-full bg-creme px-2.5 py-1 text-[11px] font-bold text-rosa-profundo">
+        {value.toLocaleString("pt-BR")}
+      </span>
+    </div>
+  );
 }

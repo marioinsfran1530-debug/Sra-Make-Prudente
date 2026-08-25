@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
+import { trackEvent } from "@/lib/analytics";
 
 export function SearchBar({ initialValue = "" }: { initialValue?: string }) {
   const router = useRouter();
@@ -10,7 +11,13 @@ export function SearchBar({ initialValue = "" }: { initialValue?: string }) {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    router.push(`/busca?q=${encodeURIComponent(value)}`);
+    const query = value.trim();
+    if (!query) return;
+
+    // Registra explicitamente o uso da barra antes da navegação. O evento de
+    // resultados é separado por contexto para não inflar os relatórios.
+    trackEvent("search", { query, context: "search_submit" });
+    router.push(`/busca?q=${encodeURIComponent(query)}`);
   }
 
   return (
