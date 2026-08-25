@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { ProductCard } from "@/components/ProductCard";
 import type { PublicProduct } from "@/lib/data";
@@ -11,11 +11,29 @@ export function ProductCarousel({
   products: PublicProduct[];
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const pausedRef = useRef(false);
+  const inViewRef = useRef(false);
+  const resumeTimerRef = useRef<number | null>(null);
+
+  function pauseTemporarily(delay = 6000) {
+    pausedRef.current = true;
+
+    if (resumeTimerRef.current) {
+      window.clearTimeout(resumeTimerRef.current);
+    }
+
+    resumeTimerRef.current = window.setTimeout(() => {
+      pausedRef.current = false;
+      resumeTimerRef.current = null;
+    }, delay);
+  }
 
   function scroll(direction: "left" | "right") {
     const element = scrollRef.current;
 
     if (!element) return;
+
+    pauseTemporarily();
 
     const distance = Math.max(
       220,
@@ -28,8 +46,77 @@ export function ProductCarousel({
     });
   }
 
+  useEffect(() => {
+    const element = scrollRef.current;
+    if (!element || products.length <= 1) return;
+
+    const reducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    );
+    if (reducedMotion.matches) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        inViewRef.current = entry.isIntersecting;
+      },
+      { threshold: 0.35 }
+    );
+
+    observer.observe(element);
+
+    const interval = window.setInterval(() => {
+      if (
+        !inViewRef.current ||
+        pausedRef.current ||
+        document.visibilityState !== "visible" ||
+        element.scrollWidth <= element.clientWidth + 8
+      ) {
+        return;
+      }
+
+      const atEnd =
+        element.scrollLeft + element.clientWidth >= element.scrollWidth - 12;
+
+      if (atEnd) {
+        element.scrollTo({ left: 0, behavior: "smooth" });
+        return;
+      }
+
+      const firstItem = element.querySelector<HTMLElement>(
+        "[data-carousel-item]"
+      );
+      const styles = window.getComputedStyle(element);
+      const gap = Number.parseFloat(styles.columnGap || styles.gap || "0") || 0;
+      const distance = (firstItem?.offsetWidth ?? 220) + gap;
+
+      element.scrollBy({ left: distance, behavior: "smooth" });
+    }, 4500);
+
+    return () => {
+      observer.disconnect();
+      window.clearInterval(interval);
+      if (resumeTimerRef.current) {
+        window.clearTimeout(resumeTimerRef.current);
+      }
+    };
+  }, [products.length]);
+
   return (
-    <div className="relative group/carousel">
+    <div
+      className="relative group/carousel"
+      onMouseEnter={() => {
+        pausedRef.current = true;
+      }}
+      onMouseLeave={() => pauseTemporarily(2500)}
+      onFocusCapture={() => {
+        pausedRef.current = true;
+      }}
+      onBlurCapture={() => pauseTemporarily(4000)}
+      onTouchStart={() => {
+        pausedRef.current = true;
+      }}
+      onTouchEnd={() => pauseTemporarily()}
+    >
       {/* SETA ESQUERDA */}
       {products.length > 4 && (
         <button
@@ -68,6 +155,7 @@ export function ProductCarousel({
         {products.map((product) => (
           <div
             key={product.id}
+            data-carousel-item
             className="
               flex flex-none snap-start
 
@@ -84,10 +172,7 @@ export function ProductCarousel({
           </div>
         ))}
 
-        <div
-          className="w-1 flex-none"
-          aria-hidden="true"
-        />
+        <div className="w-1 flex-none" aria-hidden="true" />
       </div>
 
       {/* SETA DIREITA */}
