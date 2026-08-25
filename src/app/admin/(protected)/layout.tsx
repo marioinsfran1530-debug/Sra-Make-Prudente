@@ -47,7 +47,7 @@ export default async function AdminLayout({
 
           <div className="flex items-center gap-2">
             <Link
-              href="/"
+              href="/?preview=admin"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-1.5 rounded-full border border-rosa/20 px-4 py-2 text-xs font-bold text-rosa-profundo hover:bg-creme transition"

@@ -35,12 +35,39 @@ declare global {
   }
 }
 
+const INTERNAL_PREVIEW_KEY = "sramake_internal_preview";
+
 function numberValue(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
 function stringValue(value: unknown) {
   return typeof value === "string" && value.trim() ? value : undefined;
+}
+
+function isInternalPreview() {
+  let openedFromAdmin = false;
+
+  try {
+    openedFromAdmin = new URLSearchParams(window.location.search).get("preview") === "admin";
+  } catch {
+    openedFromAdmin = false;
+  }
+
+  if (openedFromAdmin) {
+    try {
+      window.sessionStorage.setItem(INTERNAL_PREVIEW_KEY, "1");
+    } catch {
+      // Mesmo sem storage, a página atual continua sendo tratada como preview interno.
+    }
+    return true;
+  }
+
+  try {
+    return window.sessionStorage.getItem(INTERNAL_PREVIEW_KEY) === "1";
+  } catch {
+    return false;
+  }
 }
 
 function toGA4Item(payload: EcommerceItemPayload) {
@@ -245,6 +272,7 @@ function sendMetaPixelEvent(event: AnalyticsEvent, payload: Record<string, unkno
 
 export function trackEvent(event: AnalyticsEvent, payload: Record<string, unknown> = {}) {
   if (typeof window === "undefined") return;
+  if (isInternalPreview()) return;
 
   const record = {
     event,

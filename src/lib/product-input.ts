@@ -8,7 +8,7 @@ export type ProductInput = {
   stockQty: number;
 };
 
-const MIN_NEW_PRODUCT_DESCRIPTION = 50;
+const RECOMMENDED_DESCRIPTION_LENGTH = 50;
 
 function onlyDigits(value: string) {
   return value.replace(/\D/g, "");
@@ -37,6 +37,7 @@ function isPureGtinCandidate(value: string) {
 
 export function validateProductInput(body: Record<string, unknown>, partial = false) {
   const errors: string[] = [];
+  const warnings: string[] = [];
 
   const rawName = body.name;
   const rawBrand = body.brand;
@@ -68,9 +69,15 @@ export function validateProductInput(body: Record<string, unknown>, partial = fa
     errors.push("Informe a marca do produto.");
   }
 
-  if (!partial && (!description || description.length < MIN_NEW_PRODUCT_DESCRIPTION)) {
-    errors.push(
-      `Informe uma descrição útil com pelo menos ${MIN_NEW_PRODUCT_DESCRIPTION} caracteres para novos produtos.`
+  if (!partial && !description) {
+    warnings.push("Descrição não informada. Você pode completar depois pela análise de qualidade.");
+  } else if (
+    (!partial || rawDescription !== undefined) &&
+    description &&
+    description.length < RECOMMENDED_DESCRIPTION_LENGTH
+  ) {
+    warnings.push(
+      `Descrição curta. Para SEO e clareza ao cliente, recomendamos pelo menos ${RECOMMENDED_DESCRIPTION_LENGTH} caracteres.`
     );
   }
 
@@ -97,6 +104,7 @@ export function validateProductInput(body: Record<string, unknown>, partial = fa
   return {
     ok: errors.length === 0,
     errors,
+    warnings,
     data: {
       name,
       brand,
