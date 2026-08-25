@@ -5,6 +5,7 @@ export type ProductInput = {
   description: string | null;
   price: number;
   promoPrice: number | null;
+  costPrice: number | null;
   stockQty: number;
 };
 
@@ -45,6 +46,7 @@ export function validateProductInput(body: Record<string, unknown>, partial = fa
   const rawDescription = body.description;
   const rawPrice = body.price;
   const rawPromoPrice = body.promoPrice;
+  const rawCostPrice = body.costPrice;
   const rawStockQty = body.stockQty;
 
   const name = typeof rawName === "string" ? rawName.trim() : "";
@@ -59,6 +61,10 @@ export function validateProductInput(body: Record<string, unknown>, partial = fa
     rawPromoPrice === undefined || rawPromoPrice === null || rawPromoPrice === ""
       ? null
       : Number(rawPromoPrice);
+  const costPrice =
+    rawCostPrice === undefined || rawCostPrice === null || rawCostPrice === ""
+      ? null
+      : Number(rawCostPrice);
   const stockQty = rawStockQty === undefined ? NaN : Number(rawStockQty);
 
   if ((!partial || rawName !== undefined) && name.length < 3) {
@@ -93,6 +99,10 @@ export function validateProductInput(body: Record<string, unknown>, partial = fa
     }
   }
 
+  if (rawCostPrice !== undefined && costPrice !== null && (!Number.isFinite(costPrice) || costPrice < 0)) {
+    errors.push("O custo deve ser igual ou maior que zero.");
+  }
+
   if ((!partial || rawStockQty !== undefined) && (!Number.isInteger(stockQty) || stockQty < 0)) {
     errors.push("O estoque deve ser um número inteiro igual ou maior que zero.");
   }
@@ -112,6 +122,7 @@ export function validateProductInput(body: Record<string, unknown>, partial = fa
       description,
       price,
       promoPrice,
+      costPrice,
       stockQty,
     } satisfies ProductInput,
   };
