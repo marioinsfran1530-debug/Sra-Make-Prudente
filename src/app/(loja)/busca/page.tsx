@@ -27,7 +27,8 @@ function BuscaContent() {
         .then((r) => r.json())
         .then((data) => {
           setProducts(data.products);
-          trackEvent("search", { query: q, resultCount: data.products.length });
+          const resultCount = data.products.length;
+          trackEvent("search", { query: q, resultCount, itemCount: resultCount });
         })
         .finally(() => setLoading(false));
     }, 300);
