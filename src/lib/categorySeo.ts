@@ -6,7 +6,7 @@ export type CategorySeoContent = {
 };
 
 const CATEGORY_SEO: Record<string, CategorySeoContent> = {
-  make: {
+  maquiagem: {
     title: "Maquiagem em Presidente Prudente",
     description:
       "Compre maquiagem em Presidente Prudente na Sra Make Prudente. Encontre bases, corretivos, pós, blushes, batons, gloss, máscaras, paletas e acessórios.",

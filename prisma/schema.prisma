@@ -191,6 +191,36 @@ model OrderItem {
   subtotal  Decimal @db.Decimal(10, 2)
 }
 
+// ---------- Analytics próprio ----------
+
+model AnalyticsEvent {
+  id           String   @id @default(cuid())
+  event        String
+  sessionId    String
+  productId    String?
+  variantId    String?
+  categorySlug String?
+  query        String?
+  context      String?
+  value        Decimal? @db.Decimal(12, 2)
+  quantity     Int?
+  itemCount    Int?
+  pagePath     String?
+  origin       String?
+  landingPage  String?
+  utmSource    String?
+  utmMedium    String?
+  utmCampaign  String?
+  utmContent   String?
+  createdAt    DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([event, createdAt])
+  @@index([sessionId, createdAt])
+  @@index([productId, event])
+  @@index([utmCampaign, createdAt])
+}
+
 // ---------- Administração ----------
 
 enum admin_role {
