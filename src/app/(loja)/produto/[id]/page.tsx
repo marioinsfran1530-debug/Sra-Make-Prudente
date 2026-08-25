@@ -14,6 +14,7 @@ import { waLink } from "@/lib/whatsapp";
 export const revalidate = 60;
 
 const SITE_URL = "https://www.sramakeprudente.com.br";
+const RETURN_POLICY_URL = `${SITE_URL}/politica-de-trocas-e-devolucoes`;
 type ProductParams = Promise<{ id: string }>;
 
 function jsonLd(data: Record<string, unknown>) {
@@ -81,6 +82,17 @@ export default async function ProdutoPage({ params }: { params: ProductParams })
       availability,
       itemCondition: "https://schema.org/NewCondition",
       seller: { "@id": `${SITE_URL}/#store` },
+      // O Google Search ainda não aceita recorte por CEP/estado para o Brasil em
+      // DefinedRegion. Enquanto a entrega for apenas local e o valor for
+      // confirmado no atendimento, não publicamos shippingDetails para evitar
+      // anunciar incorretamente frete grátis ou entrega para o Brasil inteiro.
+      hasMerchantReturnPolicy: {
+        "@type": "MerchantReturnPolicy",
+        applicableCountry: "BR",
+        returnPolicyCategory: "https://schema.org/MerchantReturnFiniteReturnWindow",
+        merchantReturnDays: 7,
+        merchantReturnLink: RETURN_POLICY_URL,
+      },
     },
   };
 
