@@ -54,6 +54,23 @@ export async function PATCH(
       order = await prisma.order.update({ where: { id }, data: { status: body.status } });
     }
 
+    if (body.status === "FINALIZADO") {
+      await prisma.analyticsEvent.create({
+        data: {
+          event: "order_finalized",
+          sessionId: order.sessionId ?? `order:${order.id}`,
+          value: order.total,
+          context: `pedido:${order.number}`,
+          origin: order.origin,
+          landingPage: order.landingPage,
+          utmSource: order.utmSource,
+          utmMedium: order.utmMedium,
+          utmCampaign: order.utmCampaign,
+          utmContent: order.utmContent,
+        },
+      });
+    }
+
     await notifyOrderStatus({
       number: order.number,
       customerName: order.customerName,
