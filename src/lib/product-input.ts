@@ -8,6 +8,8 @@ export type ProductInput = {
   stockQty: number;
 };
 
+const MIN_NEW_PRODUCT_DESCRIPTION = 50;
+
 function onlyDigits(value: string) {
   return value.replace(/\D/g, "");
 }
@@ -64,6 +66,12 @@ export function validateProductInput(body: Record<string, unknown>, partial = fa
 
   if ((!partial || rawBrand !== undefined) && brand.length < 2) {
     errors.push("Informe a marca do produto.");
+  }
+
+  if (!partial && (!description || description.length < MIN_NEW_PRODUCT_DESCRIPTION)) {
+    errors.push(
+      `Informe uma descrição útil com pelo menos ${MIN_NEW_PRODUCT_DESCRIPTION} caracteres para novos produtos.`
+    );
   }
 
   if ((!partial || rawPrice !== undefined) && (!Number.isFinite(price) || price <= 0)) {
