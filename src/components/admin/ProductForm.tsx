@@ -103,6 +103,7 @@ export function ProductForm({
     description: string | null;
     price: number;
     promoPrice: number | null;
+    costPrice: number | null;
     stockQty: number;
     featured: boolean;
     isNew: boolean;
@@ -135,6 +136,7 @@ export function ProductForm({
   const [description, setDescription] = useState(initial?.description ?? "");
   const [price, setPrice] = useState(initial?.price?.toString() ?? "");
   const [promoPrice, setPromoPrice] = useState(initial?.promoPrice?.toString() ?? "");
+  const [costPrice, setCostPrice] = useState(initial?.costPrice?.toString() ?? "");
   const [stockQty, setStockQty] = useState(initial?.stockQty?.toString() ?? "0");
   const [featured, setFeatured] = useState(initial?.featured ?? false);
   const [isNew, setIsNew] = useState(initial?.isNew ?? false);
@@ -165,6 +167,7 @@ export function ProductForm({
 
   const selectedCategory = categories.find((c) => c.id === categoryId);
   const gtinValid = isValidGtin(sku);
+  const additionalCategoryCount = categoryIds.filter((id) => id !== categoryId).length;
 
   useEffect(() => {
     const urls = newImages.map((file) => URL.createObjectURL(file));
@@ -408,9 +411,6 @@ export function ProductForm({
     setCategoryId(nextCategoryId);
     setSubcategoryId("");
 
-    // Trocar a categoria principal não deve marcar automaticamente a anterior
-    // como categoria adicional. Mantemos somente as categorias que o usuário
-    // marcou manualmente, removendo a antiga principal e incluindo a nova.
     setCategoryIds((current) => {
       const manuallySelected = current.filter(
         (id) => id !== previousPrimary && id !== nextCategoryId
@@ -449,6 +449,18 @@ export function ProductForm({
     }
   }
 
+  async function saveCost(productId: string) {
+    const response = await fetch(`/api/admin/products/${productId}/cost`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ costPrice: costPrice ? Number(costPrice) : null }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error ?? "Não foi possível salvar o custo do produto.");
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
@@ -467,6 +479,7 @@ export function ProductForm({
         description: description || null,
         price: Number(price),
         promoPrice: promoPrice ? Number(promoPrice) : null,
+        costPrice: costPrice ? Number(costPrice) : null,
         stockQty: Number(stockQty),
         featured,
         isNew,
@@ -498,7 +511,28 @@ export function ProductForm({
       if (!productId) {
         throw new Error("Produto salvo, mas não foi possível identificar o ID.");
       }
-      if (newImages.length > 0) await uploadImages(productId);
+
+      if (isEdit) {
+        await saveCost(productId);
+      }
+
+      if (newImages.length > 0) {
+        try {
+          await uploadImages(productId);
+        } catch (uploadError) {
+          if (!isEdit) {
+            window.alert(
+              `Produto criado, mas houve um problema ao enviar uma foto. O cadastro foi preservado e será aberto para correção.\n\n${
+                uploadError instanceof Error ? uploadError.message : "Falha no envio da imagem."
+              }`
+            );
+            router.push(`/admin/produtos/${productId}`);
+            router.refresh();
+            return;
+          }
+          throw uploadError;
+        }
+      }
 
       router.push("/admin/produtos");
       router.refresh();
@@ -543,7 +577,7 @@ export function ProductForm({
                 void lookupByGtin();
               }
             }}
-            inputMode="numeric"
+            inputMode="text"
             placeholder="EAN/GTIN ou SKU interno"
             className="input"
           />
@@ -697,6 +731,22 @@ export function ProductForm({
             className="input"
           />
         </Field>
+        <div className="col-span-2">
+          <Field label="Custo do produto (opcional)">
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={costPrice}
+              onChange={(e) => setCostPrice(e.target.value)}
+              placeholder="Usado somente nas análises de margem"
+              className="input"
+            />
+          </Field>
+          <p className="mt-1 text-[10px] leading-4 text-cinza">
+            Não aparece no catálogo. Quando informado, permite calcular custo, lucro bruto e margem das vendas finalizadas.
+          </p>
+        </div>
       </div>
 
       <Field label="Quantidade em estoque">
@@ -749,52 +799,59 @@ export function ProductForm({
         </Field>
       </div>
 
-      <div className="rounded-2xl border border-rosa/15 bg-white p-4">
-        <p className="text-xs font-bold text-texto">Também exibir em</p>
-        <p className="mt-1 text-[11px] text-cinza">
-          Marque manualmente somente as categorias adicionais. Trocar a categoria
-          principal não marca as anteriores automaticamente.
-        </p>
-
-        {!categoryId && (
-          <p className="mt-3 rounded-xl bg-creme px-3 py-2 text-[11px] text-cinza">
-            Escolha primeiro a categoria principal.
+      <details className="group rounded-2xl border border-rosa/15 bg-white">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-xs font-bold text-texto">
+          <span>
+            Outras categorias
+            {additionalCategoryCount > 0 ? ` · ${additionalCategoryCount} selecionada${additionalCategoryCount > 1 ? "s" : ""}` : " · opcional"}
+          </span>
+          <span className="text-base text-rosa-profundo transition group-open:rotate-180">⌄</span>
+        </summary>
+        <div className="border-t border-rosa/10 px-4 pb-4 pt-3">
+          <p className="text-[11px] text-cinza">
+            Use somente quando o mesmo produto realmente deve aparecer em mais de uma categoria.
           </p>
-        )}
 
-        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {categories.map((category) => {
-            const isPrimary = category.id === categoryId;
-            const checked = isPrimary || categoryIds.includes(category.id);
+          {!categoryId && (
+            <p className="mt-3 rounded-xl bg-creme px-3 py-2 text-[11px] text-cinza">
+              Escolha primeiro a categoria principal.
+            </p>
+          )}
 
-            return (
-              <label
-                key={category.id}
-                className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold ${
-                  isPrimary
-                    ? "border-rosa-profundo/25 bg-rosa/5 text-rosa-profundo"
-                    : "border-rosa/15 bg-creme/40 text-texto"
-                } ${!categoryId ? "opacity-50" : ""}`}
-              >
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  disabled={!categoryId || isPrimary}
-                  onChange={(e) =>
-                    toggleAdditionalCategory(category.id, e.target.checked)
-                  }
-                />
-                <span>{category.name}</span>
-                {isPrimary && (
-                  <span className="ml-auto text-[9px] font-bold uppercase tracking-wide">
-                    Principal
-                  </span>
-                )}
-              </label>
-            );
-          })}
+          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {categories.map((category) => {
+              const isPrimary = category.id === categoryId;
+              const checked = isPrimary || categoryIds.includes(category.id);
+
+              return (
+                <label
+                  key={category.id}
+                  className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold ${
+                    isPrimary
+                      ? "border-rosa-profundo/25 bg-rosa/5 text-rosa-profundo"
+                      : "border-rosa/15 bg-creme/40 text-texto"
+                  } ${!categoryId ? "opacity-50" : ""}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    disabled={!categoryId || isPrimary}
+                    onChange={(e) =>
+                      toggleAdditionalCategory(category.id, e.target.checked)
+                    }
+                  />
+                  <span>{category.name}</span>
+                  {isPrimary && (
+                    <span className="ml-auto text-[9px] font-bold uppercase tracking-wide">
+                      Principal
+                    </span>
+                  )}
+                </label>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      </details>
 
       <div className="border border-rosa/15 rounded-2xl p-4 bg-white">
         <div className="mb-3">
