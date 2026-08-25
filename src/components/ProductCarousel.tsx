@@ -95,7 +95,7 @@ export function ProductCarousel({
       const distance = (firstItem?.offsetWidth ?? 220) + gap;
 
       element.scrollBy({ left: distance, behavior: "smooth" });
-    }, 4500);
+    }, 3000);
 
     return () => {
       observer.disconnect();
