@@ -13,6 +13,29 @@ const PERIODS: { value: Period; label: string }[] = [
   { value: "all", label: "Todo período" },
 ];
 
+const ANALYSIS_AREAS = [
+  {
+    href: "/admin/analise/produtos",
+    title: "Desempenho",
+    description: "Visualizações, carrinhos, vendas, unidades e receita por produto.",
+  },
+  {
+    href: "/admin/analise/oportunidades",
+    title: "Oportunidades",
+    description: "Fila priorizada de produtos que merecem revisão comercial ou de cadastro.",
+  },
+  {
+    href: "/admin/analise/buscas",
+    title: "Buscas",
+    description: "Termos pesquisados, demanda interna e buscas sem resultado.",
+  },
+  {
+    href: "/admin/analise/qualidade",
+    title: "Qualidade dos cadastros",
+    description: "Auditoria de descrição, imagem, preço, estoque, marca e EAN/GTIN.",
+  },
+];
+
 function getSaoPauloDateParts() {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/Sao_Paulo",
@@ -137,19 +160,27 @@ export default async function AnalisePage({
 
   return (
     <div className="mx-auto max-w-7xl">
-      <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-wider text-rosa-profundo">Dados próprios</p>
-          <h1 className="font-serif text-2xl font-bold text-texto">Análise do catálogo</h1>
-          <p className="mt-1 text-sm text-cinza">
-            Eventos anônimos registrados pelo próprio catálogo. GA4 e Meta continuam funcionando em paralelo.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Link href="/admin/analise/buscas" className="rounded-xl border border-rosa/20 bg-white px-4 py-2.5 text-xs font-bold text-rosa-profundo">Ver buscas</Link>
-          <Link href="/admin/produtos/qualidade" className="rounded-xl border border-rosa/20 bg-white px-4 py-2.5 text-xs font-bold text-rosa-profundo">Qualidade dos cadastros</Link>
-        </div>
+      <div className="mb-5">
+        <p className="text-xs font-bold uppercase tracking-wider text-rosa-profundo">Dados próprios</p>
+        <h1 className="font-serif text-2xl font-bold text-texto">Análise do catálogo</h1>
+        <p className="mt-1 max-w-3xl text-sm text-cinza">
+          Central de inteligência do catálogo. Reúne desempenho, oportunidades, buscas e qualidade dos cadastros sem poluir a operação diária.
+        </p>
       </div>
+
+      <section className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {ANALYSIS_AREAS.map((area) => (
+          <Link
+            key={area.href}
+            href={area.href}
+            className="rounded-2xl border border-rosa/10 bg-white p-4 shadow-sm transition hover:border-rosa/30 hover:shadow-md"
+          >
+            <p className="text-sm font-bold text-texto">{area.title}</p>
+            <p className="mt-1 text-xs leading-5 text-cinza">{area.description}</p>
+            <p className="mt-3 text-xs font-bold text-rosa-profundo">Abrir →</p>
+          </Link>
+        ))}
+      </section>
 
       <div className="mb-5 flex flex-wrap gap-2">
         {PERIODS.map((item) => {
