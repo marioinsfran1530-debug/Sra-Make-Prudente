@@ -18,6 +18,7 @@ export function AdminNav({
   const items: Item[] = [
     { href: "/admin", label: "Dashboard" },
     { href: "/admin/analise", label: "Análise" },
+    { href: "/admin/analise/buscas", label: "Buscas" },
     { href: "/admin/produtos", label: "Produtos" },
     { href: "/admin/categorias", label: "Categorias" },
     { href: "/admin/pedidos", label: "Pedidos" },
@@ -35,6 +36,10 @@ export function AdminNav({
   function isActive(href: string) {
     if (href === "/admin") {
       return pathname === "/admin";
+    }
+
+    if (href === "/admin/analise") {
+      return pathname === href;
     }
 
     return pathname === href || pathname.startsWith(`${href}/`);
