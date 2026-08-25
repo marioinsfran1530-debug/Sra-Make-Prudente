@@ -62,13 +62,20 @@ export default async function ProdutoPage({ params }: { params: ProductParams })
   const categoryUrl = `${SITE_URL}/categoria/${product.category.slug}`;
   const currentPrice = product.promoPrice ?? product.price;
   const availability = product.stock === "INDISPONIVEL" ? "https://schema.org/OutOfStock" : "https://schema.org/InStock";
+  const savedDescription = product.description?.trim();
+  const displayDescription = savedDescription || [
+    `Categoria: ${product.category.name}`,
+    product.subcategory ? `Subcategoria: ${product.subcategory.name}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   const productStructuredData = {
     "@context": "https://schema.org",
     "@type": "Product",
     "@id": `${productUrl}#product`,
     name: product.name,
-    description: product.description?.trim() || `${product.name} da ${product.brand} disponível no catálogo da Sra Make Prudente.`,
+    description: savedDescription || `${product.name} da ${product.brand}. ${displayDescription}.`,
     sku: product.sku ?? undefined,
     brand: { "@type": "Brand", name: product.brand },
     image: product.images.map((image) => image.url),
@@ -139,7 +146,12 @@ export default async function ProdutoPage({ params }: { params: ProductParams })
               )}
             </div>
             <StockLabel stock={product.stock} />
-            {product.description && <p className="text-sm mt-3 leading-relaxed text-texto">{product.description}</p>}
+            <div className="mt-3 rounded-2xl bg-creme/60 px-3 py-2.5">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-cinza">Sobre o produto</p>
+              <p className={`mt-1 text-sm leading-relaxed ${savedDescription ? "text-texto" : "text-cinza"}`}>
+                {displayDescription}
+              </p>
+            </div>
             <div className="mt-4 border-t border-rosa/10 pt-4"><AddToCartBox product={product} /></div>
             <div className="mt-4 rounded-2xl p-3 bg-creme">
               <p className="text-xs font-bold mb-1 text-texto">Precisa de ajuda?</p>
