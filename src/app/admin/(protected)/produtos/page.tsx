@@ -43,13 +43,13 @@ export default async function AdminProdutosPage() {
       <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="font-serif font-bold text-xl text-texto">Produtos</h1>
-          <p className="mt-1 text-xs text-cinza">Cadastre, revise estoque e acompanhe a qualidade dos dados enviados ao catálogo.</p>
+          <p className="mt-1 text-xs text-cinza">Cadastre produtos e mantenha preços, estoque e disponibilidade atualizados.</p>
         </div>
         <Link
-          href="/admin/produtos/qualidade"
-          className="rounded-xl border border-rosa/20 bg-white px-4 py-2.5 text-xs font-bold text-rosa-profundo"
+          href="/admin/produtos/novo"
+          className="rounded-xl bg-rosa-profundo px-4 py-2.5 text-xs font-bold text-white"
         >
-          Qualidade dos cadastros
+          Novo produto
         </Link>
       </div>
       <ProductsTable products={rows} />
