@@ -38,10 +38,6 @@ export function AdminNav({
       return pathname === "/admin";
     }
 
-    if (href === "/admin/analise") {
-      return pathname === href;
-    }
-
     return pathname === href || pathname.startsWith(`${href}/`);
   }
 
