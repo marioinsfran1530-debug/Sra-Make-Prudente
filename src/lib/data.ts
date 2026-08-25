@@ -130,6 +130,7 @@ export const getCategoryBySlug = cache(async (slug: string) => {
 });
 
 export type ProductFilters = {
+  categoryId?: string;
   categorySlug?: string;
   subcategorySlug?: string;
   brand?: string;
@@ -143,7 +144,23 @@ export type ProductFilters = {
 export async function getProducts(filters: ProductFilters = {}) {
   const where: Record<string, unknown> = { active: true };
 
-  if (filters.categorySlug) {
+  if (filters.categoryId) {
+    // Em páginas de categoria já resolvidas, filtrar pelo ID evita qualquer
+    // ambiguidade de slug e nunca cai em uma listagem geral por acidente.
+    // Mantém também as categorias secundárias escolhidas no cadastro.
+    where.OR = [
+      { categoryId: filters.categoryId },
+      {
+        categories: {
+          some: {
+            categoryId: filters.categoryId,
+          },
+        },
+      },
+    ];
+  } else if (filters.categorySlug) {
+    // API/buscas que recebem apenas slug continuam filtrando estritamente
+    // pela categoria principal ou por uma categoria secundária vinculada.
     where.OR = [
       { category: { slug: filters.categorySlug } },
       {
@@ -171,7 +188,12 @@ export async function getProducts(filters: ProductFilters = {}) {
   const products = await prisma.product.findMany({
     where,
     include: PRODUCT_INCLUDE,
-    orderBy: { createdAt: "desc" },
+    orderBy: [
+      { featured: "desc" },
+      { bestSeller: "desc" },
+      { isNew: "desc" },
+      { createdAt: "desc" },
+    ],
   });
 
   const filteredProducts = filters.search
