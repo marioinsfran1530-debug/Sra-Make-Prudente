@@ -16,9 +16,10 @@ test('aceita um cadastro de produto consistente', () => {
   });
   assert.equal(result.ok, true);
   assert.equal(result.data.name, 'Gloss Labial Rosa');
+  assert.equal(result.warnings.length, 0);
 });
 
-test('rejeita novo produto sem descrição útil', () => {
+test('permite salvar sem descrição e orienta melhoria sem bloquear', () => {
   const missing = validateProductInput({
     name: 'Produto Teste',
     brand: 'Marca',
@@ -26,8 +27,8 @@ test('rejeita novo produto sem descrição útil', () => {
     price: 10,
     stockQty: 1,
   });
-  assert.equal(missing.ok, false);
-  assert.match(missing.errors.join(' '), /descrição útil/i);
+  assert.equal(missing.ok, true);
+  assert.match(missing.warnings.join(' '), /descrição não informada/i);
 
   const short = validateProductInput({
     name: 'Produto Teste',
@@ -36,8 +37,8 @@ test('rejeita novo produto sem descrição útil', () => {
     price: 10,
     stockQty: 1,
   });
-  assert.equal(short.ok, false);
-  assert.match(short.errors.join(' '), /50 caracteres/i);
+  assert.equal(short.ok, true);
+  assert.match(short.warnings.join(' '), /50 caracteres/i);
 });
 
 test('rejeita preço, promoção e estoque inconsistentes', () => {
