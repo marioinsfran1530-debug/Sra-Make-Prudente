@@ -15,12 +15,17 @@ export function ProductCarousel({
   const inViewRef = useRef(false);
   const resumeTimerRef = useRef<number | null>(null);
 
-  function pauseTemporarily(delay = 6000) {
+  function pauseIndefinitely() {
     pausedRef.current = true;
 
     if (resumeTimerRef.current) {
       window.clearTimeout(resumeTimerRef.current);
+      resumeTimerRef.current = null;
     }
+  }
+
+  function pauseTemporarily(delay = 6000) {
+    pauseIndefinitely();
 
     resumeTimerRef.current = window.setTimeout(() => {
       pausedRef.current = false;
@@ -104,17 +109,11 @@ export function ProductCarousel({
   return (
     <div
       className="relative group/carousel"
-      onMouseEnter={() => {
-        pausedRef.current = true;
-      }}
+      onMouseEnter={pauseIndefinitely}
       onMouseLeave={() => pauseTemporarily(2500)}
-      onFocusCapture={() => {
-        pausedRef.current = true;
-      }}
+      onFocusCapture={pauseIndefinitely}
       onBlurCapture={() => pauseTemporarily(4000)}
-      onTouchStart={() => {
-        pausedRef.current = true;
-      }}
+      onTouchStart={pauseIndefinitely}
       onTouchEnd={() => pauseTemporarily()}
     >
       {/* SETA ESQUERDA */}
