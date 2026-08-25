@@ -5,6 +5,38 @@ import { confirmOrder, cancelOrder, OrderError } from "@/lib/order-transactions"
 import { canTransitionOrder, isClosedOrderStatus, isValidOrderStatus } from "@/lib/order-rules";
 import { notifyOrderStatus } from "@/lib/order-push";
 
+async function snapshotOrderCosts(orderId: string) {
+  const items = await prisma.orderItem.findMany({
+    where: { orderId },
+    select: { id: true, productId: true, unitCost: true },
+  });
+
+  const missingCostItems = items.filter((item) => item.unitCost === null);
+  if (missingCostItems.length === 0) return;
+
+  const productIds = Array.from(new Set(missingCostItems.map((item) => item.productId)));
+  const products = await prisma.product.findMany({
+    where: { id: { in: productIds } },
+    select: { id: true, costPrice: true },
+  });
+  const costByProduct = new Map(products.map((product) => [product.id, product.costPrice]));
+
+  const updates = missingCostItems
+    .map((item) => {
+      const cost = costByProduct.get(item.productId);
+      if (cost === null || cost === undefined) return null;
+      return prisma.orderItem.update({
+        where: { id: item.id },
+        data: { unitCost: cost },
+      });
+    })
+    .filter((update): update is NonNullable<typeof update> => Boolean(update));
+
+  if (updates.length > 0) {
+    await prisma.$transaction(updates);
+  }
+}
+
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -55,6 +87,8 @@ export async function PATCH(
     }
 
     if (body.status === "FINALIZADO") {
+      await snapshotOrderCosts(id);
+
       await prisma.analyticsEvent.create({
         data: {
           event: "order_finalized",
