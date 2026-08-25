@@ -82,18 +82,10 @@ export default async function ProdutoPage({ params }: { params: ProductParams })
       availability,
       itemCondition: "https://schema.org/NewCondition",
       seller: { "@id": `${SITE_URL}/#store` },
-      shippingDetails: {
-        "@type": "OfferShippingDetails",
-        shippingRate: {
-          "@type": "MonetaryAmount",
-          value: "0",
-          currency: "BRL",
-        },
-        shippingDestination: {
-          "@type": "DefinedRegion",
-          addressCountry: "BR",
-        },
-      },
+      // O Google Search ainda não aceita recorte por CEP/estado para o Brasil em
+      // DefinedRegion. Enquanto a entrega for apenas local e o valor for
+      // confirmado no atendimento, não publicamos shippingDetails para evitar
+      // anunciar incorretamente frete grátis ou entrega para o Brasil inteiro.
       hasMerchantReturnPolicy: {
         "@type": "MerchantReturnPolicy",
         applicableCountry: "BR",
