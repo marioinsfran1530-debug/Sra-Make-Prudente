@@ -32,7 +32,9 @@ export default async function HomePage() {
     getStoreSettings(),
   ]);
 
-  const featuredHome = featured.slice(0, 8);
+  // A primeira vitrine da home é curta de propósito: mostra produtos reais cedo,
+  // sem empurrar categorias e conteúdo útil para muito abaixo da dobra.
+  const featuredHome = featured.slice(0, 6);
   const featuredIds = new Set(featuredHome.map((product) => product.id));
   const bestSellersHome = bestSellers
     .filter((product) => !featuredIds.has(product.id))
@@ -72,7 +74,7 @@ export default async function HomePage() {
     <main>
       <div className="px-4 pt-3 md:pt-4">
         <section
-          className="relative overflow-hidden rounded-3xl min-h-[390px] md:min-h-[360px] text-white"
+          className="relative min-h-[340px] overflow-hidden rounded-3xl text-white md:min-h-[360px]"
           style={{
             background:
               "linear-gradient(135deg, #E4127B 0%, #A6157A 55%, #6E1E8C 100%)",
@@ -102,7 +104,7 @@ export default async function HomePage() {
           <div className="absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-black/10" />
 
           <div className="absolute right-4 top-4 z-20 flex items-center gap-2 md:right-6 md:top-6">
-            <div className="rounded-full bg-white shadow-lg ring-1 ring-white/80 text-rosa-profundo">
+            <div className="rounded-full bg-white text-rosa-profundo shadow-lg ring-1 ring-white/80">
               <StoreAccountButton />
             </div>
             <Link
@@ -115,11 +117,11 @@ export default async function HomePage() {
             </Link>
           </div>
 
-          <div className="relative z-10 grid min-h-[390px] items-end gap-6 p-5 sm:p-7 md:min-h-[360px] md:grid-cols-[minmax(0,1fr)_220px] md:p-8 lg:grid-cols-[minmax(0,1fr)_240px]">
+          <div className="relative z-10 grid min-h-[340px] items-end gap-5 p-5 sm:p-7 md:min-h-[360px] md:grid-cols-[minmax(0,1fr)_220px] md:p-8 lg:grid-cols-[minmax(0,1fr)_240px]">
             <div className="max-w-3xl">
               <div className="flex items-center gap-3 md:gap-4">
                 <div
-                  className="h-16 w-16 md:h-20 md:w-20 shrink-0 overflow-hidden rounded-full border-[3px] border-white bg-white shadow-xl flex items-center justify-center font-serif text-xl md:text-2xl font-bold text-white"
+                  className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border-[3px] border-white bg-white font-serif text-xl font-bold text-white shadow-xl md:h-20 md:w-20 md:text-2xl"
                   style={{
                     background:
                       "linear-gradient(135deg, #E4127B 0%, #A6157A 55%, #6E1E8C 100%)",
@@ -129,7 +131,7 @@ export default async function HomePage() {
                     <img
                       src={settings.logoUrl}
                       alt={`Logo ${settings.storeName}`}
-                      className="h-full w-full object-contain bg-white"
+                      className="h-full w-full bg-white object-contain"
                     />
                   ) : (
                     "SM"
@@ -137,10 +139,10 @@ export default async function HomePage() {
                 </div>
 
                 <div className="min-w-0 pr-20 md:pr-0">
-                  <p className="text-[9px] md:text-[11px] font-semibold uppercase tracking-[0.2em] text-white/75 mb-1">
+                  <p className="mb-1 text-[9px] font-semibold uppercase tracking-[0.2em] text-white/75 md:text-[11px]">
                     {settings?.heroEyebrow || "Loja física + catálogo online"}
                   </p>
-                  <h1 className="font-serif text-2xl sm:text-3xl md:text-4xl font-bold leading-tight drop-shadow-sm">
+                  <h1 className="font-serif text-2xl font-bold leading-tight drop-shadow-sm sm:text-3xl md:text-4xl">
                     {settings?.storeName || "Sra Make Prudente"}
                   </h1>
                   <p className="mt-1 inline-flex items-center gap-1.5 text-xs font-semibold text-white/90">
@@ -150,39 +152,25 @@ export default async function HomePage() {
               </div>
 
               <div className="mt-4 max-w-2xl">
-                <h2 className="font-serif text-lg sm:text-xl md:text-2xl font-bold leading-tight">
-                  {settings?.heroTitle ||
-                    "Encontre o que você precisa na Sra Make."}
+                <h2 className="font-serif text-lg font-bold leading-tight sm:text-xl md:text-2xl">
+                  Maquiagem, lash e nail com entrega rápida em Presidente Prudente/SP
                 </h2>
-                <p className="mt-1.5 max-w-xl text-xs sm:text-sm md:text-base leading-relaxed text-white/88">
-                  {settings?.heroSubtitle ||
-                    "Maquiagem, lash, nail e acessórios. Escolha pelo catálogo e confirme pelo WhatsApp."}
+                <p className="mt-1.5 max-w-xl text-xs leading-relaxed text-white/88 sm:text-sm md:text-base">
+                  Escolha pelo catálogo, veja preços e disponibilidade e finalize com atendimento da Sra Make.
                 </p>
               </div>
 
-              <div className="mt-4 grid max-w-2xl grid-cols-1 gap-2 sm:grid-cols-2">
-                <div className="flex items-center gap-3 rounded-2xl border border-white/25 bg-white/90 px-3.5 py-2.5 text-[#23142A] shadow-sm backdrop-blur">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#FFF0F7] text-rosa-profundo">
-                    <Truck size={16} />
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold">Retirada ou entrega</p>
-                    <p className="text-[10px] text-cinza">Escolha como prefere receber</p>
-                  </div>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <div className="inline-flex items-center gap-2 rounded-xl border border-white/25 bg-white/90 px-3 py-2 text-[#23142A] shadow-sm backdrop-blur">
+                  <Truck size={15} className="text-rosa-profundo" />
+                  <span className="text-[11px] font-bold">Retirada ou entrega</span>
                 </div>
-
                 <WhatsAppLink
                   href={secondaryHref}
                   context="home_help"
-                  className="flex items-center gap-3 rounded-2xl border border-white/25 bg-white/90 px-3.5 py-2.5 text-[#23142A] shadow-sm backdrop-blur transition hover:bg-white hover:shadow-md"
+                  className="inline-flex items-center gap-2 rounded-xl border border-white/55 bg-transparent px-3 py-2 text-[11px] font-semibold text-white transition hover:bg-white/10"
                 >
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#FFF0F7] text-rosa-profundo">
-                    <MessageCircle size={16} />
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold">Atendimento no WhatsApp</p>
-                    <p className="text-[10px] text-cinza">Tire dúvidas e receba ajuda</p>
-                  </div>
+                  <MessageCircle size={14} /> Atendimento no WhatsApp
                 </WhatsAppLink>
               </div>
 
@@ -201,71 +189,71 @@ export default async function HomePage() {
               )}
             </div>
 
-            <div className="flex self-end md:absolute md:right-8 md:bottom-[64px] md:w-[220px] lg:right-8 lg:w-[240px]">
+            <div className="flex self-end md:absolute md:bottom-[64px] md:right-8 md:w-[220px] lg:right-8 lg:w-[240px]">
               <Link
                 href={settings?.primaryCtaUrl || "/categoria"}
-                className="flex min-h-[56px] w-full items-center justify-center rounded-2xl bg-white px-5 py-3 text-center text-sm font-bold text-rosa-profundo shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl md:min-h-[52px]"
+                className="flex min-h-[56px] w-full items-center justify-center rounded-2xl bg-white px-5 py-3 text-center text-sm font-extrabold text-rosa-profundo shadow-xl transition hover:-translate-y-0.5 hover:shadow-2xl md:min-h-[52px]"
               >
-                {settings?.primaryCtaLabel || "Ver produtos"}
+                Ver produtos
               </Link>
             </div>
           </div>
         </section>
       </div>
 
-      <div className="mt-4 md:mt-5">
+      <div className="mt-3 md:mt-4">
         <SearchBar />
       </div>
 
+      {featuredHome.length > 0 && (
+        <Section title="Destaques" products={featuredHome} compactTop />
+      )}
+
       <div className="mt-5 px-4">
-        <p className="font-serif font-bold text-lg mb-3 text-texto">
+        <p className="mb-3 font-serif text-lg font-bold text-texto">
           O que você procura hoje?
         </p>
         <CategoryGrid categories={categories} />
       </div>
 
-      <div className="mt-6 px-4 grid grid-cols-2 gap-3">
+      <div className="mt-6 grid grid-cols-2 gap-3 px-4">
         <Link
-          href="/categoria/make"
-          className="group rounded-2xl p-4 bg-creme border border-rosa/10 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+          href="/categoria/maquiagem"
+          className="group rounded-2xl border border-rosa/10 bg-creme p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
         >
           <p className="text-[10px] font-bold uppercase tracking-wider text-rosa-profundo">
             Para você
           </p>
-          <p className="font-serif font-bold text-sm mt-1 text-texto">
+          <p className="mt-1 font-serif text-sm font-bold text-texto">
             Maquiagem para o dia a dia
           </p>
-          <p className="text-xs mt-1 text-cinza">
+          <p className="mt-1 text-xs text-cinza">
             Encontre bases, batons, máscaras, pós e muito mais.
           </p>
-          <p className="text-[11px] font-bold text-rosa-profundo mt-3 group-hover:underline">
+          <p className="mt-3 text-[11px] font-bold text-rosa-profundo group-hover:underline">
             Ver maquiagem →
           </p>
         </Link>
 
         <Link
           href="/categoria"
-          className="group rounded-2xl p-4 border border-roxo/10 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+          className="group rounded-2xl border border-roxo/10 p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
           style={{ backgroundColor: "#F1ECF7" }}
         >
           <p className="text-[10px] font-bold uppercase tracking-wider text-roxo">
             Para seu trabalho
           </p>
-          <p className="font-serif font-bold text-sm mt-1 text-texto">
+          <p className="mt-1 font-serif text-sm font-bold text-texto">
             Materiais profissionais
           </p>
-          <p className="text-xs mt-1 text-cinza">
+          <p className="mt-1 text-xs text-cinza">
             Lash, nail e produtos para facilitar sua reposição.
           </p>
-          <p className="text-[11px] font-bold text-roxo mt-3 group-hover:underline">
+          <p className="mt-3 text-[11px] font-bold text-roxo group-hover:underline">
             Ver materiais →
           </p>
         </Link>
       </div>
-
-      {featuredHome.length > 0 && (
-        <Section title="Destaques" products={featuredHome} />
-      )}
 
       {bestSellersHome.length > 0 && (
         <Section title="Mais procurados" products={bestSellersHome} />
@@ -275,17 +263,17 @@ export default async function HomePage() {
         <Section title="Novidades" products={newsHome} />
       )}
 
-      <div className="mt-8 mx-4 rounded-2xl p-5 flex items-center gap-4 bg-navy">
+      <div className="mx-4 mt-8 flex items-center gap-4 rounded-2xl bg-navy p-5">
         <Package
           size={30}
           className="flex-shrink-0"
           style={{ color: "#C9972E" }}
         />
         <div className="flex-1">
-          <p className="font-serif font-bold text-white text-sm mb-1">
+          <p className="mb-1 font-serif text-sm font-bold text-white">
             Precisa repor?
           </p>
-          <p className="text-white/70 text-xs mb-2">
+          <p className="mb-2 text-xs text-white/70">
             Manda o nome ou uma foto do produto e a gente confirma se temos disponível.
           </p>
           <WhatsAppLink
@@ -294,7 +282,7 @@ export default async function HomePage() {
               whatsappNumber
             )}
             context="home_reposicao"
-            className="inline-flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full shadow-md border border-white/20 transition hover:-translate-y-0.5 hover:shadow-lg"
+            className="inline-flex items-center gap-1 rounded-full border border-white/20 px-3 py-1.5 text-xs font-bold shadow-md transition hover:-translate-y-0.5 hover:shadow-lg"
             style={{ backgroundColor: "#C9972E", color: "#131B33" }}
           >
             <Camera size={13} /> Mandar no WhatsApp
@@ -303,11 +291,11 @@ export default async function HomePage() {
       </div>
 
       <div className="mt-8 px-4">
-        <div className="rounded-2xl border border-rosa/10 bg-white shadow-sm p-4">
-          <p className="font-serif font-bold text-base text-texto">
+        <div className="rounded-2xl border border-rosa/10 bg-white p-4 shadow-sm">
+          <p className="font-serif text-base font-bold text-texto">
             Comprar ficou mais fácil
           </p>
-          <p className="text-xs text-cinza mt-1 mb-4">
+          <p className="mb-4 mt-1 text-xs text-cinza">
             Escolha no catálogo e finalize do jeito que preferir.
           </p>
 
@@ -321,13 +309,13 @@ export default async function HomePage() {
                 key={step.title}
                 className="relative rounded-xl bg-creme px-2 py-3 text-center"
               >
-                <div className="w-8 h-8 mx-auto rounded-full bg-white flex items-center justify-center shadow-sm mb-2">
+                <div className="mx-auto mb-2 flex h-8 w-8 items-center justify-center rounded-full bg-white shadow-sm">
                   <step.icon size={16} className="text-rosa-profundo" />
                 </div>
                 <p className="text-[11px] font-bold text-texto">
                   {index + 1}. {step.title}
                 </p>
-                <p className="text-[10px] text-cinza mt-0.5 leading-tight">
+                <p className="mt-0.5 text-[10px] leading-tight text-cinza">
                   {step.text}
                 </p>
               </div>
@@ -337,25 +325,25 @@ export default async function HomePage() {
       </div>
 
       {settings && (
-        <div className="mt-8 mx-4 mb-6 rounded-3xl border border-rosa/15 bg-white shadow-sm overflow-hidden">
+        <div className="mx-4 mb-6 mt-8 overflow-hidden rounded-3xl border border-rosa/15 bg-white shadow-sm">
           <div className="grid grid-cols-1 lg:grid-cols-2">
             <div className="p-5 lg:p-6">
               <p className="text-[10px] font-bold uppercase tracking-widest text-rosa-profundo">
                 Nossa loja
               </p>
-              <p className="font-serif font-bold text-lg mt-1 text-texto">
+              <p className="mt-1 font-serif text-lg font-bold text-texto">
                 {settings.storeName}
               </p>
 
               <div className="mt-5 flex flex-col gap-4">
                 {settings.address && (
                   <div className="flex items-start gap-3">
-                    <div className="w-9 h-9 rounded-full bg-creme flex items-center justify-center flex-shrink-0">
+                    <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-creme">
                       <MapPin size={16} className="text-rosa-profundo" />
                     </div>
                     <div className="min-w-0">
                       <p className="text-xs font-bold text-texto">Endereço</p>
-                      <p className="text-xs text-cinza mt-0.5 leading-relaxed">
+                      <p className="mt-0.5 text-xs leading-relaxed text-cinza">
                         {settings.address}
                       </p>
                     </div>
@@ -364,12 +352,12 @@ export default async function HomePage() {
 
                 {settings.businessHours && (
                   <div className="flex items-start gap-3">
-                    <div className="w-9 h-9 rounded-full bg-creme flex items-center justify-center flex-shrink-0">
+                    <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-creme">
                       <Clock size={16} className="text-rosa-profundo" />
                     </div>
                     <div className="min-w-0">
                       <p className="text-xs font-bold text-texto">Horário</p>
-                      <p className="text-xs text-cinza mt-0.5 whitespace-pre-line leading-relaxed">
+                      <p className="mt-0.5 whitespace-pre-line text-xs leading-relaxed text-cinza">
                         {settings.businessHours}
                       </p>
                     </div>
@@ -385,21 +373,21 @@ export default async function HomePage() {
                       settings.address
                     )}`
                   }
-                  className="mt-5 w-full text-center text-xs font-bold py-3 rounded-xl flex items-center justify-center gap-2 bg-creme text-rosa-profundo border border-rosa/20 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                  className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl border border-rosa/20 bg-creme py-3 text-center text-xs font-bold text-rosa-profundo shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                 >
                   <MapPin size={15} /> Como chegar
                 </LocationLink>
               )}
             </div>
 
-            <div className="p-5 lg:p-6 border-t lg:border-t-0 lg:border-l border-rosa/10 bg-[#FFF9FC]">
+            <div className="border-t border-rosa/10 bg-[#FFF9FC] p-5 lg:border-l lg:border-t-0 lg:p-6">
               <p className="text-[10px] font-bold uppercase tracking-widest text-rosa-profundo">
                 Fale com a gente
               </p>
-              <p className="font-serif font-bold text-lg mt-1 text-texto">
+              <p className="mt-1 font-serif text-lg font-bold text-texto">
                 Precisa de ajuda?
               </p>
-              <p className="text-xs text-cinza mt-1 mb-5">
+              <p className="mb-5 mt-1 text-xs text-cinza">
                 Tire dúvidas, consulte disponibilidade ou fale com nossa equipe.
               </p>
 
@@ -409,7 +397,7 @@ export default async function HomePage() {
                   whatsappNumber
                 )}
                 context="home_location"
-                className="w-full text-center text-sm font-bold py-3 rounded-xl flex items-center justify-center gap-2 text-white shadow-md transition hover:-translate-y-0.5 hover:shadow-lg"
+                className="flex w-full items-center justify-center gap-2 rounded-xl py-3 text-center text-sm font-bold text-white shadow-md transition hover:-translate-y-0.5 hover:shadow-lg"
                 style={{ backgroundColor: "#25D366" }}
               >
                 <MessageCircle size={17} /> Falar no WhatsApp
@@ -417,7 +405,7 @@ export default async function HomePage() {
 
               {(instagramHandle || facebookHref) && (
                 <div className="mt-5">
-                  <p className="text-[10px] uppercase tracking-wider font-bold text-cinza mb-2">
+                  <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-cinza">
                     Redes sociais
                   </p>
                   <div className="grid grid-cols-2 gap-2">
@@ -426,7 +414,7 @@ export default async function HomePage() {
                         href={`https://instagram.com/${instagramHandle}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-xs font-bold px-3 py-3 rounded-xl flex items-center justify-center gap-2 bg-white text-rosa-profundo border border-rosa/20 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                        className="flex items-center justify-center gap-2 rounded-xl border border-rosa/20 bg-white px-3 py-3 text-xs font-bold text-rosa-profundo shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                       >
                         <Instagram size={16} /> Instagram
                       </a>
@@ -436,7 +424,7 @@ export default async function HomePage() {
                         href={facebookHref}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-xs font-bold px-3 py-3 rounded-xl flex items-center justify-center gap-2 bg-white text-rosa-profundo border border-rosa/20 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                        className="flex items-center justify-center gap-2 rounded-xl border border-rosa/20 bg-white px-3 py-3 text-xs font-bold text-rosa-profundo shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                       >
                         <Facebook size={16} /> Facebook
                       </a>
@@ -455,17 +443,19 @@ export default async function HomePage() {
 function Section({
   title,
   products,
+  compactTop = false,
 }: {
   title: string;
   products: Awaited<ReturnType<typeof getProducts>>;
+  compactTop?: boolean;
 }) {
   return (
-    <section className="mt-8">
-      <div className="px-4 mb-3 flex items-center justify-between gap-3">
-        <h2 className="font-serif font-bold text-lg text-texto">{title}</h2>
+    <section className={compactTop ? "mt-2" : "mt-8"}>
+      <div className="mb-3 flex items-center justify-between gap-3 px-4">
+        <h2 className="font-serif text-lg font-bold text-texto">{title}</h2>
         <Link
           href="/categoria"
-          className="text-xs font-bold text-rosa-profundo px-3 py-1.5 rounded-full border border-rosa/15 bg-white shadow-sm transition hover:bg-rosa/5 hover:shadow-md"
+          className="rounded-full border border-rosa/15 bg-white px-3 py-1.5 text-xs font-bold text-rosa-profundo shadow-sm transition hover:bg-rosa/5 hover:shadow-md"
         >
           Ver todos →
         </Link>
