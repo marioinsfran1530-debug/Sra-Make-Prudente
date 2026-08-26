@@ -36,8 +36,8 @@ type ArtworkFormat = "status" | "quadrado";
 type QueueItem = { time: string; productId: string; kind: CampaignKind; done: boolean };
 type StoredQueue = { date: string; items: QueueItem[] };
 type StoreBranding = { storeName: string; logoUrl: string | null };
-type MessageProfile = { heading: string; hook: string; cta: string };
-type AiCopyVariation = { hook: string; cta: string };
+type MessageProfile = { hook: string };
+type AiCopyVariation = { hook: string };
 type AiCopyResult = {
   suggestionId: string | null;
   variations: AiCopyVariation[];
@@ -136,42 +136,22 @@ function usefulDescriptor(value: string) {
 
 function getMessageProfile(product: Product): MessageProfile {
   if (hasRealPromotion(product)) {
-    return {
-      heading: "💗 OFERTA SRA MAKE",
-      hook: "Preço especial disponível neste produto.",
-      cta: "Confira a oferta:",
-    };
+    return { hook: "PREÇO ESPECIAL NESTE DESTAQUE" };
   }
 
   if (product.bestSeller) {
-    return {
-      heading: "✨ MAIS PEDIDOS SRA MAKE",
-      hook: "Um dos mais pedidos pelas nossas clientes.",
-      cta: "Peça o seu:",
-    };
+    return { hook: "UM DOS MAIS PEDIDOS PELAS CLIENTES" };
   }
 
   if (product.isNew) {
-    return {
-      heading: "✨ NOVIDADE SRA MAKE",
-      hook: "Acabou de chegar na Sra Make.",
-      cta: "Seja das primeiras a garantir:",
-    };
+    return { hook: "NOVIDADE PARA SUA ROTINA" };
   }
 
   if (product.featured) {
-    return {
-      heading: "✨ DESTAQUE SRA MAKE",
-      hook: "Selecionado especialmente pra você.",
-      cta: "Confira e peça:",
-    };
+    return { hook: "ESCOLHA EM DESTAQUE" };
   }
 
-  return {
-    heading: "✨ DESTAQUE SRA MAKE",
-    hook: "Uma escolha que vale conferir.",
-    cta: "Veja detalhes e faça seu pedido:",
-  };
+  return { hook: "VALE CONFERIR ESSE DESTAQUE" };
 }
 
 function buildMessage(
@@ -180,19 +160,26 @@ function buildMessage(
   profileOverride?: MessageProfile
 ) {
   const profile = profileOverride ?? getMessageProfile(product);
-  const price = hasRealPromotion(product)
-    ? `De ~${money(product.price)}~\nPor *${money(product.promoPrice!)}*`
-    : `*${money(product.price)}*`;
   const descriptor = usefulDescriptor(product.brand);
-  const productDetails = [`*${product.name}*`, descriptor].filter(Boolean).join("\n");
+  const brandAlreadyInName = descriptor
+    ? normalizeDescriptor(product.name).includes(normalizeDescriptor(descriptor))
+    : false;
+  const productDetails = [
+    `💗 *${product.name}*`,
+    brandAlreadyInName ? "" : descriptor,
+  ]
+    .filter(Boolean)
+    .join("\n");
+  const price = hasRealPromotion(product)
+    ? `🔥 ~DE ${money(product.price)}~ | *POR ${money(product.promoPrice!)}*`
+    : `💰 *${money(product.price)}*`;
 
   return [
-    profile.heading,
+    `*${profile.hook}*`,
     productDetails,
     price,
-    `✨ ${profile.hook}`,
-    `👉 ${profile.cta}\n${url}`,
-    "Retirada ou entrega em Presidente Prudente.",
+    `🔗 ${url}`,
+    "📍 Retirada ou entrega em Presidente Prudente.",
   ].join("\n\n");
 }
 
@@ -537,22 +524,20 @@ export function PromotionCenter({
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !Array.isArray(data.variations)) {
-        throw new Error(data.error ?? "Não foi possível gerar variações agora.");
+        throw new Error(data.error ?? "Não foi possível gerar ganchos agora.");
       }
 
       const variations = (data.variations as unknown[])
         .map((entry) => {
           if (!entry || typeof entry !== "object") return null;
-          const variation = entry as { hook?: unknown; cta?: unknown };
-          if (typeof variation.hook !== "string" || typeof variation.cta !== "string") {
-            return null;
-          }
-          return { hook: variation.hook.trim(), cta: variation.cta.trim() };
+          const variation = entry as { hook?: unknown };
+          if (typeof variation.hook !== "string") return null;
+          return { hook: variation.hook.trim() };
         })
         .filter((entry): entry is AiCopyVariation => Boolean(entry));
 
       if (!variations.length) {
-        throw new Error("A IA não retornou variações utilizáveis.");
+        throw new Error("A IA não retornou ganchos utilizáveis.");
       }
 
       setAiCopyResult({
@@ -565,7 +550,7 @@ export function PromotionCenter({
       });
     } catch (error) {
       setAiCopyError(
-        error instanceof Error ? error.message : "Não foi possível gerar variações agora."
+        error instanceof Error ? error.message : "Não foi possível gerar ganchos agora."
       );
     } finally {
       setAiCopyLoading(false);
@@ -574,11 +559,8 @@ export function PromotionCenter({
 
   function useAiVariation(variation: AiCopyVariation, index: number) {
     if (!product) return;
-    const base = getMessageProfile(product);
     const nextMessage = buildMessage(product, productUrl, {
-      heading: base.heading,
       hook: variation.hook,
-      cta: variation.cta,
     });
 
     setMessageDraft(nextMessage);
@@ -607,7 +589,7 @@ export function PromotionCenter({
           <Sparkles className="mt-0.5 text-rosa-profundo" size={20} />
           <div>
             <h2 className="font-serif text-xl font-bold text-texto">Campanha completa em um clique</h2>
-            <p className="mt-1 text-sm text-cinza">Produto, arte, texto e link curto rastreável prontos para compartilhar.</p>
+            <p className="mt-1 text-sm text-cinza">Foto, gancho, produto, preço e link curto prontos para compartilhar.</p>
           </div>
         </div>
         <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
@@ -654,7 +636,7 @@ export function PromotionCenter({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <ImageIcon className="text-rosa-profundo" size={20} />
-            <div><h2 className="font-serif text-lg font-bold text-texto">Campanha pronta</h2><p className="text-sm text-cinza">O link curto mantém os UTMs e mede cliques sem depender de serviços externos.</p></div>
+            <div><h2 className="font-serif text-lg font-bold text-texto">Campanha pronta</h2><p className="text-sm text-cinza">Formato otimizado para leitura rápida no WhatsApp, com link curto rastreável.</p></div>
           </div>
           <div className="flex gap-2">
             {(["status", "quadrado"] as const).map((value) => (
@@ -675,10 +657,10 @@ export function PromotionCenter({
                 </span>
                 {activeAiCopy ? (
                   <span className="rounded-full bg-white px-2 py-1 text-[10px] font-bold text-rosa-profundo">
-                    Variação IA · editável
+                    Gancho IA · editável
                   </span>
                 ) : (
-                  <span className="text-[10px] font-medium text-cinza">Modelo fixo · editável</span>
+                  <span className="text-[10px] font-medium text-cinza">Gancho fixo · editável</span>
                 )}
               </div>
               <textarea
@@ -687,11 +669,11 @@ export function PromotionCenter({
                   setMessageDraft(event.target.value);
                   setShareNote("");
                 }}
-                rows={13}
+                rows={10}
                 className="w-full resize-y rounded-lg border border-rosa/10 bg-white p-3 text-sm leading-6 text-texto outline-none focus:border-rosa-profundo"
               />
               <p className="mt-1 text-[10px] leading-4 text-cinza">
-                Revise antes de compartilhar. Preço, link e classificação da campanha continuam vindo do sistema.
+                Revise antes de compartilhar. Produto, preço, link e classificação continuam vindo do sistema.
               </p>
             </div>
 
@@ -699,10 +681,10 @@ export function PromotionCenter({
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <p className="flex items-center gap-1.5 text-xs font-bold text-texto">
-                    <Sparkles size={14} /> Variações com IA
+                    <Sparkles size={14} /> Ganchos com IA
                   </p>
                   <p className="mt-1 text-[10px] leading-4 text-cinza">
-                    A IA só cria gancho e CTA. Não decide oferta, novidade, destaque ou mais vendido.
+                    A IA cria somente a manchete curta. Não decide oferta, preço, novidade, destaque ou mais vendido.
                   </p>
                 </div>
                 <button
@@ -711,7 +693,7 @@ export function PromotionCenter({
                   disabled={aiCopyLoading}
                   className="rounded-lg border border-rosa-profundo/25 px-3 py-2 text-xs font-bold text-rosa-profundo disabled:opacity-40"
                 >
-                  {aiCopyLoading ? "Gerando..." : aiCopyResult ? "Gerar outras" : "Gerar 3 variações"}
+                  {aiCopyLoading ? "Gerando..." : aiCopyResult ? "Gerar outros" : "Gerar 3 ganchos"}
                 </button>
               </div>
 
@@ -735,10 +717,9 @@ export function PromotionCenter({
                         }`}
                       >
                         <span className="text-[10px] font-bold uppercase tracking-wide text-rosa-profundo">
-                          Variação {index + 1}
+                          Gancho {index + 1}
                         </span>
                         <p className="mt-1 text-xs font-semibold text-texto">{variation.hook}</p>
-                        <p className="mt-1 text-xs text-cinza">{variation.cta}</p>
                       </button>
                     );
                   })}
@@ -748,7 +729,7 @@ export function PromotionCenter({
                       onClick={useTemplateMessage}
                       className="text-[11px] font-bold text-rosa-profundo underline underline-offset-2"
                     >
-                      Voltar ao modelo fixo
+                      Voltar ao gancho fixo
                     </button>
                     <span className="text-[9px] text-cinza">
                       {aiCopyResult.model} · {aiCopyResult.promptVersion}
