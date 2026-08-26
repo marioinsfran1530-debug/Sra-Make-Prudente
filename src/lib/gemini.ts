@@ -34,11 +34,10 @@ export type PromotionCopyInput = {
 
 export type PromotionCopyVariation = {
   hook: string;
-  cta: string;
 };
 
 export const PRODUCT_DESCRIPTION_PROMPT_VERSION = "product-description-v1";
-export const PROMOTION_COPY_PROMPT_VERSION = "promotion-copy-v1";
+export const PROMOTION_COPY_PROMPT_VERSION = "promotion-hook-v2";
 
 const DEFAULT_MODEL = "gemini-3.5-flash-lite";
 const DEFAULT_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/interactions";
@@ -252,17 +251,17 @@ Regras específicas:
 
 export async function generatePromotionCopy(input: PromotionCopyInput) {
   const reasonInstruction: Record<PromotionCopyInput["campaignReason"], string> = {
-    oferta: "O sistema confirmou que existe preço promocional real. O texto pode comunicar que há uma oferta, sem criar prazo ou escassez.",
-    mais_vendido: "O sistema confirmou a classificação de mais vendido. Você pode falar em procura/pedidos sem acrescentar números.",
-    novidade: "O sistema confirmou a flag de novidade. Você pode comunicar que é novidade, sem inventar data de chegada.",
+    oferta: "O sistema confirmou que existe preço promocional real. O gancho pode comunicar oportunidade ou preço especial, sem criar prazo ou escassez.",
+    mais_vendido: "O sistema confirmou a classificação de mais vendido. O gancho pode falar em procura ou pedidos sem acrescentar números.",
+    novidade: "O sistema confirmou a flag de novidade. O gancho pode comunicar novidade, sem inventar data de chegada.",
     destaque: "O sistema confirmou a flag de destaque. Trate como uma seleção da loja, sem alegar popularidade.",
-    catalogo: "O produto não tem flag promocional. Faça apenas um convite neutro para conhecer o item.",
+    catalogo: "O produto não tem flag promocional. Crie um gancho neutro e convidativo para apresentar o item.",
   };
 
   const prompt = `
-Crie 3 variações curtas para complementar uma mensagem de WhatsApp da Sra Make Prudente.
-A aplicação já monta separadamente: título da campanha, nome do produto, marca, preço real, link e informação de retirada/entrega.
-Você deve gerar APENAS um gancho e um CTA para cada variação.
+Crie 3 opções de GANCHO CURTO para abrir uma mensagem de WhatsApp da Sra Make Prudente.
+A aplicação já monta separadamente: foto, nome do produto, marca, preço real, link e informação de retirada/entrega.
+Você deve gerar SOMENTE o gancho. Não gere CTA.
 
 Produto: ${input.name}
 Marca: ${input.brand}
@@ -270,13 +269,13 @@ Categoria: ${input.category}
 Contexto validado pelo sistema: ${reasonInstruction[input.campaignReason]}
 
 Regras específicas:
-- Cada gancho deve ter no máximo 100 caracteres.
-- Cada CTA deve ter no máximo 70 caracteres.
-- Não mencione preço, percentual de desconto, estoque, quantidade, prazo, URL ou endereço.
-- Não invente atributos do produto.
-- Não use hashtags.
-- O título fixo da aplicação já contém emoji; não use emoji no gancho nem no CTA.
+- Cada gancho deve ter de 3 a 8 palavras e no máximo 55 caracteres.
+- Escreva o gancho em CAIXA ALTA para funcionar como manchete visual no WhatsApp.
+- Não use emoji, hashtags, preço, percentual, estoque, quantidade, prazo, URL, endereço ou nome da loja.
+- Não invente atributos, benefícios ou promessas do produto.
+- Evite CTA disfarçado como "clique", "acesse", "compre", "garanta" ou "peça".
 - As 3 opções precisam ser realmente diferentes entre si.
+- Se os dados não sustentarem um benefício específico, prefira enquadramento neutro ligado à categoria ou ao contexto validado.
 `.trim();
 
   const result = await generateStructured<{ variations: PromotionCopyVariation[] }>(prompt, {
@@ -290,9 +289,8 @@ Regras específicas:
           type: "object",
           properties: {
             hook: { type: "string" },
-            cta: { type: "string" },
           },
-          required: ["hook", "cta"],
+          required: ["hook"],
           additionalProperties: false,
         },
       },
@@ -303,15 +301,14 @@ Regras específicas:
 
   const variations = (Array.isArray(result.data.variations) ? result.data.variations : [])
     .map((variation) => ({
-      hook: cleanString(variation?.hook, 120),
-      cta: cleanString(variation?.cta, 80),
+      hook: cleanString(variation?.hook, 70).toLocaleUpperCase("pt-BR"),
     }))
-    .filter((variation) => variation.hook.length >= 10 && variation.cta.length >= 5)
+    .filter((variation) => variation.hook.length >= 8)
     .slice(0, 3);
 
   if (variations.length < 2) {
     throw new GeminiError(
-      "A IA não conseguiu criar variações utilizáveis. Tente novamente.",
+      "A IA não conseguiu criar ganchos utilizáveis. Tente novamente.",
       502,
       "INVALID_RESPONSE"
     );
