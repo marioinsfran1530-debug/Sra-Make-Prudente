@@ -184,24 +184,16 @@ function buildMessage(
     ? `De ~${money(product.price)}~\nPor *${money(product.promoPrice!)}*`
     : `*${money(product.price)}*`;
   const descriptor = usefulDescriptor(product.brand);
+  const productDetails = [`*${product.name}*`, descriptor].filter(Boolean).join("\n");
 
   return [
     profile.heading,
-    "",
-    `*${product.name}*`,
-    descriptor,
-    "",
+    productDetails,
     price,
-    "",
-    profile.hook,
-    "",
-    profile.cta,
-    url,
-    "",
+    `✨ ${profile.hook}`,
+    `👉 ${profile.cta}\n${url}`,
     "Retirada ou entrega em Presidente Prudente.",
-  ]
-    .filter(Boolean)
-    .join("\n");
+  ].join("\n\n");
 }
 
 function scoreProduct(product: Product, recent: Set<string>) {
