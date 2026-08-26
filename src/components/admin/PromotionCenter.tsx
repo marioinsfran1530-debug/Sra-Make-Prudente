@@ -35,10 +35,23 @@ type ArtworkFormat = "status" | "quadrado";
 type QueueItem = { time: string; productId: string; kind: CampaignKind; done: boolean };
 type StoredQueue = { date: string; items: QueueItem[] };
 type StoreBranding = { storeName: string; logoUrl: string | null };
+type MessageProfile = { heading: string; hook: string; cta: string };
 
 const QUEUE_KEY = "sra-make-divulgacao-queue-v3";
 const HISTORY_KEY = "sra-make-divulgacao-history-v3";
 const TIMES = ["10:00", "15:00", "19:00"];
+const NON_DESCRIPTIVE_VALUES = new Set([
+  "variado",
+  "variada",
+  "varios",
+  "varias",
+  "sem variacao",
+  "nao se aplica",
+  "n/a",
+  "na",
+  "-",
+  "--",
+]);
 
 function money(value: number) {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -61,8 +74,9 @@ function hasRealPromotion(product: Product) {
 }
 
 function pickCampaignKind(product: Product): CampaignKind {
-  if (product.isNew) return "novidade";
   if (hasRealPromotion(product)) return "oferta";
+  if (product.bestSeller) return "destaque";
+  if (product.isNew) return "novidade";
   return "destaque";
 }
 
@@ -88,36 +102,78 @@ function buildShortUrl(siteUrl: string, product: Product, kind: CampaignKind, fo
   return `${baseUrl}/r/${code}?d=${compactDate()}&k=${kindCode(kind)}&f=${formatCode(format)}`;
 }
 
-function buildMessage(product: Product, kind: CampaignKind, url: string) {
-  const heading =
-    kind === "novidade"
-      ? "✨ NOVIDADE NA SRA MAKE"
-      : kind === "oferta"
-        ? "💗 OFERTA SRA MAKE"
-        : "✨ DESTAQUE SRA MAKE";
+function normalizeDescriptor(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLocaleLowerCase("pt-BR");
+}
 
+function usefulDescriptor(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  return NON_DESCRIPTIVE_VALUES.has(normalizeDescriptor(trimmed)) ? "" : trimmed;
+}
+
+function getMessageProfile(product: Product): MessageProfile {
+  if (hasRealPromotion(product)) {
+    return {
+      heading: "💗 OFERTA SRA MAKE",
+      hook: "Por tempo limitado, com desconto especial.",
+      cta: "Aproveite antes que acabe:",
+    };
+  }
+
+  if (product.bestSeller) {
+    return {
+      heading: "✨ MAIS PEDIDOS SRA MAKE",
+      hook: "Um dos mais pedidos pelas nossas clientes.",
+      cta: "Peça o seu:",
+    };
+  }
+
+  if (product.isNew) {
+    return {
+      heading: "✨ NOVIDADE SRA MAKE",
+      hook: "Acabou de chegar na Sra Make.",
+      cta: "Seja das primeiras a garantir:",
+    };
+  }
+
+  if (product.featured) {
+    return {
+      heading: "✨ DESTAQUE SRA MAKE",
+      hook: "Selecionado especialmente pra você.",
+      cta: "Confira e peça:",
+    };
+  }
+
+  return {
+    heading: "✨ DESTAQUE SRA MAKE",
+    hook: "Uma escolha que vale conferir.",
+    cta: "Veja detalhes e faça seu pedido:",
+  };
+}
+
+function buildMessage(product: Product, url: string) {
+  const profile = getMessageProfile(product);
   const price = hasRealPromotion(product)
     ? `De ~${money(product.price)}~\nPor *${money(product.promoPrice!)}*`
     : `*${money(product.price)}*`;
-
-  const context =
-    kind === "novidade"
-      ? "Acabou de chegar por aqui."
-      : kind === "oferta"
-        ? "Preço especial disponível no catálogo."
-        : "Uma escolha que vale conferir.";
+  const descriptor = usefulDescriptor(product.brand);
 
   return [
-    heading,
+    profile.heading,
     "",
     `*${product.name}*`,
-    product.brand || "",
+    descriptor,
     "",
     price,
     "",
-    context,
+    profile.hook,
     "",
-    "Veja detalhes e faça seu pedido:",
+    profile.cta,
     url,
     "",
     "Retirada ou entrega em Presidente Prudente.",
@@ -279,7 +335,7 @@ export function PromotionCenter({
   const product = available.find((item) => item.id === productId) ?? available[0];
   const kind = product ? pickCampaignKind(product) : "destaque";
   const productUrl = product ? buildShortUrl(siteUrl, product, kind, format) : "";
-  const message = product ? buildMessage(product, kind, productUrl) : "";
+  const message = product ? buildMessage(product, productUrl) : "";
 
   useEffect(() => {
     try {
