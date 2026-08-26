@@ -357,14 +357,12 @@ const PROMOTION_COPY_SCHEMA: JsonSchema = {
 
 export async function generatePromotionCopy(input: PromotionCopyInput) {
   let validationFeedback: string[] = [];
-  let lastModel = getGeminiModel();
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const result = await generateStructured<{ variations: PromotionCopyVariation[] }>(
       buildPromotionPrompt(input, validationFeedback),
       PROMOTION_COPY_SCHEMA
     );
-    lastModel = result.model;
 
     const variations = (Array.isArray(result.data.variations) ? result.data.variations : [])
       .map((variation) => ({
