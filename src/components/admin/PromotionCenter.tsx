@@ -10,6 +10,7 @@ import {
   ImageIcon,
   Link2,
   RefreshCw,
+  Search,
   Share2,
   Sparkles,
 } from "lucide-react";
@@ -40,6 +41,7 @@ type MessageProfile = { heading: string; hook: string; cta: string };
 const QUEUE_KEY = "sra-make-divulgacao-queue-v3";
 const HISTORY_KEY = "sra-make-divulgacao-history-v3";
 const TIMES = ["10:00", "15:00", "19:00"];
+const SUGGESTION_POOL_MIN = 15;
 const NON_DESCRIPTIVE_VALUES = new Set([
   "variado",
   "variada",
@@ -71,6 +73,10 @@ function compactDate() {
 
 function hasRealPromotion(product: Product) {
   return product.promoPrice !== null && product.promoPrice < product.price;
+}
+
+function isPriorityProduct(product: Product) {
+  return hasRealPromotion(product) || product.featured || product.isNew || product.bestSeller;
 }
 
 function pickCampaignKind(product: Product): CampaignKind {
@@ -195,22 +201,46 @@ function scoreProduct(product: Product, recent: Set<string>) {
   return score;
 }
 
-function buildQueue(products: Product[], historyIds: string[]) {
-  const recent = new Set(historyIds.slice(-12));
+function buildSuggestionPool(products: Product[]) {
   const available = products.filter((product) => product.active && product.stockQty > 0);
   const withImage = available.filter((product) => Boolean(product.imageUrl));
   const source = withImage.length >= TIMES.length ? withImage : available;
-  const sorted = [...source].sort((a, b) => scoreProduct(b, recent) - scoreProduct(a, recent));
+  const priority = source.filter(isPriorityProduct);
+
+  if (priority.length >= SUGGESTION_POOL_MIN) return priority;
+
+  const priorityIds = new Set(priority.map((product) => product.id));
+  const fallback = source
+    .filter((product) => !priorityIds.has(product.id))
+    .sort((a, b) => b.stockQty - a.stockQty || b.createdAt.localeCompare(a.createdAt));
+
+  return [...priority, ...fallback.slice(0, Math.max(0, SUGGESTION_POOL_MIN - priority.length))];
+}
+
+function buildQueue(products: Product[], historyIds: string[], previousIds: string[] = []) {
+  const recent = new Set(historyIds.slice(-12));
+  const pool = buildSuggestionPool(products);
+  const previous = new Set(previousIds);
+  const withoutPrevious = pool.filter((product) => !previous.has(product.id));
+  const candidates = withoutPrevious.length >= TIMES.length ? withoutPrevious : pool;
+  const randomized = candidates
+    .map((product) => ({
+      product,
+      score: scoreProduct(product, recent) + Math.random() * 10,
+    }))
+    .sort((a, b) => b.score - a.score)
+    .map(({ product }) => product);
   const chosen: Product[] = [];
   const categories = new Set<string>();
 
-  for (const product of sorted) {
+  for (const product of randomized) {
     if (chosen.length >= TIMES.length) break;
     if (categories.has(product.category.name)) continue;
     chosen.push(product);
     categories.add(product.category.name);
   }
-  for (const product of sorted) {
+
+  for (const product of randomized) {
     if (chosen.length >= TIMES.length) break;
     if (!chosen.some((item) => item.id === product.id)) chosen.push(product);
   }
@@ -323,6 +353,7 @@ export function PromotionCenter({
     [products]
   );
   const [productId, setProductId] = useState(available[0]?.id ?? "");
+  const [productQuery, setProductQuery] = useState("");
   const [format, setFormat] = useState<ArtworkFormat>("status");
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [history, setHistory] = useState<string[]>([]);
@@ -333,6 +364,16 @@ export function PromotionCenter({
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const product = available.find((item) => item.id === productId) ?? available[0];
+  const normalizedProductQuery = normalizeDescriptor(productQuery);
+  const filteredAvailable = useMemo(() => {
+    if (!normalizedProductQuery) return available;
+    return available.filter((item) =>
+      normalizeDescriptor(`${item.name} ${item.brand}`).includes(normalizedProductQuery)
+    );
+  }, [available, normalizedProductQuery]);
+  const selectedProductIsVisible = product
+    ? filteredAvailable.some((item) => item.id === product.id)
+    : false;
   const kind = product ? pickCampaignKind(product) : "destaque";
   const productUrl = product ? buildShortUrl(siteUrl, product, kind, format) : "";
   const message = product ? buildMessage(product, productUrl) : "";
@@ -428,6 +469,10 @@ export function PromotionCenter({
     }
   }
 
+  function generateNewSuggestions() {
+    setQueue((current) => buildQueue(products, history, current.map((item) => item.productId)));
+  }
+
   if (!product) {
     return <div className="rounded-2xl border border-rosa/15 bg-white p-5 text-sm text-cinza">Cadastre pelo menos um produto ativo e com estoque para criar campanhas.</div>;
   }
@@ -445,9 +490,35 @@ export function PromotionCenter({
         <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
           <label className="block">
             <span className="mb-2 block text-xs font-bold uppercase tracking-wide text-cinza">Produto</span>
-            <select value={product.id} onChange={(e) => { setProductId(e.target.value); setShareNote(""); }} className="w-full rounded-xl border border-rosa/20 bg-white px-3 py-3 text-sm text-texto">
-              {available.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+            <div className="relative mb-2">
+              <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-cinza" size={16} />
+              <input
+                type="search"
+                value={productQuery}
+                onChange={(event) => setProductQuery(event.target.value)}
+                placeholder="Buscar por nome ou marca..."
+                className="w-full rounded-xl border border-rosa/20 bg-white py-3 pl-9 pr-3 text-sm text-texto outline-none focus:border-rosa-profundo"
+              />
+            </div>
+            <select
+              value={selectedProductIsVisible ? product.id : ""}
+              onChange={(event) => { setProductId(event.target.value); setShareNote(""); }}
+              className="w-full rounded-xl border border-rosa/20 bg-white px-3 py-3 text-sm text-texto"
+            >
+              {!selectedProductIsVisible ? (
+                <option value="" disabled>
+                  {filteredAvailable.length ? "Selecione um produto" : "Nenhum produto encontrado"}
+                </option>
+              ) : null}
+              {filteredAvailable.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}{usefulDescriptor(item.brand) ? ` — ${item.brand}` : ""}
+                </option>
+              ))}
             </select>
+            <span className="mt-1 block text-xs text-cinza">
+              {filteredAvailable.length} de {available.length} produtos disponíveis
+            </span>
           </label>
           <div>
             <span className="mb-2 block text-xs font-bold uppercase tracking-wide text-cinza">Modelo automático</span>
@@ -498,8 +569,8 @@ export function PromotionCenter({
 
       <section className="rounded-2xl border border-rosa/15 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div><h2 className="font-serif text-lg font-bold text-texto">Sugestões de hoje</h2><p className="text-sm text-cinza">Três produtos variados, priorizando imagem, estoque, novidade e promoção real.</p></div>
-          <button type="button" onClick={() => setQueue(buildQueue(products, history))} className="flex items-center gap-2 rounded-xl border border-rosa/20 px-3 py-2 text-xs font-bold text-texto"><RefreshCw size={15} />Gerar novas sugestões</button>
+          <div><h2 className="font-serif text-lg font-bold text-texto">Sugestões de hoje</h2><p className="text-sm text-cinza">Três produtos variados, priorizando imagem, estoque, novidade, destaque, mais vendidos e promoção real.</p></div>
+          <button type="button" onClick={generateNewSuggestions} className="flex items-center gap-2 rounded-xl border border-rosa/20 px-3 py-2 text-xs font-bold text-texto"><RefreshCw size={15} />Gerar novas sugestões</button>
         </div>
         <div className="mt-4 space-y-2">
           {queue.map((item, index) => {
@@ -509,7 +580,7 @@ export function PromotionCenter({
               <div key={`${item.time}-${item.productId}`} className="flex flex-col gap-3 rounded-xl border border-rosa/10 p-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0"><p className="truncate text-sm font-bold text-texto">{queueProduct.name}</p><p className="mt-1 text-xs text-cinza"><Clock3 size={12} className="mr-1 inline" />{item.time} · {queueProduct.category.name} · {campaignLabel(item.kind)}</p></div>
                 <div className="flex gap-2">
-                  <button type="button" onClick={() => { setProductId(item.productId); setFormat("status"); window.scrollTo({ top: 0, behavior: "smooth" }); }} className="rounded-lg border border-rosa/20 px-3 py-2 text-xs font-bold text-texto">Abrir</button>
+                  <button type="button" onClick={() => { setProductId(item.productId); setProductQuery(""); setFormat("status"); window.scrollTo({ top: 0, behavior: "smooth" }); }} className="rounded-lg border border-rosa/20 px-3 py-2 text-xs font-bold text-texto">Abrir</button>
                   <button type="button" onClick={() => togglePublished(index)} className={`flex items-center justify-center gap-1 rounded-lg px-3 py-2 text-xs font-bold ${item.done ? "border border-rosa/20 text-cinza" : "bg-rosa-profundo text-white"}`}>{item.done ? <><Check size={14} /> Publicado</> : "Marcar publicado"}</button>
                 </div>
               </div>
