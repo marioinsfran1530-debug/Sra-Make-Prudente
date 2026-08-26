@@ -76,13 +76,16 @@ function onlyDigits(value: string) {
 function isValidGtin(value: string) {
   const digits = onlyDigits(value);
   if (![8, 12, 13, 14].includes(digits.length)) return false;
+
   const numbers = digits.split("").map(Number);
   const checkDigit = numbers.pop();
   if (checkDigit === undefined) return false;
+
   let sum = 0;
   for (let i = numbers.length - 1, position = 0; i >= 0; i--, position++) {
     sum += numbers[i] * (position % 2 === 0 ? 3 : 1);
   }
+
   return (10 - (sum % 10)) % 10 === checkDigit;
 }
 
@@ -106,9 +109,10 @@ function duplicateKey(product: Awaited<ReturnType<typeof getProducts>>[number]) 
 }
 
 function effectiveStock(product: Awaited<ReturnType<typeof getProducts>>[number]) {
-  const activeVariants = product.variants.filter((variant) => variant.active);
-  if (activeVariants.length > 0) {
-    return activeVariants.reduce((sum, variant) => sum + variant.stockQty, 0);
+  if (product.variants.length > 0) {
+    return product.variants
+      .filter((variant) => variant.active)
+      .reduce((sum, variant) => sum + variant.stockQty, 0);
   }
   return product.stockQty;
 }
@@ -124,8 +128,6 @@ function evaluateProduct(
   const description = product.description?.trim() ?? "";
   const price = Number(product.price);
   const promo = product.promoPrice ? Number(product.promoPrice) : null;
-  const activeVariants = product.variants.filter((variant) => variant.active);
-  const variantStock = activeVariants.reduce((sum, variant) => sum + variant.stockQty, 0);
   const stock = effectiveStock(product);
 
   if (!Number.isFinite(price) || price <= 0) {
@@ -148,7 +150,10 @@ function evaluateProduct(
     });
   }
 
-  if (product.stockQty < 0 || activeVariants.some((variant) => variant.stockQty < 0)) {
+  if (
+    product.stockQty < 0 ||
+    product.variants.some((variant) => variant.stockQty < 0)
+  ) {
     issues.push({
       label: "Estoque negativo",
       detail: "Há quantidade negativa no produto ou em uma variante.",
@@ -160,7 +165,8 @@ function evaluateProduct(
 
   if (product.sku) {
     const compactSku = product.sku.replace(/\s/g, "");
-    if (/^\d{8}$|^\d{12}$|^\d{13}$|^\d{14}$/.test(compactSku) && !isValidGtin(compactSku)) {
+    const looksLikeGtin = /^\d{8}$|^\d{12}$|^\d{13}$|^\d{14}$/.test(compactSku);
+    if (looksLikeGtin && !isValidGtin(compactSku)) {
       issues.push({
         label: "EAN/GTIN inválido",
         detail: "O dígito verificador do código não confere.",
@@ -191,20 +197,12 @@ function evaluateProduct(
     });
   }
 
-  if (activeVariants.length > 0 && variantStock !== product.stockQty) {
-    issues.push({
-      label: "Estoque diverge das variantes",
-      detail: `Produto: ${product.stockQty} · variantes ativas: ${variantStock}.`,
-      weight: 14,
-      severity: "attention",
-      group: "stock",
-    });
-  }
-
   if (product.active && stock <= 0) {
     issues.push({
       label: "Ativo sem estoque",
-      detail: "O item está publicado, mas não possui saldo disponível.",
+      detail: product.variants.length
+        ? "O produto possui variantes, mas nenhuma variante ativa tem saldo disponível."
+        : "O item está publicado, mas não possui saldo disponível.",
       weight: 10,
       severity: "attention",
       group: "stock",
@@ -290,7 +288,10 @@ function evaluateProduct(
     });
   }
 
-  if (product.images.length > 0 && product.images.some((image) => !image.alt?.trim())) {
+  if (
+    product.images.length > 0 &&
+    product.images.some((image) => !image.alt?.trim())
+  ) {
     issues.push({
       label: "Imagem sem texto ALT",
       detail: "Melhora acessibilidade e qualidade de indexação das imagens.",
@@ -310,15 +311,18 @@ function evaluateProduct(
     });
   }
 
-  if (!product.subcategoryId) {
+  if (!product.subcategoryId && product.category._count.subcategories > 0) {
     issues.push({
       label: "Sem subcategoria",
-      detail: "Revise se a categoria deste produto possui uma subcategoria aplicável.",
+      detail: `A categoria possui ${product.category._count.subcategories} subcategoria(s). Revise o enquadramento.`,
       weight: 3,
       severity: "optimization",
       group: "catalog",
     });
-  } else if (product.subcategory && product.subcategory.categoryId !== product.categoryId) {
+  } else if (
+    product.subcategory &&
+    product.subcategory.categoryId !== product.categoryId
+  ) {
     issues.push({
       label: "Subcategoria incompatível",
       detail: "A subcategoria pertence a uma categoria diferente da categoria principal.",
@@ -341,14 +345,22 @@ function evaluateProduct(
     });
   }
 
-  const penalty = Math.min(100, issues.reduce((sum, issue) => sum + issue.weight, 0));
+  const penalty = Math.min(
+    100,
+    issues.reduce((sum, issue) => sum + issue.weight, 0)
+  );
   return { issues, score: 100 - penalty };
 }
 
 async function getProducts() {
   return prisma.product.findMany({
     include: {
-      category: { select: { name: true } },
+      category: {
+        select: {
+          name: true,
+          _count: { select: { subcategories: true } },
+        },
+      },
       subcategory: { select: { id: true, name: true, categoryId: true } },
       categories: { select: { categoryId: true } },
       images: { select: { id: true, alt: true } },
@@ -360,10 +372,18 @@ async function getProducts() {
 
 function matchesFilter(item: AuditedProduct, filter: FilterKey) {
   if (filter === "all") return true;
-  if (filter === "critical") return item.issues.some((issue) => issue.severity === "critical");
-  if (filter === "duplicate") return item.issues.some((issue) => issue.group === "duplicate");
-  if (filter === "stock") return item.issues.some((issue) => issue.group === "stock");
-  if (filter === "content") return item.issues.some((issue) => issue.group === "content");
+  if (filter === "critical") {
+    return item.issues.some((issue) => issue.severity === "critical");
+  }
+  if (filter === "duplicate") {
+    return item.issues.some((issue) => issue.group === "duplicate");
+  }
+  if (filter === "stock") {
+    return item.issues.some((issue) => issue.group === "stock");
+  }
+  if (filter === "content") {
+    return item.issues.some((issue) => issue.group === "content");
+  }
   return item.issues.some((issue) => issue.group === "seo");
 }
 
@@ -374,8 +394,12 @@ function severityRank(issue: Issue) {
 }
 
 function issueClass(severity: Severity) {
-  if (severity === "critical") return "border-red-100 bg-red-50 text-red-700";
-  if (severity === "attention") return "border-amber-100 bg-amber-50 text-amber-800";
+  if (severity === "critical") {
+    return "border-red-100 bg-red-50 text-red-700";
+  }
+  if (severity === "attention") {
+    return "border-amber-100 bg-amber-50 text-amber-800";
+  }
   return "border-sky-100 bg-sky-50 text-sky-700";
 }
 
@@ -392,6 +416,7 @@ export default async function ProductQualityPage({
 
   const products = await getProducts();
   const duplicateCounts = new Map<string, number>();
+
   for (const product of products) {
     const key = duplicateKey(product);
     duplicateCounts.set(key, (duplicateCounts.get(key) ?? 0) + 1);
@@ -406,29 +431,51 @@ export default async function ProductQualityPage({
     };
   });
 
-  const excellent = audited.filter((item) => item.score >= 90 && item.issues.every((issue) => issue.severity === "optimization")).length;
-  const critical = audited.filter((item) => item.issues.some((issue) => issue.severity === "critical")).length;
+  const excellent = audited.filter(
+    (item) =>
+      item.score >= 90 &&
+      item.issues.every((issue) => issue.severity === "optimization")
+  ).length;
+  const critical = audited.filter((item) =>
+    item.issues.some((issue) => issue.severity === "critical")
+  ).length;
   const attention = audited.filter(
     (item) =>
       !item.issues.some((issue) => issue.severity === "critical") &&
       item.issues.some((issue) => issue.severity === "attention")
   ).length;
   const optimization = audited.filter(
-    (item) => item.issues.length > 0 && item.issues.every((issue) => issue.severity === "optimization")
+    (item) =>
+      item.issues.length > 0 &&
+      item.issues.every((issue) => issue.severity === "optimization")
   ).length;
-  const duplicateProducts = audited.filter((item) => item.duplicateCount > 1).length;
-  const duplicateGroups = [...duplicateCounts.values()].filter((count) => count > 1).length;
+  const duplicateProducts = audited.filter(
+    (item) => item.duplicateCount > 1
+  ).length;
+  const duplicateGroups = [...duplicateCounts.values()].filter(
+    (count) => count > 1
+  ).length;
   const descriptionIssues = audited.filter((item) =>
-    item.issues.some((issue) => issue.label === "Sem descrição" || issue.label === "Descrição curta")
+    item.issues.some(
+      (issue) => issue.label === "Sem descrição" || issue.label === "Descrição curta"
+    )
   ).length;
 
   const visible = audited
     .filter((item) => matchesFilter(item, filter))
     .sort((a, b) => {
-      const aCritical = a.issues.some((issue) => issue.severity === "critical") ? 0 : 1;
-      const bCritical = b.issues.some((issue) => issue.severity === "critical") ? 0 : 1;
-      const aAttention = a.issues.some((issue) => issue.severity === "attention") ? 0 : 1;
-      const bAttention = b.issues.some((issue) => issue.severity === "attention") ? 0 : 1;
+      const aCritical = a.issues.some((issue) => issue.severity === "critical")
+        ? 0
+        : 1;
+      const bCritical = b.issues.some((issue) => issue.severity === "critical")
+        ? 0
+        : 1;
+      const aAttention = a.issues.some((issue) => issue.severity === "attention")
+        ? 0
+        : 1;
+      const bAttention = b.issues.some((issue) => issue.severity === "attention")
+        ? 0
+        : 1;
       return (
         aCritical - bCritical ||
         aAttention - bAttention ||
@@ -444,9 +491,12 @@ export default async function ProductQualityPage({
           <p className="text-xs font-bold uppercase tracking-wider text-rosa-profundo">
             Análise · Qualidade de dados
           </p>
-          <h1 className="font-serif text-2xl font-bold text-texto">Auditoria dos produtos</h1>
+          <h1 className="font-serif text-2xl font-bold text-texto">
+            Auditoria dos produtos
+          </h1>
           <p className="mt-1 max-w-3xl text-sm text-cinza">
-            Corrija primeiro o que ameaça a confiabilidade do catálogo. Alertas não alteram dados automaticamente.
+            Corrija primeiro o que ameaça a confiabilidade do catálogo. Alertas
+            não alteram dados automaticamente.
           </p>
         </div>
         <Link
@@ -458,10 +508,30 @@ export default async function ProductQualityPage({
       </div>
 
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Card label="Erro crítico" value={critical} detail="corrigir primeiro" tone="danger" />
-        <Card label="Precisa revisão" value={attention} detail="inconsistência ou dúvida" tone="warning" />
-        <Card label="Só otimização" value={optimization} detail="SEO e completude" tone="info" />
-        <Card label="Cadastro forte" value={excellent} detail="sem erro ou alerta relevante" tone="success" />
+        <Card
+          label="Erro crítico"
+          value={critical}
+          detail="corrigir primeiro"
+          tone="danger"
+        />
+        <Card
+          label="Precisa revisão"
+          value={attention}
+          detail="inconsistência ou dúvida"
+          tone="warning"
+        />
+        <Card
+          label="Só otimização"
+          value={optimization}
+          detail="SEO e completude"
+          tone="info"
+        />
+        <Card
+          label="Cadastro forte"
+          value={excellent}
+          detail="sem erro ou alerta relevante"
+          tone="success"
+        />
       </div>
 
       <div className="mb-5 grid gap-3 md:grid-cols-3">
@@ -479,8 +549,8 @@ export default async function ProductQualityPage({
         />
         <InsightCard
           label="Regra de estoque"
-          value="Variantes primeiro"
-          detail="Quando há variantes ativas, a auditoria usa a soma delas como estoque efetivo."
+          value="Variantes são a fonte"
+          detail="Se houver variantes, somente os saldos das variantes ativas entram no estoque efetivo."
           href="/admin/analise/qualidade?filtro=stock"
         />
       </div>
@@ -491,7 +561,11 @@ export default async function ProductQualityPage({
           return (
             <Link
               key={item.key}
-              href={item.key === "all" ? "/admin/analise/qualidade" : `/admin/analise/qualidade?filtro=${item.key}`}
+              href={
+                item.key === "all"
+                  ? "/admin/analise/qualidade"
+                  : `/admin/analise/qualidade?filtro=${item.key}`
+              }
               className={`rounded-full border px-3 py-2 text-xs font-bold transition ${
                 active
                   ? "border-rosa-profundo bg-rosa-profundo text-white"
@@ -506,7 +580,8 @@ export default async function ProductQualityPage({
 
       <div className="mb-3 flex items-center justify-between gap-3">
         <p className="text-xs text-cinza">
-          Exibindo <strong className="text-texto">{visible.length}</strong> de {audited.length} produtos.
+          Exibindo <strong className="text-texto">{visible.length}</strong> de{" "}
+          {audited.length} produtos.
         </p>
         <div className="hidden items-center gap-2 text-[10px] font-bold sm:flex">
           <Legend className="bg-red-50 text-red-700" label="Erro" />
@@ -517,30 +592,45 @@ export default async function ProductQualityPage({
 
       <div className="overflow-hidden rounded-2xl border border-rosa/10 bg-white shadow-sm">
         <div className="hidden grid-cols-[minmax(220px,1.35fr)_90px_minmax(300px,1.8fr)_90px] gap-3 border-b border-rosa/10 bg-creme/60 px-4 py-3 text-[10px] font-bold uppercase tracking-wide text-cinza md:grid">
-          <span>Produto</span><span>Qualidade</span><span>Pontos a corrigir</span><span />
+          <span>Produto</span>
+          <span>Qualidade</span>
+          <span>Pontos a corrigir</span>
+          <span />
         </div>
         <div className="divide-y divide-rosa/10">
           {visible.length === 0 ? (
             <div className="px-5 py-12 text-center">
-              <p className="text-sm font-bold text-texto">Nenhum produto neste filtro</p>
-              <p className="mt-1 text-xs text-cinza">A auditoria não encontrou pendências deste tipo.</p>
+              <p className="text-sm font-bold text-texto">
+                Nenhum produto neste filtro
+              </p>
+              <p className="mt-1 text-xs text-cinza">
+                A auditoria não encontrou pendências deste tipo.
+              </p>
             </div>
           ) : (
             visible.map(({ product, score, issues }) => {
-              const orderedIssues = [...issues].sort((a, b) => severityRank(a) - severityRank(b));
+              const orderedIssues = [...issues].sort(
+                (a, b) => severityRank(a) - severityRank(b)
+              );
               return (
                 <div
                   key={product.id}
                   className="grid grid-cols-1 gap-3 px-4 py-4 md:grid-cols-[minmax(220px,1.35fr)_90px_minmax(300px,1.8fr)_90px] md:items-start"
                 >
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-bold text-texto">{product.name.trim()}</p>
+                    <p className="truncate text-sm font-bold text-texto">
+                      {product.name.trim()}
+                    </p>
                     <p className="mt-0.5 text-[11px] text-cinza">
                       {product.brand.trim()} · {product.category.name}
                     </p>
                     <p className="mt-1 text-[10px] text-cinza">
                       Estoque efetivo: {effectiveStock(product)}
-                      {product.subcategory ? ` · ${product.subcategory.name}` : " · sem subcategoria"}
+                      {product.subcategory
+                        ? ` · ${product.subcategory.name}`
+                        : product.category._count.subcategories > 0
+                          ? " · sem subcategoria"
+                          : " · categoria sem subcategorias"}
                     </p>
                   </div>
 
@@ -560,15 +650,25 @@ export default async function ProductQualityPage({
 
                   <div className="space-y-1.5">
                     {orderedIssues.length === 0 ? (
-                      <span className="text-xs font-semibold text-green-700">Cadastro completo</span>
+                      <span className="text-xs font-semibold text-green-700">
+                        Cadastro completo
+                      </span>
                     ) : (
                       orderedIssues.map((issue) => (
                         <div
                           key={`${issue.label}-${issue.group}`}
-                          className={`rounded-xl border px-2.5 py-2 ${issueClass(issue.severity)}`}
+                          className={`rounded-xl border px-2.5 py-2 ${issueClass(
+                            issue.severity
+                          )}`}
                         >
-                          <p className="text-[10px] font-extrabold">{issue.label}</p>
-                          {issue.detail && <p className="mt-0.5 text-[10px] opacity-80">{issue.detail}</p>}
+                          <p className="text-[10px] font-extrabold">
+                            {issue.label}
+                          </p>
+                          {issue.detail && (
+                            <p className="mt-0.5 text-[10px] opacity-80">
+                              {issue.detail}
+                            </p>
+                          )}
                         </div>
                       ))
                     )}
@@ -610,7 +710,11 @@ function Card({
 
   return (
     <div className="rounded-2xl bg-white p-4 shadow-sm">
-      <p className={`inline-flex rounded-lg px-2 py-1 text-2xl font-extrabold ${toneClass}`}>{value}</p>
+      <p
+        className={`inline-flex rounded-lg px-2 py-1 text-2xl font-extrabold ${toneClass}`}
+      >
+        {value}
+      </p>
       <p className="mt-2 text-xs font-bold text-texto">{label}</p>
       <p className="mt-1 text-[10px] text-cinza">{detail}</p>
     </div>
@@ -629,8 +733,13 @@ function InsightCard({
   href: string;
 }) {
   return (
-    <Link href={href} className="rounded-2xl border border-rosa/10 bg-white p-4 shadow-sm hover:border-rosa/25">
-      <p className="text-[10px] font-bold uppercase tracking-wide text-cinza">{label}</p>
+    <Link
+      href={href}
+      className="rounded-2xl border border-rosa/10 bg-white p-4 shadow-sm hover:border-rosa/25"
+    >
+      <p className="text-[10px] font-bold uppercase tracking-wide text-cinza">
+        {label}
+      </p>
       <p className="mt-1 text-lg font-extrabold text-texto">{value}</p>
       <p className="mt-1 text-xs text-cinza">{detail}</p>
     </Link>
