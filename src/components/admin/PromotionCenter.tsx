@@ -138,8 +138,8 @@ function getMessageProfile(product: Product): MessageProfile {
   if (hasRealPromotion(product)) {
     return {
       heading: "💗 OFERTA SRA MAKE",
-      hook: "Por tempo limitado, com desconto especial.",
-      cta: "Aproveite antes que acabe:",
+      hook: "Preço especial disponível neste produto.",
+      cta: "Confira a oferta:",
     };
   }
 
@@ -530,6 +530,10 @@ export function PromotionCenter({
 
   async function generateAiCopyVariations() {
     if (!product) return;
+    setMessageDraft(templateMessage);
+    setActiveAiCopy(null);
+    setAiCopyResult(null);
+    setShareNote("");
     setAiCopyError("");
     setAiCopyLoading(true);
 
