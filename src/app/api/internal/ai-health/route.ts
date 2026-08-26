@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { getGeminiModel, isGeminiConfigured } from "@/lib/gemini";
+import {
+  generateProductDescription,
+  getGeminiModel,
+  isGeminiConfigured,
+} from "@/lib/gemini";
 
 export const dynamic = "force-dynamic";
 
@@ -8,8 +12,30 @@ export async function GET() {
     return new NextResponse(null, { status: 404 });
   }
 
-  return NextResponse.json({
-    configured: isGeminiConfigured(),
-    model: getGeminiModel(),
-  });
+  try {
+    const result = await generateProductDescription({
+      name: "Produto Teste",
+      brand: "Sra Make",
+      category: "Maquiagem",
+      subcategory: null,
+    });
+
+    return NextResponse.json({
+      configured: isGeminiConfigured(),
+      model: getGeminiModel(),
+      reachable: true,
+      generated: result.description.length >= 30,
+      promptVersion: result.promptVersion,
+    });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        configured: isGeminiConfigured(),
+        model: getGeminiModel(),
+        reachable: false,
+        error: error instanceof Error ? error.message : "Falha desconhecida",
+      },
+      { status: 502 }
+    );
+  }
 }
