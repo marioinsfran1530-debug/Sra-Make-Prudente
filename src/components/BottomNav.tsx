@@ -12,7 +12,7 @@ import { useCart } from "@/components/CartProvider";
 
 const ITEMS = [
   { href: "/", label: "Início", icon: HomeIcon },
-  { href: "/categoria", label: "Categorias", icon: Grid3x3 },
+  { href: "/categoria", label: "Produtos", icon: Grid3x3 },
   { href: "/carrinho", label: "Carrinho", icon: ShoppingCart },
   { href: "/loja", label: "Loja", icon: Store },
 ];
