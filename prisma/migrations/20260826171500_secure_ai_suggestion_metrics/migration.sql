@@ -1,0 +1,4 @@
+ALTER TABLE "AiSuggestionMetric" ENABLE ROW LEVEL SECURITY;
+
+REVOKE ALL PRIVILEGES ON TABLE "AiSuggestionMetric" FROM anon;
+REVOKE ALL PRIVILEGES ON TABLE "AiSuggestionMetric" FROM authenticated;

@@ -36,7 +36,19 @@ type ArtworkFormat = "status" | "quadrado";
 type QueueItem = { time: string; productId: string; kind: CampaignKind; done: boolean };
 type StoredQueue = { date: string; items: QueueItem[] };
 type StoreBranding = { storeName: string; logoUrl: string | null };
-type MessageProfile = { heading: string; hook: string; cta: string };
+type MessageProfile = { hook: string };
+type AiCopyVariation = { hook: string };
+type AiCopyResult = {
+  suggestionId: string | null;
+  variations: AiCopyVariation[];
+  model: string;
+  promptVersion: string;
+};
+type ActiveAiCopy = {
+  suggestionId: string | null;
+  selectedIndex: number;
+  original: string;
+};
 
 const QUEUE_KEY = "sra-make-divulgacao-queue-v3";
 const HISTORY_KEY = "sra-make-divulgacao-history-v3";
@@ -124,68 +136,51 @@ function usefulDescriptor(value: string) {
 
 function getMessageProfile(product: Product): MessageProfile {
   if (hasRealPromotion(product)) {
-    return {
-      heading: "💗 OFERTA SRA MAKE",
-      hook: "Por tempo limitado, com desconto especial.",
-      cta: "Aproveite antes que acabe:",
-    };
+    return { hook: "PREÇO ESPECIAL NESTE DESTAQUE" };
   }
 
   if (product.bestSeller) {
-    return {
-      heading: "✨ MAIS PEDIDOS SRA MAKE",
-      hook: "Um dos mais pedidos pelas nossas clientes.",
-      cta: "Peça o seu:",
-    };
+    return { hook: "UM DOS MAIS PEDIDOS PELAS CLIENTES" };
   }
 
   if (product.isNew) {
-    return {
-      heading: "✨ NOVIDADE SRA MAKE",
-      hook: "Acabou de chegar na Sra Make.",
-      cta: "Seja das primeiras a garantir:",
-    };
+    return { hook: "NOVIDADE PARA SUA ROTINA" };
   }
 
   if (product.featured) {
-    return {
-      heading: "✨ DESTAQUE SRA MAKE",
-      hook: "Selecionado especialmente pra você.",
-      cta: "Confira e peça:",
-    };
+    return { hook: "ESCOLHA EM DESTAQUE" };
   }
 
-  return {
-    heading: "✨ DESTAQUE SRA MAKE",
-    hook: "Uma escolha que vale conferir.",
-    cta: "Veja detalhes e faça seu pedido:",
-  };
+  return { hook: "VALE CONFERIR ESSE DESTAQUE" };
 }
 
-function buildMessage(product: Product, url: string) {
-  const profile = getMessageProfile(product);
-  const price = hasRealPromotion(product)
-    ? `De ~${money(product.price)}~\nPor *${money(product.promoPrice!)}*`
-    : `*${money(product.price)}*`;
+function buildMessage(
+  product: Product,
+  url: string,
+  profileOverride?: MessageProfile
+) {
+  const profile = profileOverride ?? getMessageProfile(product);
   const descriptor = usefulDescriptor(product.brand);
-
-  return [
-    profile.heading,
-    "",
-    `*${product.name}*`,
-    descriptor,
-    "",
-    price,
-    "",
-    profile.hook,
-    "",
-    profile.cta,
-    url,
-    "",
-    "Retirada ou entrega em Presidente Prudente.",
+  const brandAlreadyInName = descriptor
+    ? normalizeDescriptor(product.name).includes(normalizeDescriptor(descriptor))
+    : false;
+  const productDetails = [
+    `💗 *${product.name}*`,
+    brandAlreadyInName ? "" : descriptor,
   ]
     .filter(Boolean)
     .join("\n");
+  const price = hasRealPromotion(product)
+    ? `🔥 ~DE ${money(product.price)}~ | *POR ${money(product.promoPrice!)}*`
+    : `💰 *${money(product.price)}*`;
+
+  return [
+    `*${profile.hook}*`,
+    productDetails,
+    price,
+    `🔗 ${url}`,
+    "📍 Retirada ou entrega em Presidente Prudente.",
+  ].join("\n\n");
 }
 
 function scoreProduct(product: Product, recent: Set<string>) {
@@ -361,6 +356,11 @@ export function PromotionCenter({
   const [copied, setCopied] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [shareNote, setShareNote] = useState("");
+  const [messageDraft, setMessageDraft] = useState("");
+  const [aiCopyLoading, setAiCopyLoading] = useState(false);
+  const [aiCopyError, setAiCopyError] = useState("");
+  const [aiCopyResult, setAiCopyResult] = useState<AiCopyResult | null>(null);
+  const [activeAiCopy, setActiveAiCopy] = useState<ActiveAiCopy | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const product = available.find((item) => item.id === productId) ?? available[0];
@@ -376,7 +376,7 @@ export function PromotionCenter({
     : false;
   const kind = product ? pickCampaignKind(product) : "destaque";
   const productUrl = product ? buildShortUrl(siteUrl, product, kind, format) : "";
-  const message = product ? buildMessage(product, productUrl) : "";
+  const templateMessage = product ? buildMessage(product, productUrl) : "";
 
   useEffect(() => {
     try {
@@ -404,9 +404,35 @@ export function PromotionCenter({
       .catch(() => setReady(false));
   }, [product, kind, format, branding]);
 
+  useEffect(() => {
+    setMessageDraft(templateMessage);
+    setAiCopyResult(null);
+    setAiCopyError("");
+    setActiveAiCopy(null);
+    setShareNote("");
+  }, [product?.id, format, templateMessage]);
+
+  function markActiveAiCopyUsed() {
+    if (!activeAiCopy?.suggestionId || !product) return;
+    const edited = messageDraft.trim() !== activeAiCopy.original.trim();
+    void fetch(`/api/admin/ai/suggestions/${activeAiCopy.suggestionId}/use`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        productId: product.id,
+        selectedIndex: activeAiCopy.selectedIndex,
+        edited,
+      }),
+      keepalive: true,
+    }).catch(() => {
+      // Telemetria nunca bloqueia o compartilhamento.
+    });
+  }
+
   async function copyMessage() {
-    if (!message) return;
-    await navigator.clipboard.writeText(message);
+    if (!messageDraft) return;
+    await navigator.clipboard.writeText(messageDraft);
+    markActiveAiCopyUsed();
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   }
@@ -434,7 +460,7 @@ export function PromotionCenter({
   }
 
   async function shareCampaign() {
-    if (!product || !ready || !message) return;
+    if (!product || !ready || !messageDraft) return;
     setShareNote("");
     const blob = await createArtworkBlob(canvasRef.current);
     if (!blob) return;
@@ -442,7 +468,8 @@ export function PromotionCenter({
 
     if (navigator.share && navigator.canShare?.({ files: [file] })) {
       try {
-        await navigator.share({ files: [file], title: product.name, text: message });
+        await navigator.share({ files: [file], title: product.name, text: messageDraft });
+        markActiveAiCopyUsed();
         return;
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") return;
@@ -450,12 +477,19 @@ export function PromotionCenter({
     }
 
     downloadBlob(blob);
-    await navigator.clipboard.writeText(message);
+    await navigator.clipboard.writeText(messageDraft);
+    markActiveAiCopyUsed();
     setShareNote("Arte baixada e mensagem copiada.");
   }
 
   function openWhatsApp() {
-    if (message) window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, "_blank", "noopener,noreferrer");
+    if (!messageDraft) return;
+    markActiveAiCopyUsed();
+    window.open(
+      `https://wa.me/?text=${encodeURIComponent(messageDraft)}`,
+      "_blank",
+      "noopener,noreferrer"
+    );
   }
 
   function togglePublished(index: number) {
@@ -473,6 +507,77 @@ export function PromotionCenter({
     setQueue((current) => buildQueue(products, history, current.map((item) => item.productId)));
   }
 
+  async function generateAiCopyVariations() {
+    if (!product) return;
+    setMessageDraft(templateMessage);
+    setActiveAiCopy(null);
+    setAiCopyResult(null);
+    setShareNote("");
+    setAiCopyError("");
+    setAiCopyLoading(true);
+
+    try {
+      const response = await fetch("/api/admin/ai/promotion-copy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productId: product.id }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !Array.isArray(data.variations)) {
+        throw new Error(data.error ?? "Não foi possível gerar ganchos agora.");
+      }
+
+      const variations = (data.variations as unknown[])
+        .map((entry) => {
+          if (!entry || typeof entry !== "object") return null;
+          const variation = entry as { hook?: unknown };
+          if (typeof variation.hook !== "string") return null;
+          return { hook: variation.hook.trim() };
+        })
+        .filter((entry): entry is AiCopyVariation => Boolean(entry));
+
+      if (!variations.length) {
+        throw new Error("A IA não retornou ganchos utilizáveis.");
+      }
+
+      setAiCopyResult({
+        suggestionId:
+          typeof data.suggestionId === "string" ? data.suggestionId : null,
+        variations,
+        model: typeof data.model === "string" ? data.model : "Gemini",
+        promptVersion:
+          typeof data.promptVersion === "string" ? data.promptVersion : "v1",
+      });
+    } catch (error) {
+      setAiCopyError(
+        error instanceof Error ? error.message : "Não foi possível gerar ganchos agora."
+      );
+    } finally {
+      setAiCopyLoading(false);
+    }
+  }
+
+  function useAiVariation(variation: AiCopyVariation, index: number) {
+    if (!product) return;
+    const nextMessage = buildMessage(product, productUrl, {
+      hook: variation.hook,
+    });
+
+    setMessageDraft(nextMessage);
+    setActiveAiCopy({
+      suggestionId: aiCopyResult?.suggestionId ?? null,
+      selectedIndex: index,
+      original: nextMessage,
+    });
+    setShareNote("");
+  }
+
+  function useTemplateMessage() {
+    setMessageDraft(templateMessage);
+    setActiveAiCopy(null);
+    setShareNote("");
+  }
+
   if (!product) {
     return <div className="rounded-2xl border border-rosa/15 bg-white p-5 text-sm text-cinza">Cadastre pelo menos um produto ativo e com estoque para criar campanhas.</div>;
   }
@@ -484,7 +589,7 @@ export function PromotionCenter({
           <Sparkles className="mt-0.5 text-rosa-profundo" size={20} />
           <div>
             <h2 className="font-serif text-xl font-bold text-texto">Campanha completa em um clique</h2>
-            <p className="mt-1 text-sm text-cinza">Produto, arte, texto e link curto rastreável prontos para compartilhar.</p>
+            <p className="mt-1 text-sm text-cinza">Foto, gancho, produto, preço e link curto prontos para compartilhar.</p>
           </div>
         </div>
         <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
@@ -531,7 +636,7 @@ export function PromotionCenter({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <ImageIcon className="text-rosa-profundo" size={20} />
-            <div><h2 className="font-serif text-lg font-bold text-texto">Campanha pronta</h2><p className="text-sm text-cinza">O link curto mantém os UTMs e mede cliques sem depender de serviços externos.</p></div>
+            <div><h2 className="font-serif text-lg font-bold text-texto">Campanha pronta</h2><p className="text-sm text-cinza">Formato otimizado para leitura rápida no WhatsApp, com link curto rastreável.</p></div>
           </div>
           <div className="flex gap-2">
             {(["status", "quadrado"] as const).map((value) => (
@@ -545,7 +650,94 @@ export function PromotionCenter({
         <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(260px,420px)_1fr]">
           <div className="rounded-2xl bg-creme p-3"><canvas ref={canvasRef} className="h-auto w-full rounded-xl bg-white" /></div>
           <div className="flex min-w-0 flex-col gap-3">
-            <div className="whitespace-pre-wrap rounded-xl bg-creme p-4 text-sm leading-6 text-texto">{message}</div>
+            <div className="rounded-xl bg-creme p-4">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <span className="text-xs font-bold uppercase tracking-wide text-cinza">
+                  Texto da campanha
+                </span>
+                {activeAiCopy ? (
+                  <span className="rounded-full bg-white px-2 py-1 text-[10px] font-bold text-rosa-profundo">
+                    Gancho IA · editável
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-medium text-cinza">Gancho fixo · editável</span>
+                )}
+              </div>
+              <textarea
+                value={messageDraft}
+                onChange={(event) => {
+                  setMessageDraft(event.target.value);
+                  setShareNote("");
+                }}
+                rows={10}
+                className="w-full resize-y rounded-lg border border-rosa/10 bg-white p-3 text-sm leading-6 text-texto outline-none focus:border-rosa-profundo"
+              />
+              <p className="mt-1 text-[10px] leading-4 text-cinza">
+                Revise antes de compartilhar. Produto, preço, link e classificação continuam vindo do sistema.
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-rosa/15 bg-white p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="flex items-center gap-1.5 text-xs font-bold text-texto">
+                    <Sparkles size={14} /> Ganchos com IA
+                  </p>
+                  <p className="mt-1 text-[10px] leading-4 text-cinza">
+                    A IA cria somente a manchete curta. Não decide oferta, preço, novidade, destaque ou mais vendido.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void generateAiCopyVariations()}
+                  disabled={aiCopyLoading}
+                  className="rounded-lg border border-rosa-profundo/25 px-3 py-2 text-xs font-bold text-rosa-profundo disabled:opacity-40"
+                >
+                  {aiCopyLoading ? "Gerando..." : aiCopyResult ? "Gerar outros" : "Gerar 3 ganchos"}
+                </button>
+              </div>
+
+              {aiCopyError ? (
+                <p className="mt-2 text-xs text-vermelho">{aiCopyError}</p>
+              ) : null}
+
+              {aiCopyResult ? (
+                <div className="mt-3 space-y-2">
+                  {aiCopyResult.variations.map((variation, index) => {
+                    const selected = activeAiCopy?.selectedIndex === index;
+                    return (
+                      <button
+                        key={`${variation.hook}-${index}`}
+                        type="button"
+                        onClick={() => useAiVariation(variation, index)}
+                        className={`block w-full rounded-xl border p-3 text-left transition ${
+                          selected
+                            ? "border-rosa-profundo bg-rosa/5"
+                            : "border-rosa/15 bg-creme/40 hover:border-rosa-profundo/40"
+                        }`}
+                      >
+                        <span className="text-[10px] font-bold uppercase tracking-wide text-rosa-profundo">
+                          Gancho {index + 1}
+                        </span>
+                        <p className="mt-1 text-xs font-semibold text-texto">{variation.hook}</p>
+                      </button>
+                    );
+                  })}
+                  <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={useTemplateMessage}
+                      className="text-[11px] font-bold text-rosa-profundo underline underline-offset-2"
+                    >
+                      Voltar ao gancho fixo
+                    </button>
+                    <span className="text-[9px] text-cinza">
+                      {aiCopyResult.model} · {aiCopyResult.promptVersion}
+                    </span>
+                  </div>
+                </div>
+              ) : null}
+            </div>
 
             <div className="rounded-xl border border-rosa/15 bg-white p-3">
               <div className="mb-1 flex items-center gap-2 text-xs font-bold text-texto"><Link2 size={14} /> Link curto da campanha</div>
@@ -555,12 +747,12 @@ export function PromotionCenter({
               </div>
             </div>
 
-            <button type="button" onClick={shareCampaign} disabled={!ready} className="flex items-center justify-center gap-2 rounded-xl bg-rosa-profundo px-4 py-3 text-sm font-bold text-white disabled:opacity-40"><Share2 size={17} /> Compartilhar campanha</button>
+            <button type="button" onClick={shareCampaign} disabled={!ready || !messageDraft.trim()} className="flex items-center justify-center gap-2 rounded-xl bg-rosa-profundo px-4 py-3 text-sm font-bold text-white disabled:opacity-40"><Share2 size={17} /> Compartilhar campanha</button>
 
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-              <button type="button" onClick={copyMessage} className="flex items-center justify-center gap-1.5 rounded-xl border border-rosa/20 px-3 py-3 text-xs font-bold text-texto"><Copy size={15} />{copied ? "Copiado" : "Copiar texto"}</button>
+              <button type="button" onClick={copyMessage} disabled={!messageDraft.trim()} className="flex items-center justify-center gap-1.5 rounded-xl border border-rosa/20 px-3 py-3 text-xs font-bold text-texto disabled:opacity-40"><Copy size={15} />{copied ? "Copiado" : "Copiar texto"}</button>
               <button type="button" onClick={downloadArtwork} disabled={!ready} className="flex items-center justify-center gap-1.5 rounded-xl border border-rosa/20 px-3 py-3 text-xs font-bold text-texto disabled:opacity-40"><Download size={15} />Baixar arte</button>
-              <button type="button" onClick={openWhatsApp} className="col-span-2 flex items-center justify-center gap-1.5 rounded-xl border border-rosa/20 px-3 py-3 text-xs font-bold text-texto sm:col-span-1"><ExternalLink size={15} />WhatsApp</button>
+              <button type="button" onClick={openWhatsApp} disabled={!messageDraft.trim()} className="col-span-2 flex items-center justify-center gap-1.5 rounded-xl border border-rosa/20 px-3 py-3 text-xs font-bold text-texto disabled:opacity-40 sm:col-span-1"><ExternalLink size={15} />WhatsApp</button>
             </div>
             {shareNote ? <p className="text-xs font-medium text-cinza">{shareNote}</p> : null}
           </div>

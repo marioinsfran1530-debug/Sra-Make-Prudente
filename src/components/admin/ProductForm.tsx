@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Sparkles } from "lucide-react";
 import { ProductImageEditor } from "@/components/admin/ProductImageEditor";
 
 type Category = {
@@ -161,6 +162,15 @@ export function ProductForm({
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [importingLookupImage, setImportingLookupImage] = useState(false);
 
+  const [aiDescriptionLoading, setAiDescriptionLoading] = useState(false);
+  const [aiDescriptionError, setAiDescriptionError] = useState<string | null>(null);
+  const [aiSuggestionId, setAiSuggestionId] = useState<string | null>(null);
+  const [aiOriginalDescription, setAiOriginalDescription] = useState<string | null>(null);
+  const [aiDescriptionMeta, setAiDescriptionMeta] = useState<{
+    model: string;
+    promptVersion: string;
+  } | null>(null);
+
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
@@ -168,12 +178,20 @@ export function ProductForm({
   const selectedCategory = categories.find((c) => c.id === categoryId);
   const gtinValid = isValidGtin(sku);
   const additionalCategoryCount = categoryIds.filter((id) => id !== categoryId).length;
+  const canGenerateDescription = Boolean(name.trim() && brand.trim() && categoryId);
 
   useEffect(() => {
     const urls = newImages.map((file) => URL.createObjectURL(file));
     setPreviews(urls);
     return () => urls.forEach((url) => URL.revokeObjectURL(url));
   }, [newImages]);
+
+  function clearAiDescriptionTracking() {
+    setAiSuggestionId(null);
+    setAiOriginalDescription(null);
+    setAiDescriptionMeta(null);
+    setAiDescriptionError(null);
+  }
 
   function handleImagesChange(e: React.ChangeEvent<HTMLInputElement>) {
     setImageError(null);
@@ -214,6 +232,7 @@ export function ProductForm({
     if (result.brand && (overwrite || !brand.trim())) setBrand(result.brand);
     if (result.description && (overwrite || !description.trim())) {
       setDescription(result.description);
+      clearAiDescriptionTracking();
     }
   }
 
@@ -300,6 +319,52 @@ export function ProductForm({
       );
     } finally {
       setLookupLoading(false);
+    }
+  }
+
+  async function generateAiDescription() {
+    setAiDescriptionError(null);
+
+    if (!canGenerateDescription) {
+      setAiDescriptionError("Preencha nome, marca e categoria antes de usar a IA.");
+      return;
+    }
+
+    setAiDescriptionLoading(true);
+    try {
+      const response = await fetch("/api/admin/ai/product-description", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          productId: initial?.id ?? null,
+          name,
+          brand,
+          categoryId,
+          subcategoryId: subcategoryId || null,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || typeof data.description !== "string") {
+        throw new Error(data.error ?? "Não foi possível gerar a descrição.");
+      }
+
+      const generated = data.description.trim();
+      setDescription(generated);
+      setAiOriginalDescription(generated);
+      setAiSuggestionId(
+        typeof data.suggestionId === "string" ? data.suggestionId : null
+      );
+      setAiDescriptionMeta({
+        model: typeof data.model === "string" ? data.model : "Gemini",
+        promptVersion:
+          typeof data.promptVersion === "string" ? data.promptVersion : "v1",
+      });
+    } catch (err) {
+      setAiDescriptionError(
+        err instanceof Error ? err.message : "Não foi possível gerar a descrição."
+      );
+    } finally {
+      setAiDescriptionLoading(false);
     }
   }
 
@@ -491,6 +556,12 @@ export function ProductForm({
         ),
         subcategoryId: subcategoryId || null,
         variants,
+        aiSuggestionId,
+        aiSuggestionEdited: Boolean(
+          aiSuggestionId &&
+            aiOriginalDescription !== null &&
+            description.trim() !== aiOriginalDescription.trim()
+        ),
       };
 
       const url = isEdit
@@ -702,14 +773,46 @@ export function ProductForm({
         </div>
       )}
 
-      <Field label="Descrição">
+      <div className="flex flex-col gap-1">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="text-[11px] font-bold text-cinza uppercase tracking-wide">
+            Descrição
+          </span>
+          <button
+            type="button"
+            onClick={() => void generateAiDescription()}
+            disabled={!canGenerateDescription || aiDescriptionLoading || saving}
+            className="flex items-center gap-1.5 rounded-lg border border-rosa-profundo/25 bg-white px-2.5 py-1.5 text-[11px] font-bold text-rosa-profundo disabled:cursor-not-allowed disabled:opacity-40"
+            title="A IA apenas sugere. O texto só é salvo quando você confirmar o cadastro."
+          >
+            <Sparkles size={14} />
+            {aiDescriptionLoading ? "Gerando..." : "Gerar descrição com IA"}
+          </button>
+        </div>
         <textarea
           value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          rows={3}
+          onChange={(e) => {
+            setDescription(e.target.value);
+            setAiDescriptionError(null);
+          }}
+          rows={4}
           className="input resize-none"
         />
-      </Field>
+        <p className="text-[10px] leading-4 text-cinza">
+          A IA usa apenas nome, marca e categoria. Revise e edite livremente antes de salvar.
+        </p>
+        {aiDescriptionMeta && (
+          <p className="text-[10px] leading-4 text-cinza">
+            Sugestão gerada por {aiDescriptionMeta.model} · {aiDescriptionMeta.promptVersion}
+            {aiOriginalDescription !== null && description.trim() !== aiOriginalDescription.trim()
+              ? " · editada"
+              : ""}
+          </p>
+        )}
+        {aiDescriptionError && (
+          <p className="text-xs text-vermelho">{aiDescriptionError}</p>
+        )}
+      </div>
 
       <div className="grid grid-cols-2 gap-3">
         <Field label="Preço (R$)">

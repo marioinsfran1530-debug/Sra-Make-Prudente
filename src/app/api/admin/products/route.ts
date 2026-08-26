@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin-auth";
+import { markAiSuggestionUsed } from "@/lib/ai-metrics";
 import { indexNowPaths, notifyIndexNow } from "@/lib/indexnow";
 import { validateProductInput } from "@/lib/product-input";
 
@@ -31,8 +32,10 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const { error, status } = await requireAdmin("EDITOR");
-  if (error) return NextResponse.json({ error }, { status });
+  const auth = await requireAdmin("EDITOR");
+  if (auth.error || !auth.session) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
 
   const body = (await request.json()) as Record<string, unknown>;
   const validation = validateProductInput(body);
@@ -116,6 +119,18 @@ export async function POST(request: NextRequest) {
       categories: { include: { category: true } },
     },
   });
+
+  const aiSuggestionId =
+    typeof body.aiSuggestionId === "string" ? body.aiSuggestionId.trim() : "";
+  if (aiSuggestionId) {
+    await markAiSuggestionUsed({
+      suggestionId: aiSuggestionId,
+      adminId: auth.session.id,
+      productId: product.id,
+      edited: body.aiSuggestionEdited === true,
+      selectedIndex: 0,
+    });
+  }
 
   await notifyIndexNow([
     indexNowPaths.product(product.id),
