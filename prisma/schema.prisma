@@ -126,6 +126,27 @@ model CampaignLinkMetric {
   @@index([utmCampaign])
 }
 
+// ---------- Assistente de IA ----------
+
+model AiSuggestionMetric {
+  id              String    @id @default(cuid())
+  feature         String
+  adminId         String
+  productId       String?
+  model           String
+  promptVersion   String
+  suggestionCount Int       @default(1)
+  used            Boolean   @default(false)
+  edited          Boolean?
+  selectedIndex   Int?
+  createdAt       DateTime  @default(now())
+  resolvedAt      DateTime?
+
+  @@index([feature, createdAt])
+  @@index([productId, feature])
+  @@index([model, promptVersion, createdAt])
+}
+
 // ---------- Pedidos ----------
 
 enum payment_method {
