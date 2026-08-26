@@ -27,19 +27,21 @@ export async function POST(request: NextRequest) {
       id: true,
       name: true,
       brand: true,
+      description: true,
       price: true,
       promoPrice: true,
       bestSeller: true,
       isNew: true,
       featured: true,
       category: { select: { name: true } },
+      subcategory: { select: { name: true } },
     },
   });
   if (!product) {
     return NextResponse.json({ error: "Produto não encontrado." }, { status: 404 });
   }
 
-  // A IA recebe o contexto já decidido pelo sistema. Ela não escolhe flags.
+  // Verdades comerciais continuam decididas pelo sistema, nunca pela IA.
   const reason = classifyAiCampaignReason(product);
 
   try {
@@ -47,6 +49,8 @@ export async function POST(request: NextRequest) {
       name: product.name,
       brand: product.brand,
       category: product.category.name,
+      subcategory: product.subcategory?.name ?? null,
+      description: product.description,
       campaignReason: reason,
     });
 
