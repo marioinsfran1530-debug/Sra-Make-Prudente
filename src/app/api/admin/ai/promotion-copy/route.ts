@@ -1,32 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { recordAiGeneration } from "@/lib/ai-metrics";
-import {
-  GeminiError,
-  generatePromotionCopy,
-  type PromotionCopyInput,
-} from "@/lib/gemini";
+import { classifyAiCampaignReason } from "@/lib/ai-rules";
+import { GeminiError, generatePromotionCopy } from "@/lib/gemini";
 import { prisma } from "@/lib/prisma";
 
 function text(value: unknown, maxLength: number) {
   return typeof value === "string" ? value.trim().slice(0, maxLength) : "";
-}
-
-function campaignReason(product: {
-  price: { toString(): string };
-  promoPrice: { toString(): string } | null;
-  bestSeller: boolean;
-  isNew: boolean;
-  featured: boolean;
-}): PromotionCopyInput["campaignReason"] {
-  const price = Number(product.price.toString());
-  const promoPrice = product.promoPrice ? Number(product.promoPrice.toString()) : null;
-
-  if (promoPrice !== null && promoPrice < price) return "oferta";
-  if (product.bestSeller) return "mais_vendido";
-  if (product.isNew) return "novidade";
-  if (product.featured) return "destaque";
-  return "catalogo";
 }
 
 export async function POST(request: NextRequest) {
@@ -59,7 +39,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Produto não encontrado." }, { status: 404 });
   }
 
-  const reason = campaignReason(product);
+  // A IA recebe o contexto já decidido pelo sistema. Ela não escolhe flags.
+  const reason = classifyAiCampaignReason(product);
 
   try {
     const generated = await generatePromotionCopy({
