@@ -87,6 +87,22 @@ function isTechnicalOrigin(origin: string | null) {
   return normalized.includes("vercel") || normalized.includes("preview");
 }
 
+function pageLabel(path: string) {
+  if (path === "/") return "Home";
+  if (path === "/categoria") return "Produtos";
+  if (path === "/carrinho") return "Carrinho";
+  if (path === "/checkout") return "Checkout";
+  if (path === "/loja") return "Loja";
+  if (path.startsWith("/categoria/")) {
+    const slug = decodeURIComponent(path.slice("/categoria/".length));
+    const name = slug.replace(/-/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+    return `Categoria · ${name}`;
+  }
+  if (path.startsWith("/produto/")) return "Ficha de produto";
+  if (path.startsWith("/busca")) return "Busca";
+  return path;
+}
+
 function getDataMaturity(visitorCount: number) {
   if (visitorCount < 10) return { label: "Coleta inicial", detail: "Amostra muito pequena; use para validar a coleta.", tone: "border-amber-200 bg-amber-50 text-amber-800" };
   if (visitorCount < 50) return { label: "Amostra pequena", detail: "Já há sinais, mas eles ainda podem oscilar bastante.", tone: "border-amber-200 bg-amber-50 text-amber-800" };
@@ -109,11 +125,12 @@ function getMainInsight({
   cartVisitors: number;
   orderVisitors: number;
 }) {
-  if (visitors === 0) return { title: "Ainda sem tráfego comercial", detail: "A coleta está pronta; aguarde visitantes reais para formar o funil.", tone: "border-slate-200 bg-slate-50" };
-  if (catalogVisitors === 0) return { title: "Atenção à saída da Home", detail: `${visitors.toLocaleString("pt-BR")} visitantes chegaram, mas nenhum clique em Produtos foi identificado com a nova telemetria.`, tone: "border-amber-200 bg-amber-50" };
-  if (productVisitors === 0) return { title: "O gargalo está antes do produto", detail: `${catalogVisitors.toLocaleString("pt-BR")} visitantes abriram Produtos, mas nenhum chegou a uma ficha de produto no funil comercial.`, tone: "border-amber-200 bg-amber-50" };
+  if (visitors === 0) return { title: "Ainda sem tráfego comercial", detail: "A coleta está pronta; aguarde visitantes reais para formar a jornada.", tone: "border-slate-200 bg-slate-50" };
+  if (catalogVisitors === 0) return { title: "Atenção à saída da Home", detail: `${visitors.toLocaleString("pt-BR")} visitantes chegaram, mas nenhum entrou na área de Produtos por clique ou visita de rota.`, tone: "border-amber-200 bg-amber-50" };
+  if (categoryVisitors === 0 && productVisitors === 0) return { title: "Produtos foram abertos, mas sem avanço", detail: `${catalogVisitors.toLocaleString("pt-BR")} visitantes chegaram à área de Produtos, porém nenhum abriu categoria ou ficha de produto.`, tone: "border-amber-200 bg-amber-50" };
+  if (productVisitors === 0) return { title: "O gargalo está entre categoria e produto", detail: `${categoryVisitors.toLocaleString("pt-BR")} visitantes abriram categoria, mas nenhum chegou a uma ficha de produto.`, tone: "border-amber-200 bg-amber-50" };
   if (cartVisitors === 0) return { title: "Há interesse, mas ainda sem carrinho", detail: `${productVisitors.toLocaleString("pt-BR")} visitantes viram produtos. Revise oferta, preço, variações e clareza do botão de compra.`, tone: "border-amber-200 bg-amber-50" };
-  if (orderVisitors === 0) return { title: "Carrinho sem pedido", detail: `${cartVisitors.toLocaleString("pt-BR")} visitantes adicionaram itens, mas ainda não criaram pedido. O checkout merece atenção.`, tone: "border-amber-200 bg-amber-50" };
+  if (orderVisitors === 0) return { title: "Carrinho sem pedido", detail: `${cartVisitors.toLocaleString("pt-BR")} visitantes chegaram ao carrinho, mas ainda não criaram pedido. O checkout merece atenção.`, tone: "border-amber-200 bg-amber-50" };
   return { title: "O funil já possui intenção comercial", detail: `${orderVisitors.toLocaleString("pt-BR")} visitantes chegaram à criação de pedido no período.`, tone: "border-green-200 bg-green-50" };
 }
 
@@ -124,16 +141,11 @@ export default async function AnalisePage({ searchParams }: { searchParams?: Pro
   const range = getPeriodRange(period);
   const where = range ? { createdAt: range } : {};
 
-  const [eventGroups, journeyRows, sourcePageGroups, searchGroups, reportableSearchCount, productGroups, campaignGroups, finalizedAggregate] = await Promise.all([
+  const [eventGroups, journeyRows, searchGroups, reportableSearchCount, campaignGroups, finalizedAggregate] = await Promise.all([
     prisma.analyticsEvent.groupBy({ by: ["event"], where, _count: { _all: true } }),
     prisma.analyticsEvent.findMany({
       where: { ...where, event: { in: [...JOURNEY_EVENTS] } },
       select: { origin: true, event: true, sessionId: true, pagePath: true, context: true, categorySlug: true, productId: true },
-    }),
-    prisma.analyticsEvent.groupBy({
-      by: ["origin", "pagePath"],
-      where: { ...where, event: "page_view", origin: { not: null } },
-      _count: { _all: true },
     }),
     prisma.analyticsEvent.groupBy({
       by: ["query"],
@@ -143,13 +155,6 @@ export default async function AnalisePage({ searchParams }: { searchParams?: Pro
       take: 10,
     }),
     prisma.analyticsEvent.count({ where: { ...where, event: "search", OR: [{ context: null }, { context: { not: "search_submit" } }] } }),
-    prisma.analyticsEvent.groupBy({
-      by: ["productId"],
-      where: { ...where, event: "product_view", productId: { not: null } },
-      _count: { _all: true },
-      orderBy: { _count: { productId: "desc" } },
-      take: 10,
-    }),
     prisma.analyticsEvent.groupBy({
       by: ["utmCampaign"],
       where: { ...where, utmCampaign: { not: null } },
@@ -168,6 +173,8 @@ export default async function AnalisePage({ searchParams }: { searchParams?: Pro
   const stageVisitors = new Map<string, Set<string>>();
   const technicalSessions = new Set<string>();
   let technicalPageViews = 0;
+  let commercialPageViews = 0;
+  let commercialProductViews = 0;
 
   type SourceData = {
     origin: string;
@@ -183,7 +190,16 @@ export default async function AnalisePage({ searchParams }: { searchParams?: Pro
     homePageViews: number;
   };
 
+  type PageData = {
+    path: string;
+    views: number;
+    visitors: Set<string>;
+  };
+
   const sourceMap = new Map<string, SourceData>();
+  const pageMap = new Map<string, PageData>();
+  const productViewMap = new Map<string, number>();
+
   function getSource(origin: string) {
     let source = sourceMap.get(origin);
     if (!source) {
@@ -214,49 +230,117 @@ export default async function AnalisePage({ searchParams }: { searchParams?: Pro
     set.add(sessionId);
   }
 
+  function addPage(path: string, sessionId: string) {
+    let page = pageMap.get(path);
+    if (!page) {
+      page = { path, views: 0, visitors: new Set<string>() };
+      pageMap.set(path, page);
+    }
+    page.views += 1;
+    page.visitors.add(sessionId);
+  }
+
+  function markRouteStages(path: string, sessionId: string, source?: SourceData) {
+    const isCatalog = path === "/categoria" || path.startsWith("/categoria/") || path.startsWith("/produto/");
+    const isCategory = path.startsWith("/categoria/");
+    const isProduct = path.startsWith("/produto/");
+    const isCart = path === "/carrinho";
+    const isCheckout = path === "/checkout";
+
+    if (isCatalog) {
+      addStage("catalog", sessionId);
+      source?.catalogVisitors.add(sessionId);
+    }
+    if (isCategory) {
+      addStage("category", sessionId);
+      source?.categoryVisitors.add(sessionId);
+    }
+    if (isProduct) {
+      addStage("product", sessionId);
+      source?.productVisitors.add(sessionId);
+    }
+    if (isCart) {
+      addStage("cart", sessionId);
+      source?.cartVisitors.add(sessionId);
+    }
+    if (isCheckout) {
+      addStage("checkout", sessionId);
+      source?.checkoutVisitors.add(sessionId);
+    }
+  }
+
   for (const row of journeyRows) {
     if (isTechnicalOrigin(row.origin)) {
       technicalSessions.add(row.sessionId);
+      if (row.event === "page_view") technicalPageViews += 1;
       continue;
     }
 
-    if (row.event === "page_view") addStage("visitor", row.sessionId);
-    if (row.event === "navigation_click" && ["hero_products", "bottom_nav_products", "catalog_products"].includes(row.context ?? "")) addStage("catalog", row.sessionId);
-    if (row.event === "navigation_click" && row.context === "category_link") addStage("category", row.sessionId);
-    if (row.event === "product_view") addStage("product", row.sessionId);
-    if (row.event === "add_to_cart") addStage("cart", row.sessionId);
-    if (row.event === "begin_checkout") addStage("checkout", row.sessionId);
-    if (row.event === "order_created") addStage("order", row.sessionId);
-    if (row.event === "order_finalized") addStage("sale", row.sessionId);
+    const source = row.origin ? getSource(row.origin) : undefined;
+
+    if (row.event === "page_view") {
+      addStage("visitor", row.sessionId);
+      commercialPageViews += 1;
+      const path = row.pagePath || "/";
+      addPage(path, row.sessionId);
+      if (source) {
+        source.visitors.add(row.sessionId);
+        source.pageViews += 1;
+        if (path === "/") source.homePageViews += 1;
+      }
+      markRouteStages(path, row.sessionId, source);
+    }
+
+    if (row.event === "navigation_click" && ["hero_products", "bottom_nav_products", "catalog_products"].includes(row.context ?? "")) {
+      addStage("catalog", row.sessionId);
+      source?.catalogVisitors.add(row.sessionId);
+    }
+    if (row.event === "navigation_click" && row.context === "category_link") {
+      addStage("catalog", row.sessionId);
+      addStage("category", row.sessionId);
+      source?.catalogVisitors.add(row.sessionId);
+      source?.categoryVisitors.add(row.sessionId);
+    }
+    if (row.event === "product_view") {
+      addStage("catalog", row.sessionId);
+      addStage("product", row.sessionId);
+      commercialProductViews += 1;
+      source?.catalogVisitors.add(row.sessionId);
+      source?.productVisitors.add(row.sessionId);
+      if (row.productId) productViewMap.set(row.productId, (productViewMap.get(row.productId) ?? 0) + 1);
+    }
+    if (row.event === "add_to_cart") {
+      addStage("cart", row.sessionId);
+      source?.cartVisitors.add(row.sessionId);
+    }
+    if (row.event === "begin_checkout") {
+      addStage("checkout", row.sessionId);
+      source?.checkoutVisitors.add(row.sessionId);
+    }
+    if (row.event === "order_created") {
+      addStage("order", row.sessionId);
+      source?.orderVisitors.add(row.sessionId);
+    }
+    if (row.event === "order_finalized") {
+      addStage("sale", row.sessionId);
+      source?.saleVisitors.add(row.sessionId);
+    }
     if (row.event === "whatsapp_click") addStage("whatsapp", row.sessionId);
-
-    if (!row.origin) continue;
-    const source = getSource(row.origin);
-    if (row.event === "page_view") source.visitors.add(row.sessionId);
-    if (row.event === "navigation_click" && ["hero_products", "bottom_nav_products", "catalog_products"].includes(row.context ?? "")) source.catalogVisitors.add(row.sessionId);
-    if (row.event === "navigation_click" && row.context === "category_link") source.categoryVisitors.add(row.sessionId);
-    if (row.event === "product_view") source.productVisitors.add(row.sessionId);
-    if (row.event === "add_to_cart") source.cartVisitors.add(row.sessionId);
-    if (row.event === "begin_checkout") source.checkoutVisitors.add(row.sessionId);
-    if (row.event === "order_created") source.orderVisitors.add(row.sessionId);
-    if (row.event === "order_finalized") source.saleVisitors.add(row.sessionId);
-  }
-
-  for (const row of sourcePageGroups) {
-    if (!row.origin) continue;
-    if (isTechnicalOrigin(row.origin)) {
-      technicalPageViews += row._count._all;
-      continue;
-    }
-    const source = getSource(row.origin);
-    source.pageViews += row._count._all;
-    if (row.pagePath === "/") source.homePageViews += row._count._all;
   }
 
   const acquisitionSources = Array.from(sourceMap.values())
     .filter((source) => source.visitors.size > 0 || source.pageViews > 0)
     .sort((a, b) => b.visitors.size - a.visitors.size || b.pageViews - a.pageViews)
     .slice(0, 8);
+
+  const topPages = Array.from(pageMap.values())
+    .sort((a, b) => b.views - a.views || b.visitors.size - a.visitors.size)
+    .slice(0, 10);
+
+  const productGroups = Array.from(productViewMap.entries())
+    .map(([productId, views]) => ({ productId, views }))
+    .sort((a, b) => b.views - a.views)
+    .slice(0, 10);
 
   const visitorCount = stageVisitors.get("visitor")?.size ?? 0;
   const catalogVisitors = stageVisitors.get("catalog")?.size ?? 0;
@@ -268,14 +352,16 @@ export default async function AnalisePage({ searchParams }: { searchParams?: Pro
   const saleVisitors = stageVisitors.get("sale")?.size ?? 0;
   const whatsappVisitors = stageVisitors.get("whatsapp")?.size ?? 0;
   const interestedVisitors = new Set([
+    ...(stageVisitors.get("catalog") ?? []),
+    ...(stageVisitors.get("category") ?? []),
     ...(stageVisitors.get("product") ?? []),
     ...(stageVisitors.get("cart") ?? []),
     ...(stageVisitors.get("checkout") ?? []),
     ...(stageVisitors.get("whatsapp") ?? []),
   ]).size;
 
-  const pageViews = eventCount.get("page_view") ?? 0;
-  const productViews = eventCount.get("product_view") ?? 0;
+  const totalPageViews = eventCount.get("page_view") ?? 0;
+  const totalProductViews = eventCount.get("product_view") ?? 0;
   const addToCart = eventCount.get("add_to_cart") ?? 0;
   const checkout = eventCount.get("begin_checkout") ?? 0;
   const ordersCreated = eventCount.get("order_created") ?? 0;
@@ -285,9 +371,9 @@ export default async function AnalisePage({ searchParams }: { searchParams?: Pro
   const searches = reportableSearchCount;
   const maturity = getDataMaturity(visitorCount);
   const insight = getMainInsight({ visitors: visitorCount, catalogVisitors, categoryVisitors, productVisitors, cartVisitors, orderVisitors });
-  const technicalProductViews = Math.max(0, productViews - productVisitors);
+  const technicalProductViews = Math.max(0, totalProductViews - commercialProductViews);
 
-  const productIds = productGroups.map((item) => item.productId).filter((id): id is string => Boolean(id));
+  const productIds = productGroups.map((item) => item.productId);
   const products = productIds.length
     ? await prisma.product.findMany({ where: { id: { in: productIds } }, select: { id: true, name: true, brand: true } })
     : [];
@@ -313,7 +399,7 @@ export default async function AnalisePage({ searchParams }: { searchParams?: Pro
       </div>
 
       <section className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <ExecutiveMetric label="Visitantes" value={visitorCount} helper={`${pageViews.toLocaleString("pt-BR")} páginas vistas`} />
+        <ExecutiveMetric label="Visitantes" value={visitorCount} helper={`${commercialPageViews.toLocaleString("pt-BR")} páginas comerciais`} />
         <ExecutiveMetric label="Interessados" value={interestedVisitors} helper={`${pct(conversion(interestedVisitors, visitorCount))} dos visitantes`} />
         <ExecutiveMetric label="Pedidos" value={orderVisitors} helper={`${ordersCreated.toLocaleString("pt-BR")} eventos de pedido`} />
         <ExecutiveMetric label="Receita" value={money(finalizedRevenue)} helper={`${finalizedSales.toLocaleString("pt-BR")} vendas finalizadas`} />
@@ -329,7 +415,7 @@ export default async function AnalisePage({ searchParams }: { searchParams?: Pro
         <div className="mb-3 flex items-start justify-between gap-3">
           <div>
             <h2 className="font-bold text-texto">Jornada do cliente</h2>
-            <p className="mt-1 text-xs leading-5 text-cinza">Visitantes únicos por etapa. A nova telemetria separa clique em Produtos, categoria e ficha de produto.</p>
+            <p className="mt-1 text-xs leading-5 text-cinza">Visitantes únicos por etapa. Conta tanto o clique interno quanto a rota comercial realmente visitada.</p>
           </div>
           <div className="hidden rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-right sm:block">
             <p className="text-[9px] font-bold uppercase text-slate-500">Técnico</p>
@@ -339,10 +425,10 @@ export default async function AnalisePage({ searchParams }: { searchParams?: Pro
 
         <div className="space-y-1">
           <JourneyStep label="Visitantes" value={visitorCount} total={visitorCount} first />
-          <JourneyStep label="Abriram Produtos" value={catalogVisitors} total={visitorCount} />
+          <JourneyStep label="Entraram em Produtos" value={catalogVisitors} total={visitorCount} />
           <JourneyStep label="Abriram categoria" value={categoryVisitors} total={visitorCount} />
           <JourneyStep label="Viram produto" value={productVisitors} total={visitorCount} />
-          <JourneyStep label="Adicionaram ao carrinho" value={cartVisitors} total={visitorCount} />
+          <JourneyStep label="Chegaram ao carrinho" value={cartVisitors} total={visitorCount} />
           <JourneyStep label="Iniciaram checkout" value={checkoutVisitors} total={visitorCount} />
           <JourneyStep label="Criaram pedido" value={orderVisitors} total={visitorCount} />
           <JourneyStep label="Venda finalizada" value={saleVisitors} total={visitorCount} last />
@@ -354,6 +440,21 @@ export default async function AnalisePage({ searchParams }: { searchParams?: Pro
           </div>
         )}
         <p className="mt-3 text-[10px] text-cinza">Pedido criado não é venda. Venda só entra após status FINALIZADO.</p>
+      </section>
+
+      <section className="mb-5 rounded-2xl bg-white p-4 shadow-sm">
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <div>
+            <h2 className="font-bold text-texto">Páginas mais visitadas</h2>
+            <p className="mt-1 text-xs leading-5 text-cinza">Somente navegação comercial; Vercel/preview fica fora desta lista.</p>
+          </div>
+          <span className="shrink-0 rounded-full bg-creme px-2.5 py-1 text-[10px] font-bold text-rosa-profundo">{commercialPageViews.toLocaleString("pt-BR")} views</span>
+        </div>
+        {topPages.length ? (
+          <div className="divide-y divide-rosa/10">
+            {topPages.map((page) => <PageRow key={page.path} path={page.path} views={page.views} visitors={page.visitors.size} />)}
+          </div>
+        ) : <p className="text-xs text-cinza">Ainda não há páginas comerciais registradas neste período.</p>}
       </section>
 
       <section className="mb-5 rounded-2xl bg-white p-4 shadow-sm">
@@ -394,10 +495,10 @@ export default async function AnalisePage({ searchParams }: { searchParams?: Pro
       </section>
 
       <div className="mb-5 grid gap-4 xl:grid-cols-2">
-        <Panel title="Produtos mais visualizados" empty="Ainda não há visualizações de produto neste período.">
-          {productGroups.map((item, index) => {
-            const product = item.productId ? productMap.get(item.productId) : null;
-            return <Row key={item.productId ?? index} label={product ? `${product.name} · ${product.brand}` : "Produto não identificado"} value={item._count._all} />;
+        <Panel title="Produtos mais visualizados" empty="Ainda não há visualizações comerciais de produto neste período.">
+          {productGroups.map((item) => {
+            const product = productMap.get(item.productId);
+            return <Row key={item.productId} label={product ? `${product.name} · ${product.brand}` : "Produto não identificado"} value={item.views} />;
           })}
         </Panel>
 
@@ -421,7 +522,7 @@ export default async function AnalisePage({ searchParams }: { searchParams?: Pro
       </section>
 
       <div className="mb-5 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-        <SmallMetric label="Views de produto" value={productViews} />
+        <SmallMetric label="Views de produto" value={commercialProductViews} helper={technicalProductViews > 0 ? `${technicalProductViews} técnica(s) excluída(s)` : undefined} />
         <SmallMetric label="Carrinhos" value={addToCart} />
         <SmallMetric label="Checkouts" value={checkout} />
         <SmallMetric label="WhatsApp" value={whatsapp} helper={`${whatsappVisitors} visitantes`} />
@@ -429,6 +530,9 @@ export default async function AnalisePage({ searchParams }: { searchParams?: Pro
         <SmallMetric label="Vendas" value={finalizedSales} />
       </div>
 
+      {technicalPageViews > 0 && (
+        <p className="mb-2 text-[10px] leading-4 text-slate-500">Tráfego técnico separado: {technicalPageViews.toLocaleString("pt-BR")} de {totalPageViews.toLocaleString("pt-BR")} page views vieram de Vercel/preview e não entram nos números comerciais.</p>
+      )}
       <p className="text-[10px] leading-4 text-cinza">Dados first-party do catálogo. Eles começam a acumular após a ativação de cada evento e não reconstroem ações anteriores. Compare atribuição publicitária também com GA4 e Meta.</p>
     </div>
   );
@@ -455,6 +559,21 @@ function JourneyStep({ label, value, total, first = false, last = false }: { lab
           <p className="text-lg font-extrabold text-texto">{value.toLocaleString("pt-BR")}</p>
         </div>
         <span className="rounded-full bg-white px-2.5 py-1 text-xs font-bold text-rosa-profundo">{pct(rate)}</span>
+      </div>
+    </div>
+  );
+}
+
+function PageRow({ path, views, visitors }: { path: string; views: number; visitors: number }) {
+  return (
+    <div className="flex items-center justify-between gap-3 py-2.5">
+      <div className="min-w-0">
+        <p className="truncate text-xs font-semibold text-texto">{pageLabel(path)}</p>
+        <p className="mt-0.5 truncate text-[9px] text-cinza">{path}</p>
+      </div>
+      <div className="shrink-0 text-right">
+        <p className="text-xs font-bold text-texto">{views.toLocaleString("pt-BR")} views</p>
+        <p className="text-[9px] text-cinza">{visitors.toLocaleString("pt-BR")} visitante(s)</p>
       </div>
     </div>
   );
