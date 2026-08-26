@@ -2,6 +2,7 @@ import { getAcquisitionData, getOrCreateSessionId } from "@/lib/tracking";
 
 export type AnalyticsEvent =
   | "page_view"
+  | "navigation_click"
   | "category_view"
   | "product_view"
   | "search"
@@ -90,7 +91,11 @@ function toGA4Item(payload: EcommerceItemPayload) {
 function ga4ItemsFromPayload(payload: Record<string, unknown>) {
   if (Array.isArray(payload.items)) {
     return payload.items
-      .map((item) => (item && typeof item === "object" ? toGA4Item(item as EcommerceItemPayload) : undefined))
+      .map((item) =>
+        item && typeof item === "object"
+          ? toGA4Item(item as EcommerceItemPayload)
+          : undefined
+      )
       .filter((item): item is NonNullable<ReturnType<typeof toGA4Item>> => Boolean(item));
   }
 
@@ -102,7 +107,11 @@ function eventValue(event: AnalyticsEvent, payload: Record<string, unknown>) {
   if (event === "begin_checkout") return numberValue(payload.subtotal);
   if (event === "order_created") return numberValue(payload.total);
 
-  if (event === "product_view" || event === "add_to_cart" || event === "remove_from_cart") {
+  if (
+    event === "product_view" ||
+    event === "add_to_cart" ||
+    event === "remove_from_cart"
+  ) {
     const price = numberValue(payload.price);
     const qty = numberValue(payload.qty) ?? 1;
     return price !== undefined ? price * qty : undefined;
@@ -197,7 +206,17 @@ function sendGA4Event(event: AnalyticsEvent, payload: Record<string, unknown>) {
       gtag("event", "search", { search_term: stringValue(payload.query) });
       return;
     case "category_view":
-      gtag("event", "category_view", { category_slug: stringValue(payload.categorySlug) });
+      gtag("event", "category_view", {
+        category_slug: stringValue(payload.categorySlug),
+      });
+      return;
+    case "navigation_click":
+      gtag("event", "navigation_click", {
+        context: stringValue(payload.context),
+        destination: stringValue(payload.destination),
+        category_slug: stringValue(payload.categorySlug),
+        product_id: stringValue(payload.productId),
+      });
       return;
     case "store_location_click":
       gtag("event", "store_location_click");
@@ -225,13 +244,30 @@ function sendMetaPixelEvent(event: AnalyticsEvent, payload: Record<string, unkno
       fbq("track", "PageView");
       return;
     case "product_view":
-      fbq("track", "ViewContent", { content_ids: productId ? [productId] : undefined, content_name: productName, content_type: "product" });
+      fbq("track", "ViewContent", {
+        content_ids: productId ? [productId] : undefined,
+        content_name: productName,
+        content_type: "product",
+      });
       return;
     case "category_view":
-      fbq("trackCustom", "CategoryView", { category_slug: stringValue(payload.categorySlug) });
+      fbq("trackCustom", "CategoryView", {
+        category_slug: stringValue(payload.categorySlug),
+      });
+      return;
+    case "navigation_click":
+      fbq("trackCustom", "NavigationClick", {
+        context: stringValue(payload.context),
+        destination: stringValue(payload.destination),
+        category_slug: stringValue(payload.categorySlug),
+        product_id: productId,
+      });
       return;
     case "search":
-      fbq("track", "Search", { search_string: stringValue(payload.query), result_count: numberValue(payload.resultCount) });
+      fbq("track", "Search", {
+        search_string: stringValue(payload.query),
+        result_count: numberValue(payload.resultCount),
+      });
       return;
     case "add_to_cart": {
       const value = price !== undefined ? price * qty : undefined;
@@ -239,27 +275,49 @@ function sendMetaPixelEvent(event: AnalyticsEvent, payload: Record<string, unkno
         content_ids: productId ? [productId] : undefined,
         content_name: productName,
         content_type: "product",
-        contents: productId ? [{ id: variantId || productId, quantity: qty, item_price: price }] : undefined,
+        contents: productId
+          ? [{ id: variantId || productId, quantity: qty, item_price: price }]
+          : undefined,
         value,
         currency: "BRL",
       });
       return;
     }
     case "begin_checkout":
-      fbq("track", "InitiateCheckout", { num_items: numberValue(payload.itemCount), value: numberValue(payload.subtotal), currency: "BRL" });
+      fbq("track", "InitiateCheckout", {
+        num_items: numberValue(payload.itemCount),
+        value: numberValue(payload.subtotal),
+        currency: "BRL",
+      });
       return;
     case "order_created": {
       const total = numberValue(payload.total);
       const orderNumber = stringValue(payload.orderNumber);
-      fbq("track", "Lead", { value: total, currency: "BRL", order_number: orderNumber });
-      fbq("trackCustom", "OrderCreated", { value: total, currency: "BRL", order_number: orderNumber, duplicate: payload.duplicate === true });
+      fbq("track", "Lead", {
+        value: total,
+        currency: "BRL",
+        order_number: orderNumber,
+      });
+      fbq("trackCustom", "OrderCreated", {
+        value: total,
+        currency: "BRL",
+        order_number: orderNumber,
+        duplicate: payload.duplicate === true,
+      });
       return;
     }
     case "whatsapp_click":
-      fbq("track", "Contact", { content_name: "WhatsApp", context: stringValue(payload.context), order_number: stringValue(payload.orderNumber) });
+      fbq("track", "Contact", {
+        content_name: "WhatsApp",
+        context: stringValue(payload.context),
+        order_number: stringValue(payload.orderNumber),
+      });
       return;
     case "remove_from_cart":
-      fbq("trackCustom", "RemoveFromCart", { product_id: productId, variant_id: variantId });
+      fbq("trackCustom", "RemoveFromCart", {
+        product_id: productId,
+        variant_id: variantId,
+      });
       return;
     case "order_push_opt_in":
       fbq("trackCustom", "OrderPushOptIn", { result: payload.result });
@@ -270,7 +328,10 @@ function sendMetaPixelEvent(event: AnalyticsEvent, payload: Record<string, unkno
   }
 }
 
-export function trackEvent(event: AnalyticsEvent, payload: Record<string, unknown> = {}) {
+export function trackEvent(
+  event: AnalyticsEvent,
+  payload: Record<string, unknown> = {}
+) {
   if (typeof window === "undefined") return;
   if (isInternalPreview()) return;
 
