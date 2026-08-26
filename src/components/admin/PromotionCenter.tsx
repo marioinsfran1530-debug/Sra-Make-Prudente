@@ -36,8 +36,9 @@ type ArtworkFormat = "status" | "quadrado";
 type QueueItem = { time: string; productId: string; kind: CampaignKind; done: boolean };
 type StoredQueue = { date: string; items: QueueItem[] };
 type StoreBranding = { storeName: string; logoUrl: string | null };
-type MessageProfile = { hook: string };
-type AiCopyVariation = { hook: string };
+type MessageProfile = { hook: string; support?: string };
+type AiCopyStrategy = "beneficio" | "dor_solucao" | "curiosidade";
+type AiCopyVariation = { strategy: AiCopyStrategy; hook: string; support: string };
 type AiCopyResult = {
   suggestionId: string | null;
   variations: AiCopyVariation[];
@@ -102,6 +103,16 @@ function campaignLabel(kind: CampaignKind) {
   if (kind === "novidade") return "Novidade";
   if (kind === "oferta") return "Oferta";
   return "Destaque";
+}
+
+function strategyLabel(strategy: AiCopyStrategy) {
+  if (strategy === "beneficio") return "Desejo / Benefício";
+  if (strategy === "dor_solucao") return "Dor / Solução";
+  return "Curiosidade / Praticidade";
+}
+
+function isAiCopyStrategy(value: unknown): value is AiCopyStrategy {
+  return value === "beneficio" || value === "dor_solucao" || value === "curiosidade";
 }
 
 function kindCode(kind: CampaignKind) {
@@ -175,12 +186,15 @@ function buildMessage(
     : `💰 *${money(product.price)}*`;
 
   return [
-    `*${profile.hook}*`,
+    `✨ *${profile.hook}*`,
     productDetails,
+    profile.support?.trim() || "",
     price,
-    `🔗 ${url}`,
+    `🔗 *Veja no catálogo:*\n${url}`,
     "📍 Retirada ou entrega em Presidente Prudente.",
-  ].join("\n\n");
+  ]
+    .filter(Boolean)
+    .join("\n\n");
 }
 
 function scoreProduct(product: Product, recent: Set<string>) {
@@ -524,20 +538,34 @@ export function PromotionCenter({
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !Array.isArray(data.variations)) {
-        throw new Error(data.error ?? "Não foi possível gerar ganchos agora.");
+        throw new Error(data.error ?? "Não foi possível gerar abordagens agora.");
       }
 
       const variations = (data.variations as unknown[])
         .map((entry) => {
           if (!entry || typeof entry !== "object") return null;
-          const variation = entry as { hook?: unknown };
-          if (typeof variation.hook !== "string") return null;
-          return { hook: variation.hook.trim() };
+          const variation = entry as {
+            strategy?: unknown;
+            hook?: unknown;
+            support?: unknown;
+          };
+          if (
+            !isAiCopyStrategy(variation.strategy) ||
+            typeof variation.hook !== "string" ||
+            typeof variation.support !== "string"
+          ) {
+            return null;
+          }
+          return {
+            strategy: variation.strategy,
+            hook: variation.hook.trim(),
+            support: variation.support.trim(),
+          };
         })
         .filter((entry): entry is AiCopyVariation => Boolean(entry));
 
-      if (!variations.length) {
-        throw new Error("A IA não retornou ganchos utilizáveis.");
+      if (variations.length !== 3) {
+        throw new Error("A IA não retornou as três técnicas de copy esperadas.");
       }
 
       setAiCopyResult({
@@ -550,7 +578,7 @@ export function PromotionCenter({
       });
     } catch (error) {
       setAiCopyError(
-        error instanceof Error ? error.message : "Não foi possível gerar ganchos agora."
+        error instanceof Error ? error.message : "Não foi possível gerar abordagens agora."
       );
     } finally {
       setAiCopyLoading(false);
@@ -561,6 +589,7 @@ export function PromotionCenter({
     if (!product) return;
     const nextMessage = buildMessage(product, productUrl, {
       hook: variation.hook,
+      support: variation.support,
     });
 
     setMessageDraft(nextMessage);
@@ -589,7 +618,7 @@ export function PromotionCenter({
           <Sparkles className="mt-0.5 text-rosa-profundo" size={20} />
           <div>
             <h2 className="font-serif text-xl font-bold text-texto">Campanha completa em um clique</h2>
-            <p className="mt-1 text-sm text-cinza">Foto, gancho, produto, preço e link curto prontos para compartilhar.</p>
+            <p className="mt-1 text-sm text-cinza">Foto, estratégia de copy, produto, preço e link curto prontos para compartilhar.</p>
           </div>
         </div>
         <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
@@ -636,7 +665,7 @@ export function PromotionCenter({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <ImageIcon className="text-rosa-profundo" size={20} />
-            <div><h2 className="font-serif text-lg font-bold text-texto">Campanha pronta</h2><p className="text-sm text-cinza">Formato otimizado para leitura rápida no WhatsApp, com link curto rastreável.</p></div>
+            <div><h2 className="font-serif text-lg font-bold text-texto">Campanha pronta</h2><p className="text-sm text-cinza">Formato otimizado para leitura rápida no WhatsApp, com copy estratégica e link curto rastreável.</p></div>
           </div>
           <div className="flex gap-2">
             {(["status", "quadrado"] as const).map((value) => (
@@ -657,10 +686,10 @@ export function PromotionCenter({
                 </span>
                 {activeAiCopy ? (
                   <span className="rounded-full bg-white px-2 py-1 text-[10px] font-bold text-rosa-profundo">
-                    Gancho IA · editável
+                    Copy IA · editável
                   </span>
                 ) : (
-                  <span className="text-[10px] font-medium text-cinza">Gancho fixo · editável</span>
+                  <span className="text-[10px] font-medium text-cinza">Modelo fixo · editável</span>
                 )}
               </div>
               <textarea
@@ -669,11 +698,11 @@ export function PromotionCenter({
                   setMessageDraft(event.target.value);
                   setShareNote("");
                 }}
-                rows={10}
+                rows={11}
                 className="w-full resize-y rounded-lg border border-rosa/10 bg-white p-3 text-sm leading-6 text-texto outline-none focus:border-rosa-profundo"
               />
               <p className="mt-1 text-[10px] leading-4 text-cinza">
-                Revise antes de compartilhar. Produto, preço, link e classificação continuam vindo do sistema.
+                Revise antes de compartilhar. Produto, preço, link e classificação continuam vindo do sistema; a IA trabalha apenas com fatos públicos do cadastro.
               </p>
             </div>
 
@@ -681,10 +710,10 @@ export function PromotionCenter({
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <p className="flex items-center gap-1.5 text-xs font-bold text-texto">
-                    <Sparkles size={14} /> Ganchos com IA
+                    <Sparkles size={14} /> Copy estratégica com IA
                   </p>
                   <p className="mt-1 text-[10px] leading-4 text-cinza">
-                    A IA cria somente a manchete curta. Não decide oferta, preço, novidade, destaque ou mais vendido.
+                    Três técnicas diferentes: desejo/benefício, dor/solução e curiosidade. O sistema rejeita frases genéricas, prova social inventada e urgência falsa antes de mostrar as opções.
                   </p>
                 </div>
                 <button
@@ -693,7 +722,7 @@ export function PromotionCenter({
                   disabled={aiCopyLoading}
                   className="rounded-lg border border-rosa-profundo/25 px-3 py-2 text-xs font-bold text-rosa-profundo disabled:opacity-40"
                 >
-                  {aiCopyLoading ? "Gerando..." : aiCopyResult ? "Gerar outros" : "Gerar 3 ganchos"}
+                  {aiCopyLoading ? "Criando estratégias..." : aiCopyResult ? "Gerar outras" : "Gerar 3 abordagens"}
                 </button>
               </div>
 
@@ -707,7 +736,7 @@ export function PromotionCenter({
                     const selected = activeAiCopy?.selectedIndex === index;
                     return (
                       <button
-                        key={`${variation.hook}-${index}`}
+                        key={`${variation.strategy}-${variation.hook}-${index}`}
                         type="button"
                         onClick={() => useAiVariation(variation, index)}
                         className={`block w-full rounded-xl border p-3 text-left transition ${
@@ -717,9 +746,10 @@ export function PromotionCenter({
                         }`}
                       >
                         <span className="text-[10px] font-bold uppercase tracking-wide text-rosa-profundo">
-                          Gancho {index + 1}
+                          {strategyLabel(variation.strategy)}
                         </span>
-                        <p className="mt-1 text-xs font-semibold text-texto">{variation.hook}</p>
+                        <p className="mt-1 text-sm font-bold leading-5 text-texto">{variation.hook}</p>
+                        <p className="mt-1.5 text-[11px] leading-4 text-cinza">{variation.support}</p>
                       </button>
                     );
                   })}
@@ -729,7 +759,7 @@ export function PromotionCenter({
                       onClick={useTemplateMessage}
                       className="text-[11px] font-bold text-rosa-profundo underline underline-offset-2"
                     >
-                      Voltar ao gancho fixo
+                      Voltar ao modelo fixo
                     </button>
                     <span className="text-[9px] text-cinza">
                       {aiCopyResult.model} · {aiCopyResult.promptVersion}
