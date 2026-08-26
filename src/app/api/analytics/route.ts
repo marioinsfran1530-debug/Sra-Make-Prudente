@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 
 const ALLOWED_EVENTS = new Set([
   "page_view",
+  "navigation_click",
   "category_view",
   "product_view",
   "search",
