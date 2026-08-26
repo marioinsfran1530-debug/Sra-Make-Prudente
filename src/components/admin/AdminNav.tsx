@@ -26,19 +26,15 @@ export function AdminNav({
   ];
 
   if (isAdmin) {
-    items.push({
-      href: "/admin/usuarios",
-      label: "Usuários",
-    });
+    items.push(
+      { href: "/admin/ia", label: "IA" },
+      { href: "/admin/usuarios", label: "Usuários" }
+    );
   }
 
   function isActive(href: string) {
     if (href === "/admin") {
       return pathname === "/admin";
-    }
-
-    if (href === "/admin/analise") {
-      return pathname === href || pathname.startsWith(`${href}/`);
     }
 
     return pathname === href || pathname.startsWith(`${href}/`);
