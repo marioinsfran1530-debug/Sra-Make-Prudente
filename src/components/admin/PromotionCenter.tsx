@@ -585,7 +585,7 @@ export function PromotionCenter({
     }
   }
 
-  function useAiVariation(variation: AiCopyVariation, index: number) {
+  function selectAiVariation(variation: AiCopyVariation, index: number) {
     if (!product) return;
     const nextMessage = buildMessage(product, productUrl, {
       hook: variation.hook,
@@ -738,7 +738,7 @@ export function PromotionCenter({
                       <button
                         key={`${variation.strategy}-${variation.hook}-${index}`}
                         type="button"
-                        onClick={() => useAiVariation(variation, index)}
+                        onClick={() => selectAiVariation(variation, index)}
                         className={`block w-full rounded-xl border p-3 text-left transition ${
                           selected
                             ? "border-rosa-profundo bg-rosa/5"
