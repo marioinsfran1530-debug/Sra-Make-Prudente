@@ -37,7 +37,7 @@ export function CatalogCategoryNav({
   return (
     <>
       {/* DESKTOP */}
-      <div className="hidden lg:block sticky top-[66px] z-50 px-4 mb-3 bg-[#FFF7FB]/95 backdrop-blur-md py-1.5">
+      <div className="hidden lg:block sticky top-[52px] z-50 px-4 mb-3 bg-[#FFF7FB] py-0.5">
         <div className="relative flex items-center gap-2 rounded-2xl bg-white border border-rosa/10 shadow-sm px-3 py-2">
           <Link
             href="/categoria"
@@ -112,7 +112,7 @@ export function CatalogCategoryNav({
       </div>
 
       {/* MOBILE */}
-      <div className="lg:hidden sticky top-[66px] z-50 px-4 mb-3 bg-[#FFF7FB]/95 backdrop-blur-md py-1.5">
+      <div className="lg:hidden sticky top-[52px] z-50 px-4 mb-3 bg-[#FFF7FB] py-0.5">
         <button
           type="button"
           onClick={() => setMobileOpen(true)}
