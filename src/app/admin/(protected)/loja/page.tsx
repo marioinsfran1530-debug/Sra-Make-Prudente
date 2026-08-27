@@ -1,8 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { StoreSettingsForm } from "@/components/admin/StoreSettingsForm";
+import { getAdminSession } from "@/lib/admin-auth";
 
 export default async function AdminLojaPage() {
-  const settings = await prisma.storeSettings.findFirst();
+  const [settings, adminSession] = await Promise.all([prisma.storeSettings.findFirst(), getAdminSession()]);
 
   return (
     <div>
@@ -14,7 +15,7 @@ export default async function AdminLojaPage() {
         Atualize os dados exibidos no catálogo e nos canais de contato.
       </p>
 
-      <StoreSettingsForm initial={settings} />
+      <StoreSettingsForm initial={settings} canEditConversionCopy={adminSession?.role === "ADMIN"} />
     </div>
   );
 }

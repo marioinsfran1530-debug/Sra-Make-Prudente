@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AdminNotice, UnsavedChangesGuard } from "@/components/admin/AdminUx";
+import { resolveStorefrontConversion } from "@/lib/storefront-conversion";
 
 type StoreSettings = {
   id?: string;
@@ -45,8 +46,9 @@ function isAllowedCtaUrl(value: string) {
   }
 }
 
-export function StoreSettingsForm({ initial }: { initial: StoreSettings | null }) {
+export function StoreSettingsForm({ initial, canEditConversionCopy = false }: { initial: StoreSettings | null; canEditConversionCopy?: boolean }) {
   const router = useRouter();
+  const conversionDefaults = resolveStorefrontConversion(initial);
   const defaults = {
     storeName: initial?.storeName ?? "Sra Make Prudente",
     whatsapp: initial?.whatsapp ?? "",
@@ -61,16 +63,16 @@ export function StoreSettingsForm({ initial }: { initial: StoreSettings | null }
     bannerDesktopStoragePath: initial?.bannerDesktopStoragePath ?? "",
     bannerMobileUrl: initial?.bannerMobileUrl ?? "",
     bannerMobileStoragePath: initial?.bannerMobileStoragePath ?? "",
-    heroEyebrow: initial?.heroEyebrow ?? "Catálogo Sra Make",
-    heroTitle: initial?.heroTitle ?? "Encontre o que você precisa na Sra Make.",
-    heroSubtitle: initial?.heroSubtitle ?? "Maquiagem, lash, nail e acessórios. Escolha pelo catálogo e confirme pelo WhatsApp.",
-    primaryCtaLabel: initial?.primaryCtaLabel ?? "Ver produtos",
-    primaryCtaUrl: initial?.primaryCtaUrl ?? "/categoria",
-    secondaryCtaLabel: initial?.secondaryCtaLabel ?? "Preciso de ajuda",
-    secondaryCtaUrl: initial?.secondaryCtaUrl ?? "",
-    highlight1: initial?.highlight1 ?? "Compra fácil e segura",
-    highlight2: initial?.highlight2 ?? "Atendimento personalizado",
-    highlight3: initial?.highlight3 ?? "Retirada ou entrega",
+    heroEyebrow: conversionDefaults.heroEyebrow,
+    heroTitle: conversionDefaults.heroTitle,
+    heroSubtitle: conversionDefaults.heroSubtitle,
+    primaryCtaLabel: conversionDefaults.primaryCtaLabel,
+    primaryCtaUrl: conversionDefaults.primaryCtaUrl,
+    secondaryCtaLabel: conversionDefaults.secondaryCtaLabel,
+    secondaryCtaUrl: conversionDefaults.secondaryCtaUrl,
+    highlight1: conversionDefaults.highlight1,
+    highlight2: conversionDefaults.highlight2,
+    highlight3: conversionDefaults.highlight3,
   };
   const [values, setValues] = useState(defaults);
   const [saving, setSaving] = useState(false);
@@ -153,6 +155,9 @@ export function StoreSettingsForm({ initial }: { initial: StoreSettings | null }
       if (!isAllowedCtaUrl(values.primaryCtaUrl)) {
         throw new Error("O link do CTA principal deve ser um caminho interno ou uma URL HTTPS.");
       }
+      if (!isAllowedCtaUrl(values.secondaryCtaUrl)) {
+        throw new Error("O link do CTA secundário deve ser um caminho interno ou uma URL HTTPS.");
+      }
       const persistedAssetsBeforePut = { ...persistedAssets.current };
       const response = await fetch("/api/admin/store-settings", {
         method: "PUT",
@@ -192,21 +197,33 @@ export function StoreSettingsForm({ initial }: { initial: StoreSettings | null }
         </div>
       </Card>
 
-      <Card title="Hero da vitrine" description="Personalize a mensagem principal, o botão e os destaques exibidos sobre o banner.">
-        <Field label="Chamada superior"><input value={values.heroEyebrow} onChange={(event) => set("heroEyebrow", event.target.value)} className="input" /></Field>
-        <Field label="Título"><input value={values.heroTitle} onChange={(event) => set("heroTitle", event.target.value)} className="input" maxLength={100} /></Field>
-        <Field label="Texto de apoio"><textarea value={values.heroSubtitle} onChange={(event) => set("heroSubtitle", event.target.value)} className="input resize-none" rows={3} /></Field>
+      <Card title="Primeira dobra da vitrine" description="Mensagem comercial otimizada para levar o visitante do anúncio aos produtos com menos distrações.">
+        {!canEditConversionCopy && (
+          <AdminNotice tone="info">
+            A mensagem comercial está protegida para evitar alterações acidentais durante campanhas. Você pode atualizar imagens e dados da loja normalmente.
+          </AdminNotice>
+        )}
+        <Field label="Chamada superior"><input value={values.heroEyebrow} onChange={(event) => set("heroEyebrow", event.target.value)} className="input disabled:bg-creme disabled:text-cinza" disabled={!canEditConversionCopy} /></Field>
+        <Field label="Título"><input value={values.heroTitle} onChange={(event) => set("heroTitle", event.target.value)} className="input disabled:bg-creme disabled:text-cinza" maxLength={100} disabled={!canEditConversionCopy} /></Field>
+        <Field label="Texto de apoio"><textarea value={values.heroSubtitle} onChange={(event) => set("heroSubtitle", event.target.value)} className="input resize-none disabled:bg-creme disabled:text-cinza" rows={3} disabled={!canEditConversionCopy} /></Field>
         <div className="grid gap-4 md:grid-cols-2">
-          <Field label="Texto do CTA principal"><input value={values.primaryCtaLabel} onChange={(event) => set("primaryCtaLabel", event.target.value)} className="input" /></Field>
-          <Field label="Link do CTA principal"><input value={values.primaryCtaUrl} onChange={(event) => set("primaryCtaUrl", event.target.value)} className="input" placeholder="/categoria" /></Field>
+          <Field label="Texto do CTA principal"><input value={values.primaryCtaLabel} onChange={(event) => set("primaryCtaLabel", event.target.value)} className="input disabled:bg-creme disabled:text-cinza" disabled={!canEditConversionCopy} /></Field>
+          <Field label="Link do CTA principal"><input value={values.primaryCtaUrl} onChange={(event) => set("primaryCtaUrl", event.target.value)} className="input disabled:bg-creme disabled:text-cinza" placeholder="/categoria" disabled={!canEditConversionCopy} /></Field>
+          <Field label="Texto de ajuda"><input value={values.secondaryCtaLabel} onChange={(event) => set("secondaryCtaLabel", event.target.value)} className="input disabled:bg-creme disabled:text-cinza" disabled={!canEditConversionCopy} /></Field>
+          <Field label="Link de ajuda (opcional)"><input value={values.secondaryCtaUrl} onChange={(event) => set("secondaryCtaUrl", event.target.value)} className="input disabled:bg-creme disabled:text-cinza" placeholder="Vazio usa o WhatsApp da loja" disabled={!canEditConversionCopy} /></Field>
         </div>
-        <div className="grid gap-4 md:grid-cols-3">
-          {(["highlight1", "highlight2", "highlight3"] as const).map((field, index) => (
-            <Field key={field} label={`Destaque ${index + 1}`}>
-              <input value={values[field]} onChange={(event) => set(field, event.target.value)} className="input" />
+        <div className="grid gap-4 md:grid-cols-2">
+          {(["highlight1", "highlight2"] as const).map((field, index) => (
+            <Field key={field} label={`Confiança ${index + 1}`}>
+              <input value={values[field]} onChange={(event) => set(field, event.target.value)} className="input disabled:bg-creme disabled:text-cinza" disabled={!canEditConversionCopy} />
             </Field>
           ))}
         </div>
+        {canEditConversionCopy && (
+          <p className="rounded-xl bg-amber-50 px-3 py-2 text-[11px] leading-4 text-amber-800">
+            Estes campos afetam diretamente a conversão da homepage. Durante campanhas, altere apenas após teste em Preview.
+          </p>
+        )}
       </Card>
 
       <Card title="Informações da loja">

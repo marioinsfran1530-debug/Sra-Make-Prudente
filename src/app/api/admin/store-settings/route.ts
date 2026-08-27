@@ -7,6 +7,7 @@ import {
   removeStorefrontAssets,
   validateStorefrontAsset,
 } from "@/lib/storefront-assets";
+import { resolveStorefrontConversion } from "@/lib/storefront-conversion";
 
 export async function GET() {
   const { error, status } = await requireAdmin("EDITOR");
@@ -16,7 +17,7 @@ export async function GET() {
 }
 
 export async function PUT(request: NextRequest) {
-  const { error, status } = await requireAdmin("EDITOR");
+  const { session, error, status } = await requireAdmin("EDITOR");
   if (error) return NextResponse.json({ error }, { status });
 
   const supabase = createStorefrontStorageClient();
@@ -28,8 +29,11 @@ export async function PUT(request: NextRequest) {
     const current = await prisma.storeSettings.findFirst();
     const storeName = String(body.storeName ?? "Sra Make Prudente").trim();
     const whatsapp = String(body.whatsapp ?? "").trim();
-    const primaryCtaUrl = String(body.primaryCtaUrl ?? "").trim();
-    const secondaryCtaUrl = String(body.secondaryCtaUrl ?? "").trim();
+    const requestedConversion = resolveStorefrontConversion(body);
+    const currentConversion = resolveStorefrontConversion(current);
+    const conversion = session?.role === "ADMIN" ? requestedConversion : currentConversion;
+    const primaryCtaUrl = conversion.primaryCtaUrl;
+    const secondaryCtaUrl = conversion.secondaryCtaUrl;
 
     if (!storeName) {
       return NextResponse.json({ error: "O nome da loja é obrigatório." }, { status: 400 });
@@ -81,16 +85,16 @@ export async function PUT(request: NextRequest) {
       bannerDesktopStoragePath: bannerDesktop.storagePath,
       bannerMobileUrl: bannerMobile.url,
       bannerMobileStoragePath: bannerMobile.storagePath,
-      heroEyebrow: String(body.heroEyebrow ?? "").trim() || null,
-      heroTitle: String(body.heroTitle ?? "").trim() || null,
-      heroSubtitle: String(body.heroSubtitle ?? "").trim() || null,
-      primaryCtaLabel: String(body.primaryCtaLabel ?? "").trim() || null,
+      heroEyebrow: conversion.heroEyebrow || null,
+      heroTitle: conversion.heroTitle || null,
+      heroSubtitle: conversion.heroSubtitle || null,
+      primaryCtaLabel: conversion.primaryCtaLabel || null,
       primaryCtaUrl: primaryCtaUrl || null,
-      secondaryCtaLabel: String(body.secondaryCtaLabel ?? "").trim() || null,
+      secondaryCtaLabel: conversion.secondaryCtaLabel || null,
       secondaryCtaUrl: secondaryCtaUrl || null,
-      highlight1: String(body.highlight1 ?? "").trim() || null,
-      highlight2: String(body.highlight2 ?? "").trim() || null,
-      highlight3: String(body.highlight3 ?? "").trim() || null,
+      highlight1: conversion.highlight1 || null,
+      highlight2: conversion.highlight2 || null,
+      highlight3: conversion.highlight3 || null,
     };
 
     const settings = current
