@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getHomeBrandSettings, orderBrandsForHome } from "@/lib/home-merchandising";
 
-export const revalidate = 30;
+export const dynamic = "force-dynamic";
 
 export async function GET() {
   const [categoryRows, brandGroups, brandSettings] = await Promise.all([
@@ -27,8 +27,11 @@ export async function GET() {
     brandCounts.set(brand, (brandCounts.get(brand) ?? 0) + item._count._all);
   }
 
-  return NextResponse.json({
-    categories: categoryRows,
-    brands: orderBrandsForHome(brandCounts, brandSettings, 10),
-  });
+  return NextResponse.json(
+    {
+      categories: categoryRows,
+      brands: orderBrandsForHome(brandCounts, brandSettings, 10),
+    },
+    { headers: { "Cache-Control": "no-store" } }
+  );
 }
