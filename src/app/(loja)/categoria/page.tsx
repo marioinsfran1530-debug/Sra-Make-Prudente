@@ -38,21 +38,21 @@ export default async function CategoriasIndexPage() {
 
   return (
     <main>
-      <div className="px-4 pt-4 pb-3">
-        <p className="text-[11px] font-bold uppercase tracking-widest text-rosa-profundo">
-          Catálogo
+      <div className="px-4 pt-4 pb-2">
+        <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-rosa-profundo">
+          Catálogo completo
         </p>
 
-        <h1 className="font-serif font-bold text-2xl text-texto mt-1">
+        <h1 className="mt-0.5 font-serif text-xl font-bold text-texto sm:text-2xl">
           Todos os produtos
         </h1>
 
-        <p className="text-xs text-cinza mt-1">
-          Encontre produtos por categoria, marca ou faixa de preço.
+        <p className="mt-1 max-w-2xl text-xs leading-relaxed text-cinza">
+          Busque pelo nome ou explore por categoria, marca e faixa de preço.
         </p>
       </div>
 
-      <div className="mb-3">
+      <div className="mt-1">
         <SearchBar />
       </div>
 

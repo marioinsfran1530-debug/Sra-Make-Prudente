@@ -110,13 +110,25 @@ export default async function CategoriaPage({ params }: { params: CategoryParams
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListJsonLd) }} />
       <CategoryViewTracker categorySlug={category.slug} />
-      <div className="px-4 pt-4 pb-3">
-        <p className="text-[11px] font-bold uppercase tracking-widest text-rosa-profundo">Categoria</p>
-        <h1 className="font-serif font-bold text-2xl text-texto mt-1">{seo.title}</h1>
-        <p className="mt-2 max-w-3xl text-sm leading-relaxed text-cinza">{visibleDescription}</p>
+
+      <div className="px-4 pt-4 pb-2">
+        <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-rosa-profundo">
+          Categoria
+        </p>
+        <h1 className="mt-0.5 font-serif text-xl font-bold text-texto sm:text-2xl">
+          {seo.title}
+        </h1>
+        <p className="mt-1.5 max-w-3xl text-xs leading-relaxed text-cinza sm:text-sm">
+          {visibleDescription}
+        </p>
       </div>
-      <div className="mb-3"><SearchBar /></div>
+
+      <div className="mt-1">
+        <SearchBar />
+      </div>
+
       <CatalogCategoryNav categories={categories} activeCategory={category.slug} />
+
       <Suspense fallback={<div className="px-4 py-8 text-sm text-cinza">Carregando produtos...</div>}>
         <ProductListClient
           key={category.slug}
