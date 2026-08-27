@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Grid2X2, ImageIcon, List } from "lucide-react";
 import { money } from "@/lib/money";
 import { computeStockStatus, STOCK_LABEL } from "@/lib/stock";
+import { AdminNotice, ConfirmDialog } from "@/components/admin/AdminUx";
 
 type Row = {
   id: string;
@@ -26,6 +27,16 @@ type Row = {
 
 type ViewMode = "list" | "grid";
 type VitrineField = "featured" | "isNew" | "bestSeller";
+type Notice = { tone: "success" | "error"; message: string } | null;
+
+const ALLOWED_INITIAL_STATUS = new Set([
+  "",
+  "active",
+  "inactive",
+  "DISPONIVEL",
+  "ULTIMAS",
+  "INDISPONIVEL",
+]);
 
 function normalizeSearchText(value: string | null | undefined) {
   return (value ?? "")
@@ -37,24 +48,38 @@ function normalizeSearchText(value: string | null | undefined) {
     .trim();
 }
 
-export function ProductsTable({ products }: { products: Row[] }) {
+export function ProductsTable({
+  products,
+  initialStatus = "",
+}: {
+  products: Row[];
+  initialStatus?: string;
+}) {
   const router = useRouter();
+  const safeInitialStatus = ALLOWED_INITIAL_STATUS.has(initialStatus) ? initialStatus : "";
   const [query, setQuery] = useState("");
   const [categoryId, setCategoryId] = useState("");
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState(safeInitialStatus);
   const [tag, setTag] = useState("");
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [perPage, setPerPage] = useState(10);
   const [page, setPage] = useState(1);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<Row | null>(null);
   const [openVitrineId, setOpenVitrineId] = useState<string | null>(null);
   const [togglingVitrine, setTogglingVitrine] = useState<string | null>(null);
+  const [notice, setNotice] = useState<Notice>(null);
+
+  useEffect(() => {
+    const next = ALLOWED_INITIAL_STATUS.has(initialStatus) ? initialStatus : "";
+    setStatus(next);
+    setPage(1);
+  }, [initialStatus]);
 
   const categories = useMemo(() => {
     const map = new Map<string, string>();
     products.forEach((product) => map.set(product.categoryId, product.category.name));
-
     return Array.from(map.entries())
       .map(([id, name]) => ({ id, name }))
       .sort((a, b) => a.name.localeCompare(b.name));
@@ -70,7 +95,6 @@ export function ProductsTable({ products }: { products: Row[] }) {
           .join(" ")
       );
       const matchesQuery = searchTerms.every((term) => searchableText.includes(term));
-
       const matchesCategory = !categoryId || product.categoryId === categoryId;
       const stockStatus = computeStockStatus(product.stockQty);
       const matchesStatus =
@@ -97,10 +121,12 @@ export function ProductsTable({ products }: { products: Row[] }) {
 
   function resetPage() {
     setPage(1);
+    setNotice(null);
   }
 
   async function toggleActive(product: Row) {
     setTogglingId(product.id);
+    setNotice(null);
 
     try {
       const response = await fetch(`/api/admin/products/${product.id}`, {
@@ -108,48 +134,52 @@ export function ProductsTable({ products }: { products: Row[] }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ active: !product.active }),
       });
-
+      const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error("Não foi possível atualizar o produto.");
+        throw new Error(data.error ?? "Não foi possível atualizar o produto.");
       }
 
+      setNotice({
+        tone: "success",
+        message: product.active
+          ? `“${product.name}” foi desativado.`
+          : `“${product.name}” foi ativado.`,
+      });
       router.refresh();
     } catch (error) {
-      window.alert(
-        error instanceof Error ? error.message : "Não foi possível atualizar o produto."
-      );
+      setNotice({
+        tone: "error",
+        message: error instanceof Error ? error.message : "Não foi possível atualizar o produto.",
+      });
     } finally {
       setTogglingId(null);
     }
   }
 
-  async function deleteProduct(product: Row) {
-    const confirmed = window.confirm(
-      `Excluir “${product.name}” definitivamente?\n\nUse esta opção somente para cadastros feitos por engano. Esta ação não pode ser desfeita.`
-    );
-
-    if (!confirmed) return;
-
+  async function deleteProduct() {
+    if (!pendingDelete) return;
+    const product = pendingDelete;
     setDeletingId(product.id);
+    setNotice(null);
 
     try {
       const response = await fetch(`/api/admin/products/${product.id}`, {
         method: "DELETE",
       });
-      const data = (await response.json().catch(() => null)) as
-        | { error?: string }
-        | null;
-
+      const data = (await response.json().catch(() => null)) as { error?: string } | null;
       if (!response.ok) {
         throw new Error(data?.error || "Não foi possível excluir o produto.");
       }
 
       setOpenVitrineId(null);
+      setPendingDelete(null);
+      setNotice({ tone: "success", message: `“${product.name}” foi excluído.` });
       router.refresh();
     } catch (error) {
-      window.alert(
-        error instanceof Error ? error.message : "Não foi possível excluir o produto."
-      );
+      setNotice({
+        tone: "error",
+        message: error instanceof Error ? error.message : "Não foi possível excluir o produto.",
+      });
     } finally {
       setDeletingId(null);
     }
@@ -158,6 +188,7 @@ export function ProductsTable({ products }: { products: Row[] }) {
   async function toggleVitrine(product: Row, field: VitrineField) {
     const operationId = `${product.id}-${field}`;
     setTogglingVitrine(operationId);
+    setNotice(null);
 
     try {
       const response = await fetch(`/api/admin/products/${product.id}`, {
@@ -165,16 +196,23 @@ export function ProductsTable({ products }: { products: Row[] }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ [field]: !product[field] }),
       });
-
+      const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error("Não foi possível atualizar a vitrine.");
+        throw new Error(data.error ?? "Não foi possível atualizar a vitrine.");
       }
 
+      const label =
+        field === "featured" ? "Destaque" : field === "isNew" ? "Novidade" : "Mais procurado";
+      setNotice({
+        tone: "success",
+        message: `${label} ${product[field] ? "removido" : "ativado"} para “${product.name}”.`,
+      });
       router.refresh();
     } catch (error) {
-      window.alert(
-        error instanceof Error ? error.message : "Não foi possível atualizar a vitrine."
-      );
+      setNotice({
+        tone: "error",
+        message: error instanceof Error ? error.message : "Não foi possível atualizar a vitrine.",
+      });
     } finally {
       setTogglingVitrine(null);
     }
@@ -193,7 +231,6 @@ export function ProductsTable({ products }: { products: Row[] }) {
             placeholder="Buscar por nome, marca, categoria ou SKU..."
             className="flex-1 rounded-xl border border-rosa/20 bg-white px-4 py-2.5 text-sm outline-none"
           />
-
           <Link
             href="/admin/produtos/novo"
             className="whitespace-nowrap rounded-xl px-4 py-2.5 text-center text-xs font-bold text-white"
@@ -214,9 +251,7 @@ export function ProductsTable({ products }: { products: Row[] }) {
           >
             <option value="">Todas as categorias</option>
             {categories.map((category) => (
-              <option key={category.id} value={category.id}>
-                {category.name}
-              </option>
+              <option key={category.id} value={category.id}>{category.name}</option>
             ))}
           </select>
 
@@ -263,19 +298,10 @@ export function ProductsTable({ products }: { products: Row[] }) {
               <option value={30}>30 por página</option>
               <option value={50}>50 por página</option>
             </select>
-
-            <ViewButton
-              active={viewMode === "list"}
-              title="Visualização em lista"
-              onClick={() => setViewMode("list")}
-            >
+            <ViewButton active={viewMode === "list"} title="Visualização em lista" onClick={() => setViewMode("list")}>
               <List size={16} />
             </ViewButton>
-            <ViewButton
-              active={viewMode === "grid"}
-              title="Visualização em grade"
-              onClick={() => setViewMode("grid")}
-            >
+            <ViewButton active={viewMode === "grid"} title="Visualização em grade" onClick={() => setViewMode("grid")}>
               <Grid2X2 size={16} />
             </ViewButton>
           </div>
@@ -283,10 +309,8 @@ export function ProductsTable({ products }: { products: Row[] }) {
 
         <div className="flex items-center justify-between gap-2">
           <p className="text-[11px] text-cinza">
-            {filtered.length} produto{filtered.length === 1 ? "" : "s"} encontrado
-            {filtered.length === 1 ? "" : "s"}
+            {filtered.length} produto{filtered.length === 1 ? "" : "s"} encontrado{filtered.length === 1 ? "" : "s"}
           </p>
-
           {(query || categoryId || status || tag) && (
             <button
               type="button"
@@ -296,6 +320,7 @@ export function ProductsTable({ products }: { products: Row[] }) {
                 setStatus("");
                 setTag("");
                 setPage(1);
+                setNotice(null);
               }}
               className="text-[11px] font-bold text-rosa-profundo"
             >
@@ -305,13 +330,13 @@ export function ProductsTable({ products }: { products: Row[] }) {
         </div>
       </div>
 
-      <div
-        className={
-          viewMode === "grid"
-            ? "grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3"
-            : "flex flex-col gap-2"
-        }
-      >
+      {notice && (
+        <AdminNotice tone={notice.tone} className="mb-3">
+          {notice.message}
+        </AdminNotice>
+      )}
+
+      <div className={viewMode === "grid" ? "grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3" : "flex flex-col gap-2"}>
         {visibleProducts.map((product) => {
           const stock = computeStockStatus(product.stockQty);
           const deleting = deletingId === product.id;
@@ -324,60 +349,29 @@ export function ProductsTable({ products }: { products: Row[] }) {
                   ? "flex flex-col rounded-xl bg-white p-4"
                   : "flex flex-col gap-3 rounded-xl bg-white p-3 sm:flex-row sm:items-center"
               }
-              style={{
-                boxShadow: "0 2px 10px rgba(35,20,42,0.06)",
-                opacity: product.active ? 1 : 0.55,
-              }}
+              style={{ boxShadow: "0 2px 10px rgba(35,20,42,0.06)", opacity: product.active ? 1 : 0.55 }}
             >
-              <div
-                className={
-                  viewMode === "grid"
-                    ? "flex min-w-0 items-start gap-3"
-                    : "flex w-full min-w-0 items-center gap-3 sm:flex-1"
-                }
-              >
-                <ProductThumbnail
-                  name={product.name}
-                  imageUrl={product.imageUrl}
-                  compact={viewMode === "list"}
-                />
-
+              <div className={viewMode === "grid" ? "flex min-w-0 items-start gap-3" : "flex w-full min-w-0 items-center gap-3 sm:flex-1"}>
+                <ProductThumbnail name={product.name} imageUrl={product.imageUrl} compact={viewMode === "list"} />
                 <div className="min-w-0 flex-1">
                   <div className="mb-1 flex flex-wrap gap-1">
                     {product.featured && <Tag>Destaque</Tag>}
                     {product.isNew && <Tag variant="cream">Novidade</Tag>}
                     {product.bestSeller && <Tag variant="navy">Mais procurado</Tag>}
                   </div>
-
                   <p className="truncate text-sm font-bold text-texto">{product.name}</p>
-                  <p className="text-xs text-cinza">
-                    {product.brand} · {product.category.name}
-                  </p>
-                  {product.sku && (
-                    <p className="mt-0.5 text-[10px] text-cinza">SKU: {product.sku}</p>
-                  )}
-                  <p className="mt-1 text-xs text-cinza">
-                    {STOCK_LABEL[stock]} · {product.stockQty} un.
-                  </p>
-                  <p className="mt-1 text-sm font-bold text-rosa-profundo">
-                    {money(product.promoPrice ?? product.price)}
-                  </p>
+                  <p className="text-xs text-cinza">{product.brand} · {product.category.name}</p>
+                  {product.sku && <p className="mt-0.5 text-[10px] text-cinza">SKU: {product.sku}</p>}
+                  <p className="mt-1 text-xs text-cinza">{STOCK_LABEL[stock]} · {product.stockQty} un.</p>
+                  <p className="mt-1 text-sm font-bold text-rosa-profundo">{money(product.promoPrice ?? product.price)}</p>
                 </div>
               </div>
 
-              <div
-                className={
-                  viewMode === "grid"
-                    ? "mt-4 flex flex-wrap gap-2"
-                    : "flex w-full flex-wrap gap-2 border-t border-rosa/10 pt-3 sm:w-auto sm:justify-end sm:border-t-0 sm:pt-0"
-                }
-              >
+              <div className={viewMode === "grid" ? "mt-4 flex flex-wrap gap-2" : "flex w-full flex-wrap gap-2 border-t border-rosa/10 pt-3 sm:w-auto sm:justify-end sm:border-t-0 sm:pt-0"}>
                 <div className="relative">
                   <button
                     type="button"
-                    onClick={() =>
-                      setOpenVitrineId(openVitrineId === product.id ? null : product.id)
-                    }
+                    onClick={() => setOpenVitrineId(openVitrineId === product.id ? null : product.id)}
                     className={`whitespace-nowrap rounded-xl border px-3 py-2 text-xs font-bold ${
                       product.featured || product.isNew || product.bestSeller
                         ? "border-rosa-profundo bg-rosa/10 text-rosa-profundo"
@@ -389,53 +383,30 @@ export function ProductsTable({ products }: { products: Row[] }) {
 
                   {openVitrineId === product.id && (
                     <div className="absolute left-0 top-full z-30 mt-2 w-52 max-w-[calc(100vw-2rem)] rounded-2xl border border-rosa/10 bg-white p-2 shadow-xl sm:bottom-full sm:left-auto sm:right-0 sm:top-auto sm:mb-2 sm:mt-0">
-                      <p className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-cinza">
-                        Exibir produto em
-                      </p>
-                      <VitrineOption
-                        label="Destaque"
-                        checked={product.featured}
-                        loading={togglingVitrine === `${product.id}-featured`}
-                        onClick={() => toggleVitrine(product, "featured")}
-                      />
-                      <VitrineOption
-                        label="Novidade"
-                        checked={product.isNew}
-                        loading={togglingVitrine === `${product.id}-isNew`}
-                        onClick={() => toggleVitrine(product, "isNew")}
-                      />
-                      <VitrineOption
-                        label="Mais procurado"
-                        checked={product.bestSeller}
-                        loading={togglingVitrine === `${product.id}-bestSeller`}
-                        onClick={() => toggleVitrine(product, "bestSeller")}
-                      />
+                      <p className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-cinza">Exibir produto em</p>
+                      <VitrineOption label="Destaque" checked={product.featured} loading={togglingVitrine === `${product.id}-featured`} onClick={() => toggleVitrine(product, "featured")} />
+                      <VitrineOption label="Novidade" checked={product.isNew} loading={togglingVitrine === `${product.id}-isNew`} onClick={() => toggleVitrine(product, "isNew")} />
+                      <VitrineOption label="Mais procurado" checked={product.bestSeller} loading={togglingVitrine === `${product.id}-bestSeller`} onClick={() => toggleVitrine(product, "bestSeller")} />
                     </div>
                   )}
                 </div>
 
                 <button
                   type="button"
-                  onClick={() => toggleActive(product)}
+                  onClick={() => void toggleActive(product)}
                   disabled={togglingId === product.id || deleting}
                   className="whitespace-nowrap rounded-xl border border-rosa/20 px-3 py-2 text-xs font-bold text-texto disabled:opacity-50"
                 >
-                  {togglingId === product.id
-                    ? "..."
-                    : product.active
-                      ? "Desativar"
-                      : "Ativar"}
+                  {togglingId === product.id ? "..." : product.active ? "Desativar" : "Ativar"}
                 </button>
-
                 <button
                   type="button"
-                  onClick={() => deleteProduct(product)}
+                  onClick={() => setPendingDelete(product)}
                   disabled={deleting || togglingId === product.id}
                   className="whitespace-nowrap rounded-xl border border-red-200 px-3 py-2 text-xs font-bold text-red-600 disabled:opacity-50"
                 >
                   {deleting ? "Excluindo..." : "Excluir"}
                 </button>
-
                 <Link
                   href={`/admin/produtos/${product.id}`}
                   className="whitespace-nowrap rounded-xl px-3 py-2 text-center text-xs font-bold text-white"
@@ -450,65 +421,42 @@ export function ProductsTable({ products }: { products: Row[] }) {
 
         {visibleProducts.length === 0 && (
           <div className="rounded-xl bg-white p-6">
-            <p className="text-xs text-cinza">
-              Nenhum produto encontrado com esses filtros.
-            </p>
+            <p className="text-xs text-cinza">Nenhum produto encontrado com esses filtros.</p>
           </div>
         )}
       </div>
 
       {filtered.length > 0 && (
         <div className="mt-5 flex flex-col items-center justify-between gap-3 sm:flex-row">
-          <p className="text-[11px] text-cinza">
-            Página {safePage} de {totalPages}
-          </p>
+          <p className="text-[11px] text-cinza">Página {safePage} de {totalPages}</p>
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              disabled={safePage <= 1}
-              onClick={() => setPage((current) => Math.max(1, current - 1))}
-              className="rounded-xl border border-rosa/20 px-3 py-2 text-xs font-bold disabled:opacity-40"
-            >
-              Anterior
-            </button>
+            <button type="button" disabled={safePage <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))} className="rounded-xl border border-rosa/20 px-3 py-2 text-xs font-bold disabled:opacity-40">Anterior</button>
             <span className="px-2 text-xs font-bold text-texto">{safePage}</span>
-            <button
-              type="button"
-              disabled={safePage >= totalPages}
-              onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
-              className="rounded-xl border border-rosa/20 px-3 py-2 text-xs font-bold disabled:opacity-40"
-            >
-              Próxima
-            </button>
+            <button type="button" disabled={safePage >= totalPages} onClick={() => setPage((current) => Math.min(totalPages, current + 1))} className="rounded-xl border border-rosa/20 px-3 py-2 text-xs font-bold disabled:opacity-40">Próxima</button>
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={Boolean(pendingDelete)}
+        title="Excluir produto?"
+        message={pendingDelete ? `Excluir “${pendingDelete.name}” definitivamente?\n\nUse esta opção somente para cadastros feitos por engano. Esta ação não pode ser desfeita.` : ""}
+        confirmLabel="Excluir produto"
+        danger
+        busy={Boolean(deletingId)}
+        onCancel={() => { if (!deletingId) setPendingDelete(null); }}
+        onConfirm={deleteProduct}
+      />
     </div>
   );
 }
 
-function ProductThumbnail({
-  name,
-  imageUrl,
-  compact,
-}: {
-  name: string;
-  imageUrl: string | null;
-  compact: boolean;
-}) {
+function ProductThumbnail({ name, imageUrl, compact }: { name: string; imageUrl: string | null; compact: boolean }) {
   const size = compact ? "h-11 w-11" : "h-14 w-14";
-
   return (
-    <div
-      className={`${size} flex shrink-0 items-center justify-center overflow-hidden rounded-xl border border-rosa/10 bg-creme`}
-    >
+    <div className={`${size} flex shrink-0 items-center justify-center overflow-hidden rounded-xl border border-rosa/10 bg-creme`}>
       {imageUrl ? (
-        <img
-          src={imageUrl}
-          alt={name}
-          loading="lazy"
-          className="h-full w-full object-cover"
-        />
+        <img src={imageUrl} alt={name} loading="lazy" className="h-full w-full object-cover" />
       ) : (
         <ImageIcon size={compact ? 16 : 18} className="text-cinza/60" aria-hidden="true" />
       )}
@@ -516,26 +464,12 @@ function ProductThumbnail({
   );
 }
 
-function ViewButton({
-  active,
-  title,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  title: string;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
+function ViewButton({ active, title, onClick, children }: { active: boolean; title: string; onClick: () => void; children: React.ReactNode }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`flex w-10 items-center justify-center rounded-xl border ${
-        active
-          ? "border-rosa-profundo bg-rosa/5 text-rosa-profundo"
-          : "border-rosa/20 bg-white text-cinza"
-      }`}
+      className={`flex w-10 items-center justify-center rounded-xl border ${active ? "border-rosa-profundo bg-rosa/5 text-rosa-profundo" : "border-rosa/20 bg-white text-cinza"}`}
       title={title}
     >
       {children}
@@ -543,37 +477,16 @@ function ViewButton({
   );
 }
 
-function Tag({
-  children,
-  variant = "pink",
-}: {
-  children: React.ReactNode;
-  variant?: "pink" | "cream" | "navy";
-}) {
+function Tag({ children, variant = "pink" }: { children: React.ReactNode; variant?: "pink" | "cream" | "navy" }) {
   const classes = {
     pink: "bg-rosa/10 text-rosa-profundo",
     cream: "bg-creme text-texto",
     navy: "bg-navy/5 text-texto",
   }[variant];
-
-  return (
-    <span className={`rounded-full px-2 py-1 text-[9px] font-bold ${classes}`}>
-      {children}
-    </span>
-  );
+  return <span className={`rounded-full px-2 py-1 text-[9px] font-bold ${classes}`}>{children}</span>;
 }
 
-function VitrineOption({
-  label,
-  checked,
-  loading,
-  onClick,
-}: {
-  label: string;
-  checked: boolean;
-  loading: boolean;
-  onClick: () => void;
-}) {
+function VitrineOption({ label, checked, loading, onClick }: { label: string; checked: boolean; loading: boolean; onClick: () => void }) {
   return (
     <button
       type="button"
@@ -582,13 +495,7 @@ function VitrineOption({
       className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 transition hover:bg-rosa/5 disabled:opacity-50"
     >
       <span className="text-xs font-semibold text-texto">{label}</span>
-      <span
-        className={`flex h-5 w-5 items-center justify-center rounded-md border text-[11px] font-bold ${
-          checked
-            ? "border-rosa-profundo bg-rosa-profundo text-white"
-            : "border-rosa/30 bg-white text-transparent"
-        }`}
-      >
+      <span className={`flex h-5 w-5 items-center justify-center rounded-md border text-[11px] font-bold ${checked ? "border-rosa-profundo bg-rosa-profundo text-white" : "border-rosa/30 bg-white text-transparent"}`}>
         {loading ? "…" : "✓"}
       </span>
     </button>
