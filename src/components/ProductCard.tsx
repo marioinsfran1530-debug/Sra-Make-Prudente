@@ -50,7 +50,12 @@ export function ProductCard({ product }: { product: PublicProduct }) {
       className="rounded-2xl overflow-hidden bg-white flex flex-col h-full min-h-[340px] transition hover:-translate-y-0.5 hover:shadow-lg"
       style={{ boxShadow: "0 2px 14px rgba(35,20,42,0.08)" }}
     >
-      <ProductImage name={product.name} imageUrl={mainImage} className="w-full aspect-square" />
+      <ProductImage
+        name={product.name}
+        imageUrl={mainImage}
+        loading="lazy"
+        className="w-full aspect-square"
+      />
       <div className="p-3 flex flex-col gap-1 flex-1">
         <div className="flex items-center gap-1 flex-wrap min-h-[24px]">
           {product.isNew && <Badge tone="dourado">Novidade</Badge>}
