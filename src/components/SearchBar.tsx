@@ -12,14 +12,16 @@ export function SearchBar({ initialValue = "" }: { initialValue?: string }) {
   const [floating, setFloating] = useState(false);
   const shellRef = useRef<HTMLDivElement>(null);
 
+  const catalogSticky =
+    pathname === "/categoria" || pathname.startsWith("/categoria/");
+
   // A busca acompanha a rolagem nas principais páginas de descoberta. No
   // catálogo ela trabalha em conjunto com a navegação de categorias, que fica
   // logo abaixo da barra fixa.
   const keepVisible =
     pathname === "/" ||
     pathname === "/previa" ||
-    pathname === "/categoria" ||
-    pathname.startsWith("/categoria/");
+    catalogSticky;
 
   useEffect(() => {
     if (!keepVisible) {
@@ -53,12 +55,19 @@ export function SearchBar({ initialValue = "" }: { initialValue?: string }) {
   }
 
   return (
-    <div ref={shellRef} className={keepVisible ? "min-h-[66px]" : undefined}>
+    <div
+      ref={shellRef}
+      className={
+        keepVisible ? (catalogSticky ? "min-h-[52px]" : "min-h-[66px]") : undefined
+      }
+    >
       <form
         onSubmit={handleSubmit}
         className={
           floating
-            ? "fixed inset-x-0 top-0 z-[60] bg-[#FFF7FB]/95 px-4 pb-2 pt-2 shadow-md backdrop-blur-md"
+            ? catalogSticky
+              ? "fixed inset-x-0 top-0 z-[60] bg-[#FFF7FB] px-4 py-1 shadow-sm"
+              : "fixed inset-x-0 top-0 z-[60] bg-[#FFF7FB]/95 px-4 pb-2 pt-2 shadow-md backdrop-blur-md"
             : "px-4 pb-3"
         }
       >
