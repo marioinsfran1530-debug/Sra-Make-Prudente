@@ -99,19 +99,14 @@ export function OrderStatusControl({
         body: JSON.stringify({ status: newStatus }),
       });
       const data = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        throw new Error(data.error ?? "Não foi possível atualizar o pedido.");
-      }
+      if (!res.ok) throw new Error(data.error ?? "Não foi possível atualizar o pedido.");
 
       setValue(newStatus);
       setPendingStatus(null);
       setSuccess(`Status atualizado para ${STATUS_LABEL[newStatus] ?? newStatus}.`);
       router.refresh();
     } catch (reason) {
-      setError(
-        reason instanceof Error ? reason.message : "Não foi possível atualizar o pedido."
-      );
+      setError(reason instanceof Error ? reason.message : "Não foi possível atualizar o pedido.");
     } finally {
       setSaving(false);
     }
@@ -129,25 +124,15 @@ export function OrderStatusControl({
   if (closed) {
     const finalized = value === "FINALIZADO";
     return (
-      <div
-        className={`rounded-xl border p-4 ${
-          finalized ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50"
-        }`}
-      >
+      <div className={`rounded-xl border p-4 ${finalized ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50"}`}>
         <div className="flex items-center gap-2">
-          {finalized ? (
-            <CheckCircle2 size={19} className="text-green-700" />
-          ) : (
-            <XCircle size={19} className="text-red-700" />
-          )}
+          {finalized ? <CheckCircle2 size={19} className="text-green-700" /> : <XCircle size={19} className="text-red-700" />}
           <div>
             <p className={`text-sm font-bold ${finalized ? "text-green-700" : "text-red-700"}`}>
               {finalized ? "Venda finalizada" : "Pedido cancelado"}
             </p>
             <p className="mt-0.5 text-[11px] text-cinza">
-              {finalized
-                ? "Venda concluída e registrada no Dashboard."
-                : "Este pedido foi encerrado."}
+              {finalized ? "Venda concluída e registrada no Dashboard." : "Este pedido foi encerrado."}
             </p>
           </div>
         </div>
@@ -175,13 +160,9 @@ export function OrderStatusControl({
         onChange={(event) => requestStatus(event.target.value)}
         className="w-full rounded-xl border border-rosa/20 bg-white px-3 py-2.5 text-sm disabled:opacity-50"
       >
-        <option value="" disabled>
-          {saving ? "Atualizando..." : "Escolher próximo status"}
-        </option>
+        <option value="" disabled>{saving ? "Atualizando..." : "Escolher próximo status"}</option>
         {visibleStatuses.map((statusOption) => (
-          <option key={statusOption} value={statusOption}>
-            {STATUS_LABEL[statusOption] ?? statusOption}
-          </option>
+          <option key={statusOption} value={statusOption}>{STATUS_LABEL[statusOption] ?? statusOption}</option>
         ))}
       </select>
 
@@ -207,7 +188,9 @@ export function OrderStatusControl({
         danger={pendingConfirmation?.danger ?? false}
         busy={saving}
         onCancel={() => setPendingStatus(null)}
-        onConfirm={() => pendingStatus && applyStatus(pendingStatus)}
+        onConfirm={() => {
+          if (pendingStatus) return applyStatus(pendingStatus);
+        }}
       />
     </div>
   );
