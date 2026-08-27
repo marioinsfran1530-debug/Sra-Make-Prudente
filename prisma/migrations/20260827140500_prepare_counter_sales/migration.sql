@@ -1,0 +1,2 @@
+-- Migration prepare_counter_sales já aplicada no Supabase.
+-- Mantida no repositório para sincronizar o histórico do schema.
