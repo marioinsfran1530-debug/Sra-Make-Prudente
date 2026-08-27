@@ -13,7 +13,10 @@ type OrderRow = {
   total: number;
   status: string;
   createdAt: string;
+  updatedAt: string;
 };
+
+type Period = "today" | "7d" | "30d" | "month" | "all";
 
 const STATUS_LABEL: Record<string, string> = {
   NOVO: "Novo",
@@ -35,6 +38,8 @@ const PENDING_STATUSES = new Set([
   "SAIU_ENTREGA",
 ]);
 
+const PERIODS = new Set<Period>(["today", "7d", "30d", "month", "all"]);
+
 function normalize(value: string) {
   return value
     .normalize("NFD")
@@ -44,16 +49,35 @@ function normalize(value: string) {
     .trim();
 }
 
-function startOfToday() {
-  const now = new Date();
+function saoPauloDateParts() {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/Sao_Paulo",
     year: "numeric",
     month: "numeric",
     day: "numeric",
-  }).formatToParts(now);
+  }).formatToParts(new Date());
   const get = (type: string) => Number(parts.find((part) => part.type === type)?.value);
-  return new Date(Date.UTC(get("year"), get("month") - 1, get("day"), 3, 0, 0, 0));
+  return { year: get("year"), month: get("month"), day: get("day") };
+}
+
+function periodRange(period: Period) {
+  if (period === "all") return null;
+  const { year, month, day } = saoPauloDateParts();
+  const today = new Date(Date.UTC(year, month - 1, day, 3, 0, 0, 0));
+  const tomorrow = new Date(today);
+  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+
+  if (period === "today") return { start: today, end: tomorrow };
+  if (period === "month") {
+    return {
+      start: new Date(Date.UTC(year, month - 1, 1, 3, 0, 0, 0)),
+      end: tomorrow,
+    };
+  }
+
+  const start = new Date(today);
+  start.setUTCDate(start.getUTCDate() - (period === "7d" ? 6 : 29));
+  return { start, end: tomorrow };
 }
 
 function statusTone(status: string) {
@@ -69,33 +93,29 @@ function statusTone(status: string) {
 export function OrdersTable({
   orders,
   initialStatus = "",
+  initialPeriod = "30d",
 }: {
   orders: OrderRow[];
   initialStatus?: string;
+  initialPeriod?: string;
 }) {
   const safeInitialStatus =
     initialStatus === "pending" || Object.prototype.hasOwnProperty.call(STATUS_LABEL, initialStatus)
       ? initialStatus
       : "";
+  const safeInitialPeriod = PERIODS.has(initialPeriod as Period)
+    ? (initialPeriod as Period)
+    : "30d";
+
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState(safeInitialStatus);
-  const [period, setPeriod] = useState("30d");
+  const [period, setPeriod] = useState<Period>(safeInitialPeriod);
   const [page, setPage] = useState(1);
   const perPage = 20;
 
-  const counts = useMemo(() => {
-    return {
-      new: orders.filter((order) => order.status === "NOVO").length,
-      pending: orders.filter((order) => PENDING_STATUSES.has(order.status)).length,
-    };
-  }, [orders]);
-
   const filtered = useMemo(() => {
     const terms = normalize(query).split(" ").filter(Boolean);
-    const today = startOfToday();
-    const periodStart = new Date(today);
-    if (period === "7d") periodStart.setUTCDate(periodStart.getUTCDate() - 6);
-    if (period === "30d") periodStart.setUTCDate(periodStart.getUTCDate() - 29);
+    const range = periodRange(period);
 
     return orders.filter((order) => {
       const searchable = normalize(
@@ -105,13 +125,35 @@ export function OrdersTable({
       const matchesStatus =
         !status ||
         (status === "pending" ? PENDING_STATUSES.has(order.status) : order.status === status);
-      const createdAt = new Date(order.createdAt);
+
+      const referenceDate =
+        order.status === "FINALIZADO" || order.status === "CANCELADO"
+          ? new Date(order.updatedAt)
+          : new Date(order.createdAt);
       const matchesPeriod =
-        period === "all" ||
-        (period === "today" ? createdAt >= today : createdAt >= periodStart);
+        !range || (referenceDate >= range.start && referenceDate < range.end);
+
       return matchesQuery && matchesStatus && matchesPeriod;
     });
   }, [orders, period, query, status]);
+
+  const counts = useMemo(() => {
+    const range = periodRange(period);
+    const inPeriod = (order: OrderRow) => {
+      if (!range) return true;
+      const referenceDate =
+        order.status === "FINALIZADO" || order.status === "CANCELADO"
+          ? new Date(order.updatedAt)
+          : new Date(order.createdAt);
+      return referenceDate >= range.start && referenceDate < range.end;
+    };
+    return {
+      new: orders.filter((order) => order.status === "NOVO" && inPeriod(order)).length,
+      pending: orders.filter(
+        (order) => PENDING_STATUSES.has(order.status) && inPeriod(order)
+      ).length,
+    };
+  }, [orders, period]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
   const safePage = Math.min(page, totalPages);
@@ -158,12 +200,15 @@ export function OrdersTable({
 
           <select
             value={period}
-            onChange={(event) => changeFilter(() => setPeriod(event.target.value))}
+            onChange={(event) =>
+              changeFilter(() => setPeriod(event.target.value as Period))
+            }
             className="rounded-xl border border-rosa/20 bg-white px-3 py-2.5 text-xs"
           >
             <option value="today">Hoje</option>
             <option value="7d">Últimos 7 dias</option>
             <option value="30d">Últimos 30 dias</option>
+            <option value="month">Este mês</option>
             <option value="all">Todo período carregado</option>
           </select>
         </div>
