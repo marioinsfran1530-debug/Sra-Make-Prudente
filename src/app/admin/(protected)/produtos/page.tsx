@@ -1,7 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import { ProductsTable } from "@/components/admin/ProductsTable";
 
-export default async function AdminProdutosPage() {
+export default async function AdminProdutosPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ status?: string }>;
+}) {
+  const params = searchParams ? await searchParams : undefined;
   const products = await prisma.product.findMany({
     include: {
       category: true,
@@ -40,12 +45,12 @@ export default async function AdminProdutosPage() {
   return (
     <div>
       <div className="mb-4">
-        <h1 className="font-serif font-bold text-xl text-texto">Produtos</h1>
+        <h1 className="font-serif text-xl font-bold text-texto">Produtos</h1>
         <p className="mt-1 text-xs text-cinza">
           Cadastre produtos e mantenha preços, estoque e disponibilidade atualizados.
         </p>
       </div>
-      <ProductsTable products={rows} />
+      <ProductsTable products={rows} initialStatus={params?.status ?? ""} />
     </div>
   );
 }
