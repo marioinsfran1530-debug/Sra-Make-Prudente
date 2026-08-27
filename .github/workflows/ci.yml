@@ -7,7 +7,7 @@ on:
     branches: [develop, master]
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -28,8 +28,20 @@ jobs:
         with:
           node-version: 24
 
+      - name: Gerar package-lock temporariamente
+        if: github.event_name == 'pull_request' && github.head_ref == 'chore/version-package-lock'
+        run: |
+          if [ ! -f package-lock.json ]; then
+            npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add package-lock.json
+            git commit -m "chore: versionar package-lock.json"
+            git push origin HEAD:${{ github.head_ref }}
+          fi
+
       - name: Instalar dependências
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
 
       - name: Gerar Prisma Client
         run: npx prisma generate
