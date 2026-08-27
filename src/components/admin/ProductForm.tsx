@@ -56,6 +56,7 @@ type ImageEditorTarget =
 const MAX_IMAGES = 5;
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const PRODUCT_SAVE_MESSAGE_KEY = "admin-product-save-message";
 
 function onlyDigits(value: string) {
   return value.replace(/\D/g, "");
@@ -120,8 +121,6 @@ export function ProductForm({
   const router = useRouter();
   const isEdit = !!initial;
 
-  // Em produto novo nenhuma categoria é marcada automaticamente.
-  // Em edição preservamos exatamente as categorias já salvas.
   const initialPrimaryCategoryId = initial?.categoryId ?? "";
   const initialCategoryIds = initial
     ? Array.from(
@@ -173,6 +172,7 @@ export function ProductForm({
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
 
   const selectedCategory = categories.find((c) => c.id === categoryId);
@@ -186,6 +186,18 @@ export function ProductForm({
     return () => urls.forEach((url) => URL.revokeObjectURL(url));
   }, [newImages]);
 
+  useEffect(() => {
+    if (!isEdit) return;
+    try {
+      const message = sessionStorage.getItem(PRODUCT_SAVE_MESSAGE_KEY);
+      if (!message) return;
+      sessionStorage.removeItem(PRODUCT_SAVE_MESSAGE_KEY);
+      setSuccess(message);
+    } catch {
+      // O feedback visual não deve bloquear o formulário.
+    }
+  }, [isEdit]);
+
   function clearAiDescriptionTracking() {
     setAiSuggestionId(null);
     setAiOriginalDescription(null);
@@ -195,6 +207,7 @@ export function ProductForm({
 
   function handleImagesChange(e: React.ChangeEvent<HTMLInputElement>) {
     setImageError(null);
+    setSuccess(null);
     const selected = Array.from(e.target.files ?? []);
     if (!selected.length) return;
 
@@ -225,6 +238,7 @@ export function ProductForm({
 
   function removeNewImage(index: number) {
     setNewImages((current) => current.filter((_, i) => i !== index));
+    setSuccess(null);
   }
 
   function applyLookup(result: ProductLookup, overwrite = false) {
@@ -234,11 +248,13 @@ export function ProductForm({
       setDescription(result.description);
       clearAiDescriptionTracking();
     }
+    setSuccess(null);
   }
 
   async function importLookupImage(result: ProductLookup) {
     if (!result.imageUrl) return;
     setImageError(null);
+    setSuccess(null);
 
     if (existingImages.length + newImages.length >= MAX_IMAGES) {
       setImageError(`Você já atingiu o limite de ${MAX_IMAGES} imagens.`);
@@ -292,6 +308,7 @@ export function ProductForm({
     const gtin = onlyDigits(sku);
     setLookupError(null);
     setLookupResult(null);
+    setSuccess(null);
 
     if (!isValidGtin(gtin)) {
       setLookupError("Digite um EAN/GTIN válido com 8, 12, 13 ou 14 dígitos.");
@@ -324,6 +341,7 @@ export function ProductForm({
 
   async function generateAiDescription() {
     setAiDescriptionError(null);
+    setSuccess(null);
 
     if (!canGenerateDescription) {
       setAiDescriptionError("Preencha nome, marca e categoria antes de usar a IA.");
@@ -371,6 +389,7 @@ export function ProductForm({
   async function applyImageEdit(file: File) {
     if (!editorTarget) return;
     setImageError(null);
+    setSuccess(null);
 
     if (editorTarget.kind === "new") {
       setNewImages((current) =>
@@ -406,6 +425,7 @@ export function ProductForm({
         )
       );
       setEditorTarget(null);
+      setSuccess("Imagem atualizada com sucesso.");
       router.refresh();
     } catch (err) {
       setImageError(
@@ -419,6 +439,7 @@ export function ProductForm({
   async function makePrimaryImage(image: ProductImage) {
     if (existingImages[0]?.id === image.id) return;
     setImageError(null);
+    setSuccess(null);
     setImageActionId(image.id);
 
     try {
@@ -430,6 +451,7 @@ export function ProductForm({
         throw new Error(data.error ?? "Não foi possível definir a imagem principal.");
       }
       setExistingImages(data.images as ProductImage[]);
+      setSuccess("Imagem principal atualizada.");
       router.refresh();
     } catch (err) {
       setImageError(
@@ -449,6 +471,7 @@ export function ProductForm({
     if (!confirmed) return;
 
     setImageError(null);
+    setSuccess(null);
     setImageActionId(image.id);
 
     try {
@@ -460,6 +483,7 @@ export function ProductForm({
         throw new Error(data.error ?? "Não foi possível excluir a imagem.");
       }
       setExistingImages(data.images as ProductImage[]);
+      setSuccess("Imagem excluída do produto.");
       router.refresh();
     } catch (err) {
       setImageError(
@@ -475,6 +499,7 @@ export function ProductForm({
 
     setCategoryId(nextCategoryId);
     setSubcategoryId("");
+    setSuccess(null);
 
     setCategoryIds((current) => {
       const manuallySelected = current.filter(
@@ -486,6 +511,7 @@ export function ProductForm({
 
   function toggleAdditionalCategory(id: string, checked: boolean) {
     if (!categoryId || id === categoryId) return;
+    setSuccess(null);
 
     setCategoryIds((current) => {
       if (checked) {
@@ -496,6 +522,8 @@ export function ProductForm({
   }
 
   async function uploadImages(productId: string) {
+    const uploaded: ProductImage[] = [];
+
     for (const file of newImages) {
       const formData = new FormData();
       formData.append("file", file);
@@ -505,13 +533,16 @@ export function ProductForm({
         method: "POST",
         body: formData,
       });
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
         throw new Error(
           data.error ?? `Não foi possível enviar a imagem "${file.name}".`
         );
       }
+      if (data.image) uploaded.push(data.image as ProductImage);
     }
+
+    return uploaded;
   }
 
   async function saveCost(productId: string) {
@@ -530,6 +561,7 @@ export function ProductForm({
     e.preventDefault();
     setSaving(true);
     setError(null);
+    setSuccess(null);
     setImageError(null);
 
     try {
@@ -587,9 +619,10 @@ export function ProductForm({
         await saveCost(productId);
       }
 
+      let uploadedImages: ProductImage[] = [];
       if (newImages.length > 0) {
         try {
-          await uploadImages(productId);
+          uploadedImages = await uploadImages(productId);
         } catch (uploadError) {
           if (!isEdit) {
             window.alert(
@@ -597,18 +630,37 @@ export function ProductForm({
                 uploadError instanceof Error ? uploadError.message : "Falha no envio da imagem."
               }`
             );
-            router.push(`/admin/produtos/${productId}`);
-            router.refresh();
+            router.replace(`/admin/produtos/${productId}`);
             return;
           }
           throw uploadError;
         }
       }
 
-      router.push("/admin/produtos");
-      router.refresh();
+      if (isEdit) {
+        if (uploadedImages.length > 0) {
+          setExistingImages((current) =>
+            [...current, ...uploadedImages].sort((a, b) => a.order - b.order)
+          );
+          setNewImages([]);
+        }
+        setSuccess("Produto salvo com sucesso. Você pode continuar alterando o cadastro.");
+        router.refresh();
+        return;
+      }
+
+      try {
+        sessionStorage.setItem(
+          PRODUCT_SAVE_MESSAGE_KEY,
+          "Produto criado com sucesso. Continue nesta tela caso queira completar ou ajustar alguma informação."
+        );
+      } catch {
+        // O redirecionamento para a própria tela de edição continua funcionando sem storage.
+      }
+      router.replace(`/admin/produtos/${productId}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Não foi possível salvar o produto.");
+    } finally {
       setSaving(false);
     }
   }
@@ -618,7 +670,7 @@ export function ProductForm({
       <Field label="Nome">
         <input
           value={name}
-          onChange={(e) => setName(e.target.value)}
+          onChange={(e) => { setName(e.target.value); setSuccess(null); }}
           required
           className="input"
         />
@@ -627,7 +679,7 @@ export function ProductForm({
       <Field label="Marca">
         <input
           value={brand}
-          onChange={(e) => setBrand(e.target.value)}
+          onChange={(e) => { setBrand(e.target.value); setSuccess(null); }}
           required
           className="input"
         />
@@ -641,6 +693,7 @@ export function ProductForm({
               setSku(e.target.value);
               setLookupError(null);
               setLookupResult(null);
+              setSuccess(null);
             }}
             onKeyDown={(e) => {
               if (e.key === "Enter" && gtinValid && !lookupLoading) {
@@ -794,6 +847,7 @@ export function ProductForm({
           onChange={(e) => {
             setDescription(e.target.value);
             setAiDescriptionError(null);
+            setSuccess(null);
           }}
           rows={4}
           className="input resize-none"
@@ -820,7 +874,7 @@ export function ProductForm({
             type="number"
             step="0.01"
             value={price}
-            onChange={(e) => setPrice(e.target.value)}
+            onChange={(e) => { setPrice(e.target.value); setSuccess(null); }}
             required
             className="input"
           />
@@ -830,7 +884,7 @@ export function ProductForm({
             type="number"
             step="0.01"
             value={promoPrice}
-            onChange={(e) => setPromoPrice(e.target.value)}
+            onChange={(e) => { setPromoPrice(e.target.value); setSuccess(null); }}
             className="input"
           />
         </Field>
@@ -841,7 +895,7 @@ export function ProductForm({
               min="0"
               step="0.01"
               value={costPrice}
-              onChange={(e) => setCostPrice(e.target.value)}
+              onChange={(e) => { setCostPrice(e.target.value); setSuccess(null); }}
               placeholder="Usado somente nas análises de margem"
               className="input"
             />
@@ -856,7 +910,7 @@ export function ProductForm({
         <input
           type="number"
           value={stockQty}
-          onChange={(e) => setStockQty(e.target.value)}
+          onChange={(e) => { setStockQty(e.target.value); setSuccess(null); }}
           className="input"
         />
       </Field>
@@ -888,7 +942,7 @@ export function ProductForm({
         <Field label="Subcategoria da principal">
           <select
             value={subcategoryId}
-            onChange={(e) => setSubcategoryId(e.target.value)}
+            onChange={(e) => { setSubcategoryId(e.target.value); setSuccess(null); }}
             className="input"
             disabled={!categoryId}
           >
@@ -1116,10 +1170,10 @@ export function ProductForm({
       </div>
 
       <div className="flex flex-wrap gap-4 py-2">
-        <Checkbox label="Destaque" checked={featured} onChange={setFeatured} />
-        <Checkbox label="Novidade" checked={isNew} onChange={setIsNew} />
-        <Checkbox label="Mais vendido" checked={bestSeller} onChange={setBestSeller} />
-        <Checkbox label="Ativo" checked={active} onChange={setActive} />
+        <Checkbox label="Destaque" checked={featured} onChange={(value) => { setFeatured(value); setSuccess(null); }} />
+        <Checkbox label="Novidade" checked={isNew} onChange={(value) => { setIsNew(value); setSuccess(null); }} />
+        <Checkbox label="Mais vendido" checked={bestSeller} onChange={(value) => { setBestSeller(value); setSuccess(null); }} />
+        <Checkbox label="Ativo" checked={active} onChange={(value) => { setActive(value); setSuccess(null); }} />
       </div>
 
       <div>
@@ -1148,6 +1202,7 @@ export function ProductForm({
                 const next = [...variants];
                 next[idx] = { ...next[idx], name: e.target.value };
                 setVariants(next);
+                setSuccess(null);
               }}
               placeholder="Ex: Bege claro"
               className="input min-w-0"
@@ -1163,15 +1218,17 @@ export function ProductForm({
                   stockQty: Number(e.target.value),
                 };
                 setVariants(next);
+                setSuccess(null);
               }}
               placeholder="0"
               className="input min-w-0"
             />
             <button
               type="button"
-              onClick={() =>
-                setVariants(variants.filter((_, i) => i !== idx))
-              }
+              onClick={() => {
+                setVariants(variants.filter((_, i) => i !== idx));
+                setSuccess(null);
+              }}
               className="text-xs font-bold text-vermelho px-2 whitespace-nowrap"
             >
               Remover
@@ -1180,15 +1237,21 @@ export function ProductForm({
         ))}
         <button
           type="button"
-          onClick={() =>
-            setVariants([...variants, { name: "", stockQty: 0 }])
-          }
+          onClick={() => {
+            setVariants([...variants, { name: "", stockQty: 0 }]);
+            setSuccess(null);
+          }}
           className="text-xs font-bold text-rosa-profundo"
         >
           + Adicionar variante
         </button>
       </div>
 
+      {success && (
+        <p className="rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-xs font-semibold leading-5 text-green-700">
+          {success}
+        </p>
+      )}
       {error && <p className="text-xs text-vermelho">{error}</p>}
 
       <button

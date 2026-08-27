@@ -322,7 +322,7 @@ export function ProductsTable({ products }: { products: Row[] }) {
               className={
                 viewMode === "grid"
                   ? "flex flex-col rounded-xl bg-white p-4"
-                  : "flex items-center gap-3 rounded-xl bg-white p-3"
+                  : "flex flex-col gap-3 rounded-xl bg-white p-3 sm:flex-row sm:items-center"
               }
               style={{
                 boxShadow: "0 2px 10px rgba(35,20,42,0.06)",
@@ -333,7 +333,7 @@ export function ProductsTable({ products }: { products: Row[] }) {
                 className={
                   viewMode === "grid"
                     ? "flex min-w-0 items-start gap-3"
-                    : "flex min-w-0 flex-1 items-center gap-3"
+                    : "flex w-full min-w-0 items-center gap-3 sm:flex-1"
                 }
               >
                 <ProductThumbnail
@@ -369,7 +369,7 @@ export function ProductsTable({ products }: { products: Row[] }) {
                 className={
                   viewMode === "grid"
                     ? "mt-4 flex flex-wrap gap-2"
-                    : "flex flex-wrap justify-end gap-2"
+                    : "flex w-full flex-wrap gap-2 border-t border-rosa/10 pt-3 sm:w-auto sm:justify-end sm:border-t-0 sm:pt-0"
                 }
               >
                 <div className="relative">
