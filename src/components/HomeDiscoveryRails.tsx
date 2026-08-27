@@ -16,6 +16,7 @@ import {
   Sparkles,
   type LucideIcon,
 } from "lucide-react";
+import { trackEvent } from "@/lib/analytics";
 
 const CATEGORY_ICONS: Record<string, LucideIcon> = {
   make: Palette,
@@ -175,7 +176,14 @@ export function BrandRail({ brands }: { brands: string[] }) {
           return (
             <Link
               key={brand}
-              href={`/busca?q=${encodeURIComponent(brand)}`}
+              href={`/busca?q=${encodeURIComponent(brand)}&source=brand_rail`}
+              onClick={() =>
+                trackEvent("navigation_click", {
+                  context: "home_brand",
+                  destination: "/busca",
+                  query: brand,
+                })
+              }
               className="group flex min-h-[88px] w-[132px] flex-none snap-start items-center gap-3 rounded-2xl border border-rosa/10 bg-white px-3 py-3 shadow-sm transition hover:-translate-y-0.5 hover:border-rosa/25 hover:shadow-md"
             >
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-creme font-serif text-base font-bold text-rosa-profundo">
