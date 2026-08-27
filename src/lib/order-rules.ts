@@ -34,12 +34,12 @@ export function stockWasDecremented(status: string): boolean {
 export function getAllowedOrderTransitions(status: string): OrderStatus[] {
   switch (status) {
     case "NOVO":
-      return ["CONFIRMADO", "CANCELADO"];
     case "EM_CONFIRMACAO":
       return ["CONFIRMADO", "CANCELADO"];
     case "CONFIRMADO":
-      return ["FINALIZADO", "CANCELADO"];
+      return ["SEPARANDO", "FINALIZADO", "CANCELADO"];
     case "SEPARANDO":
+      return ["PRONTO_RETIRADA", "SAIU_ENTREGA", "FINALIZADO", "CANCELADO"];
     case "PRONTO_RETIRADA":
     case "SAIU_ENTREGA":
       return ["FINALIZADO", "CANCELADO"];

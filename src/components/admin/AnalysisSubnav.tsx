@@ -8,6 +8,7 @@ const ITEMS = [
   { href: "/admin/analise/oportunidades", label: "Oportunidades" },
   { href: "/admin/analise/buscas", label: "Buscas" },
   { href: "/admin/analise/qualidade", label: "Qualidade" },
+  { href: "/admin/analise/descricoes", label: "Descrições" },
 ];
 
 export function AnalysisSubnav() {
@@ -27,7 +28,7 @@ export function AnalysisSubnav() {
         </div>
       )}
 
-      <nav aria-label="Áreas da análise" className="overflow-x-auto pb-0.5">
+      <nav aria-label="Áreas da análise" className="overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <div className="flex min-w-max items-center gap-2">
           {ITEMS.map((item) => {
             const active = pathname === item.href || pathname.startsWith(`${item.href}/`);

@@ -69,27 +69,57 @@ export default async function AdminAiPage() {
             A IA sugere texto; não publica produtos, não altera preço, estoque ou flags e não recebe dados de clientes.
           </p>
         </div>
-        <div className={`rounded-full px-3 py-2 text-xs font-bold ${isGeminiConfigured() ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-800"}`}>
+        <div
+          className={`rounded-full px-3 py-2 text-xs font-bold ${
+            isGeminiConfigured()
+              ? "bg-green-100 text-green-800"
+              : "bg-amber-100 text-amber-800"
+          }`}
+        >
           {isGeminiConfigured() ? "Gemini configurado" : "Gemini aguardando chave"}
         </div>
       </div>
 
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <MetricCard label="Gerações · 30 dias" value={recent.length} detail={`${suggestions} sugestão${suggestions === 1 ? "" : "ões"}`} />
-        <MetricCard label="Utilizadas" value={used} detail={`${percent(used, recent.length)} das gerações`} />
-        <MetricCard label="Sem edição" value={unchanged} detail={`${percent(unchanged, used)} das utilizadas`} />
-        <MetricCard label="Editadas" value={edited} detail={`${percent(edited, used)} das utilizadas`} />
+        <MetricCard
+          label="Gerações · 30 dias"
+          value={recent.length}
+          detail={`${suggestions} sugestão${suggestions === 1 ? "" : "ões"}`}
+        />
+        <MetricCard
+          label="Utilizadas"
+          value={used}
+          detail={`${percent(used, recent.length)} das gerações`}
+        />
+        <MetricCard
+          label="Sem edição"
+          value={unchanged}
+          detail={`${percent(unchanged, used)} das utilizadas`}
+        />
+        <MetricCard
+          label="Editadas"
+          value={edited}
+          detail={`${percent(edited, used)} das utilizadas`}
+        />
       </section>
 
       <section className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-2xl border border-rosa/15 bg-white p-5 shadow-sm">
           <h2 className="font-serif text-lg font-bold text-texto">Sinal de qualidade</h2>
           <p className="mt-1 text-xs leading-5 text-cinza">
-            O objetivo não é eliminar edição humana. Esta métrica mostra se o prompt está ajudando ou gerando retrabalho.
+            O objetivo não é eliminar edição humana. Estes indicadores mostram se as sugestões estão ajudando ou gerando retrabalho.
           </p>
           <div className="mt-4 grid grid-cols-2 gap-3">
-            <MiniMetric label="Não utilizadas" value={unused} detail={percent(unused, recent.length)} />
-            <MiniMetric label="Taxa de uso" value={percent(used, recent.length)} detail="últimos 30 dias" />
+            <MiniMetric
+              label="Não utilizadas"
+              value={unused}
+              detail={percent(unused, recent.length)}
+            />
+            <MiniMetric
+              label="Taxa de uso"
+              value={percent(used, recent.length)}
+              detail="últimos 30 dias"
+            />
           </div>
           {recent.length === 0 ? (
             <p className="mt-4 rounded-xl bg-creme px-3 py-3 text-xs text-cinza">
@@ -99,51 +129,86 @@ export default async function AdminAiPage() {
         </div>
 
         <div className="rounded-2xl border border-rosa/15 bg-white p-5 shadow-sm">
-          <h2 className="font-serif text-lg font-bold text-texto">Configuração ativa</h2>
-          <dl className="mt-4 space-y-3 text-sm">
-            <ConfigRow label="Modelo" value={getGeminiModel()} />
-            <ConfigRow label="Descrição" value={PRODUCT_DESCRIPTION_PROMPT_VERSION} />
-            <ConfigRow label="Divulgação" value={PROMOTION_COPY_PROMPT_VERSION} />
-            <ConfigRow label="Armazenamento do Gemini" value="desativado (store: false)" />
-            <ConfigRow label="Conteúdo das sugestões no banco" value="não armazenado" />
-          </dl>
-        </div>
-      </section>
-
-      <section className="grid gap-4 lg:grid-cols-2">
-        <div className="rounded-2xl border border-rosa/15 bg-white p-5 shadow-sm">
           <h2 className="font-serif text-lg font-bold text-texto">Uso por recurso</h2>
-          <div className="mt-3 overflow-hidden rounded-xl border border-rosa/10">
-            {byFeature.length ? byFeature.map((item) => (
-              <div key={item.feature} className="flex items-center justify-between gap-3 border-b border-rosa/10 px-3 py-3 last:border-b-0">
-                <span className="text-sm font-semibold text-texto">{featureLabel(item.feature)}</span>
-                <span className="text-xs text-cinza">
-                  {item._count._all} gerações · {item._sum.suggestionCount ?? 0} sugestões
-                </span>
-              </div>
-            )) : (
-              <p className="px-3 py-4 text-xs text-cinza">Sem dados ainda.</p>
-            )}
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-rosa/15 bg-white p-5 shadow-sm">
-          <h2 className="font-serif text-lg font-bold text-texto">Modelo × prompt</h2>
           <p className="mt-1 text-xs leading-5 text-cinza">
-            Mantemos modelo e prompt separados para identificar regressões quando um deles mudar.
+            Veja onde a equipe está usando mais a assistência da IA.
           </p>
           <div className="mt-3 overflow-hidden rounded-xl border border-rosa/10">
-            {byModel.length ? byModel.map((item) => (
-              <div key={`${item.model}-${item.promptVersion}`} className="border-b border-rosa/10 px-3 py-3 last:border-b-0">
-                <p className="text-xs font-bold text-texto">{item.model}</p>
-                <p className="mt-0.5 text-[11px] text-cinza">{item.promptVersion} · {item._count._all} gerações</p>
-              </div>
-            )) : (
+            {byFeature.length ? (
+              byFeature.map((item) => (
+                <div
+                  key={item.feature}
+                  className="flex items-center justify-between gap-3 border-b border-rosa/10 px-3 py-3 last:border-b-0"
+                >
+                  <span className="text-sm font-semibold text-texto">
+                    {featureLabel(item.feature)}
+                  </span>
+                  <span className="text-xs text-cinza">
+                    {item._count._all} gerações · {item._sum.suggestionCount ?? 0} sugestões
+                  </span>
+                </div>
+              ))
+            ) : (
               <p className="px-3 py-4 text-xs text-cinza">Sem dados ainda.</p>
             )}
           </div>
         </div>
       </section>
+
+      <details className="group rounded-2xl border border-rosa/15 bg-white shadow-sm">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4">
+          <div>
+            <p className="text-sm font-bold text-texto">Detalhes técnicos da IA</p>
+            <p className="mt-0.5 text-[11px] text-cinza">
+              Modelo, versões de prompt e configurações de privacidade.
+            </p>
+          </div>
+          <span className="text-lg text-rosa-profundo transition group-open:rotate-180">⌄</span>
+        </summary>
+
+        <div className="grid gap-4 border-t border-rosa/10 p-5 lg:grid-cols-2">
+          <div className="rounded-xl bg-creme/40 p-4">
+            <h2 className="text-sm font-bold text-texto">Configuração ativa</h2>
+            <dl className="mt-4 space-y-3 text-sm">
+              <ConfigRow label="Modelo" value={getGeminiModel()} />
+              <ConfigRow label="Descrição" value={PRODUCT_DESCRIPTION_PROMPT_VERSION} />
+              <ConfigRow label="Divulgação" value={PROMOTION_COPY_PROMPT_VERSION} />
+              <ConfigRow
+                label="Armazenamento do Gemini"
+                value="desativado (store: false)"
+              />
+              <ConfigRow
+                label="Conteúdo das sugestões no banco"
+                value="não armazenado"
+              />
+            </dl>
+          </div>
+
+          <div className="rounded-xl bg-creme/40 p-4">
+            <h2 className="text-sm font-bold text-texto">Modelo × prompt</h2>
+            <p className="mt-1 text-xs leading-5 text-cinza">
+              Histórico técnico para identificar regressões quando modelo ou prompt mudar.
+            </p>
+            <div className="mt-3 overflow-hidden rounded-xl border border-rosa/10 bg-white">
+              {byModel.length ? (
+                byModel.map((item) => (
+                  <div
+                    key={`${item.model}-${item.promptVersion}`}
+                    className="border-b border-rosa/10 px-3 py-3 last:border-b-0"
+                  >
+                    <p className="text-xs font-bold text-texto">{item.model}</p>
+                    <p className="mt-0.5 text-[11px] text-cinza">
+                      {item.promptVersion} · {item._count._all} gerações
+                    </p>
+                  </div>
+                ))
+              ) : (
+                <p className="px-3 py-4 text-xs text-cinza">Sem dados ainda.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      </details>
 
       <p className="text-[11px] leading-5 text-cinza">
         Histórico total: {all._count._all} gerações e {all._sum.suggestionCount ?? 0} sugestões. Nenhum texto gerado é armazenado nesta telemetria.
@@ -152,7 +217,15 @@ export default async function AdminAiPage() {
   );
 }
 
-function MetricCard({ label, value, detail }: { label: string; value: number | string; detail: string }) {
+function MetricCard({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: number | string;
+  detail: string;
+}) {
   return (
     <div className="rounded-2xl border border-rosa/15 bg-white p-4 shadow-sm">
       <p className="text-[10px] font-bold uppercase tracking-wide text-cinza">{label}</p>
@@ -162,7 +235,15 @@ function MetricCard({ label, value, detail }: { label: string; value: number | s
   );
 }
 
-function MiniMetric({ label, value, detail }: { label: string; value: number | string; detail: string }) {
+function MiniMetric({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: number | string;
+  detail: string;
+}) {
   return (
     <div className="rounded-xl bg-creme p-3">
       <p className="text-[10px] font-bold uppercase tracking-wide text-cinza">{label}</p>

@@ -41,24 +41,30 @@ export function AdminNav({
   }
 
   return (
-    <nav className="flex flex-wrap gap-2 mt-4 rounded-2xl border border-rosa/15 bg-white px-3 py-2 shadow-md text-xs font-bold">
-      {items.map((item) => {
-        const active = isActive(item.href);
+    <nav
+      aria-label="Navegação do painel"
+      className="mt-4 overflow-x-auto rounded-2xl border border-rosa/15 bg-white px-2 py-2 shadow-md [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+    >
+      <div className="flex min-w-max items-center gap-1.5 text-xs font-bold sm:flex-wrap sm:min-w-0">
+        {items.map((item) => {
+          const active = isActive(item.href);
 
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={`rounded-xl px-3 py-2 transition ${
-              active
-                ? "bg-rosa-profundo text-white shadow-sm"
-                : "text-cinza hover:bg-rosa/5 hover:text-rosa-profundo"
-            }`}
-          >
-            {item.label}
-          </Link>
-        );
-      })}
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              aria-current={active ? "page" : undefined}
+              className={`whitespace-nowrap rounded-xl px-3 py-2 transition ${
+                active
+                  ? "bg-rosa-profundo text-white shadow-sm"
+                  : "text-cinza hover:bg-rosa/5 hover:text-rosa-profundo"
+              }`}
+            >
+              {item.label}
+            </Link>
+          );
+        })}
+      </div>
     </nav>
   );
 }
