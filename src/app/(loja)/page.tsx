@@ -2,7 +2,6 @@ import { SearchBar } from "@/components/SearchBar";
 import { CategoryGrid } from "@/components/CategoryGrid";
 import { ProductCarousel } from "@/components/ProductCarousel";
 import { StoreAccountButton } from "@/components/StoreAccountButton";
-import { CartCountBadge } from "@/components/CartCountBadge";
 import { getCategories, getProducts, getStoreSettings } from "@/lib/data";
 import {
   MessageCircle,
@@ -14,33 +13,47 @@ import {
   Clock,
   Instagram,
   Facebook,
-  Sparkles,
-  ShoppingCart,
 } from "lucide-react";
 import { waLink } from "@/lib/whatsapp";
+import { resolveStorefrontConversion } from "@/lib/storefront-conversion";
 import { WhatsAppLink, LocationLink } from "@/components/TrackedLink";
 import Link from "next/link";
 
 export const revalidate = 60;
 
 export default async function HomePage() {
-  const [categories, featured, bestSellers, news, settings] = await Promise.all([
+  const [categories, products, settings] = await Promise.all([
     getCategories(),
-    getProducts({ featured: true }),
-    getProducts({ bestSeller: true }),
-    getProducts({ isNew: true }),
+    getProducts(),
     getStoreSettings(),
   ]);
 
-  // A primeira vitrine da home é curta de propósito: mostra produtos reais cedo,
-  // sem empurrar categorias e conteúdo útil para muito abaixo da dobra.
-  const featuredHome = featured.slice(0, 6);
-  const featuredIds = new Set(featuredHome.map((product) => product.id));
+  // A primeira vitrine privilegia intenção de compra real: oferta válida,
+  // depois procura comprovada e, por fim, curadoria manual. Produtos sem estoque
+  // não ocupam esse espaço comercial de maior valor.
+  const sellableProducts = products.filter((product) => product.stock !== "INDISPONIVEL");
+  const offers = sellableProducts.filter(
+    (product) => product.promoPrice !== null && product.promoPrice < product.price
+  );
+  const bestSellers = sellableProducts.filter((product) => product.bestSeller);
+  const featured = sellableProducts.filter((product) => product.featured);
+  const news = sellableProducts.filter((product) => product.isNew);
+
+  const firstSectionProducts =
+    offers.length >= 2
+      ? offers.slice(0, 6)
+      : bestSellers.length > 0
+        ? bestSellers.slice(0, 6)
+        : featured.slice(0, 6);
+  const firstSectionTitle =
+    offers.length >= 2 ? "Ofertas" : bestSellers.length > 0 ? "Mais procurados" : "Destaques";
+
+  const firstSectionIds = new Set(firstSectionProducts.map((product) => product.id));
   const bestSellersHome = bestSellers
-    .filter((product) => !featuredIds.has(product.id))
+    .filter((product) => !firstSectionIds.has(product.id))
     .slice(0, 8);
   const usedIds = new Set([
-    ...featuredIds,
+    ...firstSectionIds,
     ...bestSellersHome.map((product) => product.id),
   ]);
   const newsHome = news
@@ -57,14 +70,11 @@ export default async function HomePage() {
       : `https://facebook.com/${settings.facebook.replace("@", "")}`
     : null;
 
-  const heroHighlights = [
-    settings?.highlight1,
-    settings?.highlight2,
-    settings?.highlight3,
-  ].filter(Boolean) as string[];
+  const conversion = resolveStorefrontConversion(settings);
+  const heroHighlights = [conversion.highlight1, conversion.highlight2].filter(Boolean);
 
   const secondaryHref =
-    settings?.secondaryCtaUrl ||
+    conversion.secondaryCtaUrl ||
     waLink(
       "Oi! Vim pelo catálogo da Sra Make Prudente e preciso de ajuda para escolher um produto.",
       whatsappNumber
@@ -72,9 +82,9 @@ export default async function HomePage() {
 
   return (
     <main>
-      <div className="px-4 pt-3 md:pt-4">
+      <div className="pt-0 md:px-4 md:pt-4">
         <section
-          className="relative min-h-[340px] overflow-hidden rounded-3xl text-white md:min-h-[360px]"
+          className="relative min-h-[268px] overflow-hidden text-white md:min-h-[340px] md:rounded-3xl"
           style={{
             background:
               "linear-gradient(135deg, #E4127B 0%, #A6157A 55%, #6E1E8C 100%)",
@@ -95,33 +105,27 @@ export default async function HomePage() {
                   ""
                 }
                 alt="Ambiente da Sra Make Prudente"
-                className="h-full w-full object-cover"
+                fetchPriority="high"
+                decoding="async"
+                className="h-full w-full object-cover object-[64%_center] md:object-center"
               />
             </picture>
           )}
 
-          <div className="absolute inset-0 bg-gradient-to-r from-[#241429]/88 via-[#241429]/58 to-[#241429]/15" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-black/10" />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#241429]/90 via-[#241429]/60 to-[#241429]/20" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-black/10" />
 
-          <div className="absolute right-4 top-4 z-20 flex items-center gap-2 md:right-6 md:top-6">
-            <div className="rounded-full bg-white text-rosa-profundo shadow-lg ring-1 ring-white/80">
+          <div className="absolute right-3 top-3 z-20 md:right-6 md:top-6">
+            <div className="origin-top-right scale-90 rounded-full bg-white text-rosa-profundo shadow-lg ring-1 ring-white/80 md:scale-100">
               <StoreAccountButton />
             </div>
-            <Link
-              href="/carrinho"
-              className="relative flex h-11 w-11 items-center justify-center rounded-full border border-white bg-white text-[#C70A68] shadow-xl ring-2 ring-white/70 transition hover:-translate-y-0.5 hover:scale-105"
-              aria-label="Abrir carrinho"
-            >
-              <ShoppingCart size={21} strokeWidth={2.5} />
-              <CartCountBadge />
-            </Link>
           </div>
 
-          <div className="relative z-10 grid min-h-[340px] items-end gap-5 p-5 sm:p-7 md:min-h-[360px] md:grid-cols-[minmax(0,1fr)_220px] md:p-8 lg:grid-cols-[minmax(0,1fr)_240px]">
+          <div className="relative z-10 grid min-h-[268px] items-end gap-3 p-4 sm:p-5 md:min-h-[340px] md:grid-cols-[minmax(0,1fr)_220px] md:p-7 lg:grid-cols-[minmax(0,1fr)_240px]">
             <div className="max-w-3xl">
-              <div className="flex items-center gap-3 md:gap-4">
+              <div className="flex items-center gap-2.5 md:gap-4">
                 <div
-                  className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border-[3px] border-white bg-white font-serif text-xl font-bold text-white shadow-xl md:h-20 md:w-20 md:text-2xl"
+                  className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-white bg-white font-serif text-lg font-bold text-white shadow-xl md:h-20 md:w-20 md:border-[3px] md:text-2xl"
                   style={{
                     background:
                       "linear-gradient(135deg, #E4127B 0%, #A6157A 55%, #6E1E8C 100%)",
@@ -138,50 +142,33 @@ export default async function HomePage() {
                   )}
                 </div>
 
-                <div className="min-w-0 pr-20 md:pr-0">
-                  <p className="mb-1 text-[9px] font-semibold uppercase tracking-[0.2em] text-white/75 md:text-[11px]">
-                    {settings?.heroEyebrow || "Loja física + catálogo online"}
+                <div className="min-w-0 pr-12 md:pr-0">
+                  <p className="mb-0.5 text-[8px] font-semibold uppercase tracking-[0.18em] text-white/80 md:text-[11px]">
+                    {conversion.heroEyebrow}
                   </p>
-                  <h1 className="font-serif text-2xl font-bold leading-tight drop-shadow-sm sm:text-3xl md:text-4xl">
+                  <h1 className="font-serif text-xl font-bold leading-tight drop-shadow-sm sm:text-2xl md:text-4xl">
                     {settings?.storeName || "Sra Make Prudente"}
                   </h1>
-                  <p className="mt-1 inline-flex items-center gap-1.5 text-xs font-semibold text-white/90">
-                    <MapPin size={14} /> Presidente Prudente/SP
+                  <p className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-semibold text-white/90 md:text-xs">
+                    <MapPin size={12} /> Presidente Prudente/SP
                   </p>
                 </div>
               </div>
 
-              <div className="mt-4 max-w-2xl">
-                <h2 className="font-serif text-lg font-bold leading-tight sm:text-xl md:text-2xl">
-                  Maquiagem, lash e nail com entrega rápida em Presidente Prudente/SP
+              <div className="mt-3 max-w-2xl">
+                <h2 className="max-w-[310px] font-serif text-[19px] font-bold leading-[1.08] sm:max-w-xl sm:text-xl md:text-2xl">
+                  {conversion.heroTitle}
                 </h2>
-                <p className="mt-1.5 max-w-xl text-xs leading-relaxed text-white/88 sm:text-sm md:text-base">
-                  Escolha pelo catálogo, veja preços e disponibilidade e finalize com atendimento da Sra Make.
+                <p className="mt-1 max-w-[330px] text-[11px] leading-[1.45] text-white/88 sm:max-w-xl sm:text-sm md:text-base">
+                  {conversion.heroSubtitle}
                 </p>
               </div>
 
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <div className="inline-flex items-center gap-2 rounded-xl border border-white/25 bg-white/90 px-3 py-2 text-[#23142A] shadow-sm backdrop-blur">
-                  <Truck size={15} className="text-rosa-profundo" />
-                  <span className="text-[11px] font-bold">Retirada ou entrega</span>
-                </div>
-                <WhatsAppLink
-                  href={secondaryHref}
-                  context="home_help"
-                  className="inline-flex items-center gap-2 rounded-xl border border-white/55 bg-transparent px-3 py-2 text-[11px] font-semibold text-white transition hover:bg-white/10"
-                >
-                  <MessageCircle size={14} /> Atendimento no WhatsApp
-                </WhatsAppLink>
-              </div>
-
               {heroHighlights.length > 0 && (
-                <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">
-                  {heroHighlights.map((highlight) => (
-                    <span
-                      key={highlight}
-                      className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-white/90"
-                    >
-                      <Sparkles size={11} className="text-[#F9D87C]" />
+                <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[9px] font-semibold text-white/90 sm:text-[10px]">
+                  {heroHighlights.map((highlight, index) => (
+                    <span key={highlight} className="inline-flex items-center gap-1">
+                      {index === 0 ? <MapPin size={10} /> : <Truck size={10} />}
                       {highlight}
                     </span>
                   ))}
@@ -189,24 +176,31 @@ export default async function HomePage() {
               )}
             </div>
 
-            <div className="flex self-end md:absolute md:bottom-[64px] md:right-8 md:w-[220px] lg:right-8 lg:w-[240px]">
+            <div className="flex flex-col gap-1.5 self-end md:absolute md:bottom-7 md:right-7 md:w-[220px] lg:w-[240px]">
               <Link
-                href={settings?.primaryCtaUrl || "/categoria"}
-                className="flex min-h-[56px] w-full items-center justify-center rounded-2xl bg-white px-5 py-3 text-center text-sm font-extrabold text-rosa-profundo shadow-xl transition hover:-translate-y-0.5 hover:shadow-2xl md:min-h-[52px]"
+                href={conversion.primaryCtaUrl}
+                className="flex min-h-[48px] w-full items-center justify-center rounded-2xl bg-white px-5 py-2.5 text-center text-sm font-extrabold text-rosa-profundo shadow-xl transition hover:-translate-y-0.5 hover:shadow-2xl"
               >
-                Ver produtos
+                {conversion.primaryCtaLabel}
               </Link>
+              <WhatsAppLink
+                href={secondaryHref}
+                context="home_help"
+                className="text-center text-[9px] font-semibold text-white/90 underline-offset-2 hover:underline md:text-[10px]"
+              >
+                {conversion.secondaryCtaLabel}
+              </WhatsAppLink>
             </div>
           </div>
         </section>
       </div>
 
-      <div className="mt-3 md:mt-4">
+      <div className="mt-2 md:mt-3">
         <SearchBar />
       </div>
 
-      {featuredHome.length > 0 && (
-        <Section title="Destaques" products={featuredHome} compactTop />
+      {firstSectionProducts.length > 0 && (
+        <Section title={firstSectionTitle} products={firstSectionProducts} compactTop />
       )}
 
       <div className="mt-5 px-4">
