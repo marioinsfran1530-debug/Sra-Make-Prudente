@@ -10,9 +10,10 @@ function cleanBrandList(value: unknown) {
 
   for (const item of value) {
     if (typeof item !== "string") continue;
-    const brand = item.trim().slice(0, 100);
-    if (!brand || seen.has(brand)) continue;
-    seen.add(brand);
+    const brand = item.replace(/\s+/g, " ").trim().slice(0, 100);
+    const normalized = brand.toLocaleLowerCase("pt-BR");
+    if (!brand || seen.has(normalized)) continue;
+    seen.add(normalized);
     result.push(brand);
   }
 
