@@ -8,7 +8,7 @@ export default async function AdminDivulgacaoPage() {
     prisma.product.findMany({
       include: {
         category: true,
-        images: { orderBy: { order: "asc" }, take: 1 },
+        images: { orderBy: { order: "asc" } },
         variants: {
           select: { active: true, stockQty: true },
         },
@@ -25,6 +25,11 @@ export default async function AdminDivulgacaoPage() {
           .reduce((total, variant) => total + variant.stockQty, 0)
       : product.stockQty;
 
+    const images = product.images.map((image) => ({
+      id: image.id,
+      url: image.url,
+    }));
+
     return {
       id: product.id,
       name: product.name,
@@ -37,7 +42,8 @@ export default async function AdminDivulgacaoPage() {
       isNew: product.isNew,
       bestSeller: product.bestSeller,
       createdAt: product.createdAt.toISOString(),
-      imageUrl: product.images[0]?.url ?? null,
+      imageUrl: images[0]?.url ?? null,
+      images,
       category: { name: product.category.name },
     };
   });
@@ -54,7 +60,7 @@ export default async function AdminDivulgacaoPage() {
           Central de Divulgação
         </h1>
         <p className="mt-1 text-sm text-cinza">
-          Escolha um produto e compartilhe a campanha pronta.
+          Escolha um produto, a melhor foto e compartilhe a campanha pronta.
         </p>
       </div>
 
