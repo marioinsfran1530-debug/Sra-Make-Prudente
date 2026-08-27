@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { AdminNotice, UnsavedChangesGuard } from "@/components/admin/AdminUx";
 
 type ProductRow = {
   id: string;
@@ -18,6 +19,7 @@ export function ProductDescriptionQueue({ products }: { products: ProductRow[] }
   const [status, setStatus] = useState<"all" | "missing" | "short">("all");
   const [savingId, setSavingId] = useState<string | null>(null);
   const [message, setMessage] = useState<Record<string, string>>({});
+  const [dirtyIds, setDirtyIds] = useState<Set<string>>(() => new Set());
 
   const filtered = useMemo(() => {
     const q = query.trim().toLocaleLowerCase("pt-BR");
@@ -40,6 +42,7 @@ export function ProductDescriptionQueue({ products }: { products: ProductRow[] }
     setRows((current) =>
       current.map((row) => (row.id === id ? { ...row, description } : row))
     );
+    setDirtyIds((current) => new Set(current).add(id));
     setMessage((current) => ({ ...current, [id]: "" }));
   }
 
@@ -66,6 +69,11 @@ export function ProductDescriptionQueue({ products }: { products: ProductRow[] }
       if (!response.ok) {
         throw new Error(payload.error || "Não foi possível salvar a descrição.");
       }
+      setDirtyIds((current) => {
+        const next = new Set(current);
+        next.delete(row.id);
+        return next;
+      });
       setRows((current) => current.filter((item) => item.id !== row.id));
     } catch (error) {
       setMessage((current) => ({
@@ -89,6 +97,12 @@ export function ProductDescriptionQueue({ products }: { products: ProductRow[] }
         <Summary label="Sem descrição" value={missingCount} />
         <Summary label="Descrição curta" value={shortCount} />
       </div>
+
+      {dirtyIds.size > 0 ? (
+        <AdminNotice tone="warning" className="mb-4">
+          {dirtyIds.size} descrição{dirtyIds.size === 1 ? "" : "ões"} com alterações ainda não salvas.
+        </AdminNotice>
+      ) : null}
 
       <div className="mb-5 rounded-2xl border border-rosa/10 bg-white p-4 shadow-sm">
         <div className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-center">
@@ -125,7 +139,10 @@ export function ProductDescriptionQueue({ products }: { products: ProductRow[] }
         {filtered.map((row) => {
           const length = row.description.trim().length;
           return (
-            <article key={row.id} className="rounded-2xl border border-rosa/10 bg-white p-4 shadow-sm">
+            <article
+              key={row.id}
+              className="rounded-2xl border border-rosa/10 bg-white p-4 shadow-sm"
+            >
               <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                 <div className="min-w-0">
                   <p className="text-sm font-bold text-texto">{row.name}</p>
@@ -133,7 +150,10 @@ export function ProductDescriptionQueue({ products }: { products: ProductRow[] }
                     {row.brand} · {row.categoryName} · {row.views30d.toLocaleString("pt-BR")} visualizações em 30 dias
                   </p>
                 </div>
-                <Link href={`/admin/produtos/${row.id}`} className="text-xs font-bold text-rosa-profundo hover:underline">
+                <Link
+                  href={`/admin/produtos/${row.id}`}
+                  className="text-xs font-bold text-rosa-profundo hover:underline"
+                >
                   Abrir cadastro completo
                 </Link>
               </div>
@@ -148,15 +168,21 @@ export function ProductDescriptionQueue({ products }: { products: ProductRow[] }
 
               <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <p className={`text-[11px] font-semibold ${length >= 50 ? "text-green-700" : "text-amber-700"}`}>
+                  <p
+                    className={`text-[11px] font-semibold ${
+                      length >= 50 ? "text-green-700" : "text-amber-700"
+                    }`}
+                  >
                     {length} caracteres {length >= 50 ? "· tamanho mínimo atendido" : "· mínimo recomendado: 50"}
                   </p>
-                  {message[row.id] ? <p className="mt-1 text-[11px] text-red-700">{message[row.id]}</p> : null}
+                  {message[row.id] ? (
+                    <p className="mt-1 text-[11px] text-red-700">{message[row.id]}</p>
+                  ) : null}
                 </div>
                 <button
                   type="button"
                   disabled={savingId === row.id}
-                  onClick={() => save(row)}
+                  onClick={() => void save(row)}
                   className="rounded-xl bg-rosa-profundo px-4 py-2.5 text-xs font-bold text-white disabled:opacity-50"
                 >
                   {savingId === row.id ? "Salvando..." : "Salvar e retirar da fila"}
@@ -172,6 +198,12 @@ export function ProductDescriptionQueue({ products }: { products: ProductRow[] }
           </div>
         ) : null}
       </div>
+
+      <UnsavedChangesGuard
+        when={dirtyIds.size > 0 && !savingId}
+        onDiscard={() => setDirtyIds(new Set())}
+        message="Há descrições alteradas nesta fila que ainda não foram salvas."
+      />
     </div>
   );
 }
