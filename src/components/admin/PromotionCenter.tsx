@@ -15,6 +15,8 @@ import {
   Sparkles,
 } from "lucide-react";
 
+type ProductImage = { id: string; url: string };
+
 type Product = {
   id: string;
   name: string;
@@ -28,6 +30,7 @@ type Product = {
   bestSeller: boolean;
   createdAt: string;
   imageUrl: string | null;
+  images: ProductImage[];
   category: { name: string };
 };
 
@@ -146,30 +149,14 @@ function usefulDescriptor(value: string) {
 }
 
 function getMessageProfile(product: Product): MessageProfile {
-  if (hasRealPromotion(product)) {
-    return { hook: "PREÇO ESPECIAL NESTE DESTAQUE" };
-  }
-
-  if (product.bestSeller) {
-    return { hook: "UM DOS MAIS PEDIDOS PELAS CLIENTES" };
-  }
-
-  if (product.isNew) {
-    return { hook: "NOVIDADE PARA SUA ROTINA" };
-  }
-
-  if (product.featured) {
-    return { hook: "ESCOLHA EM DESTAQUE" };
-  }
-
+  if (hasRealPromotion(product)) return { hook: "PREÇO ESPECIAL NESTE DESTAQUE" };
+  if (product.bestSeller) return { hook: "UM DOS MAIS PEDIDOS PELAS CLIENTES" };
+  if (product.isNew) return { hook: "NOVIDADE PARA SUA ROTINA" };
+  if (product.featured) return { hook: "ESCOLHA EM DESTAQUE" };
   return { hook: "VALE CONFERIR ESSE DESTAQUE" };
 }
 
-function buildMessage(
-  product: Product,
-  url: string,
-  profileOverride?: MessageProfile
-) {
+function buildMessage(product: Product, url: string, profileOverride?: MessageProfile) {
   const profile = profileOverride ?? getMessageProfile(product);
   const descriptor = usefulDescriptor(product.brand);
   const brandAlreadyInName = descriptor
@@ -199,7 +186,7 @@ function buildMessage(
 
 function scoreProduct(product: Product, recent: Set<string>) {
   let score = 0;
-  if (product.imageUrl) score += 8;
+  if (product.images.length || product.imageUrl) score += 8;
   if (hasRealPromotion(product)) score += 7;
   if (product.isNew) score += 6;
   if (product.featured) score += 4;
@@ -212,10 +199,9 @@ function scoreProduct(product: Product, recent: Set<string>) {
 
 function buildSuggestionPool(products: Product[]) {
   const available = products.filter((product) => product.active && product.stockQty > 0);
-  const withImage = available.filter((product) => Boolean(product.imageUrl));
+  const withImage = available.filter((product) => product.images.length > 0 || Boolean(product.imageUrl));
   const source = withImage.length >= TIMES.length ? withImage : available;
   const priority = source.filter(isPriorityProduct);
-
   if (priority.length >= SUGGESTION_POOL_MIN) return priority;
 
   const priorityIds = new Set(priority.map((product) => product.id));
@@ -233,10 +219,7 @@ function buildQueue(products: Product[], historyIds: string[], previousIds: stri
   const withoutPrevious = pool.filter((product) => !previous.has(product.id));
   const candidates = withoutPrevious.length >= TIMES.length ? withoutPrevious : pool;
   const randomized = candidates
-    .map((product) => ({
-      product,
-      score: scoreProduct(product, recent) + Math.random() * 10,
-    }))
+    .map((product) => ({ product, score: scoreProduct(product, recent) + Math.random() * 10 }))
     .sort((a, b) => b.score - a.score)
     .map(({ product }) => product);
   const chosen: Product[] = [];
@@ -275,6 +258,7 @@ function loadImage(src: string) {
 async function drawArtwork(
   canvas: HTMLCanvasElement,
   product: Product,
+  imageUrl: string | null,
   kind: CampaignKind,
   format: ArtworkFormat,
   branding: StoreBranding
@@ -309,9 +293,9 @@ async function drawArtwork(
   ctx.lineWidth = 3;
   ctx.strokeRect(margin, imageTop, imageWidth, imageHeight);
 
-  if (product.imageUrl) {
+  if (imageUrl) {
     try {
-      const image = await loadImage(product.imageUrl);
+      const image = await loadImage(imageUrl);
       const pad = 24;
       const usableW = imageWidth - pad * 2;
       const usableH = imageHeight - pad * 2;
@@ -348,6 +332,15 @@ function createArtworkBlob(canvas: HTMLCanvasElement | null) {
   });
 }
 
+async function tryCopyText(text: string) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function PromotionCenter({
   products,
   branding,
@@ -371,6 +364,7 @@ export function PromotionCenter({
   const [linkCopied, setLinkCopied] = useState(false);
   const [shareNote, setShareNote] = useState("");
   const [messageDraft, setMessageDraft] = useState("");
+  const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(available[0]?.images[0]?.url ?? available[0]?.imageUrl ?? null);
   const [aiCopyLoading, setAiCopyLoading] = useState(false);
   const [aiCopyError, setAiCopyError] = useState("");
   const [aiCopyResult, setAiCopyResult] = useState<AiCopyResult | null>(null);
@@ -411,12 +405,17 @@ export function PromotionCenter({
   }, [queue]);
 
   useEffect(() => {
+    if (!product) return;
+    setSelectedImageUrl(product.images[0]?.url ?? product.imageUrl ?? null);
+  }, [product?.id]);
+
+  useEffect(() => {
     if (!canvasRef.current || !product) return;
     setReady(false);
-    drawArtwork(canvasRef.current, product, kind, format, branding)
+    drawArtwork(canvasRef.current, product, selectedImageUrl, kind, format, branding)
       .then(() => setReady(true))
       .catch(() => setReady(false));
-  }, [product, kind, format, branding]);
+  }, [product, selectedImageUrl, kind, format, branding]);
 
   useEffect(() => {
     setMessageDraft(templateMessage);
@@ -445,7 +444,11 @@ export function PromotionCenter({
 
   async function copyMessage() {
     if (!messageDraft) return;
-    await navigator.clipboard.writeText(messageDraft);
+    const success = await tryCopyText(messageDraft);
+    if (!success) {
+      setShareNote("Não foi possível copiar automaticamente. Selecione o texto acima e copie manualmente.");
+      return;
+    }
     markActiveAiCopyUsed();
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
@@ -453,7 +456,8 @@ export function PromotionCenter({
 
   async function copyLink() {
     if (!productUrl) return;
-    await navigator.clipboard.writeText(productUrl);
+    const success = await tryCopyText(productUrl);
+    if (!success) return;
     setLinkCopied(true);
     setTimeout(() => setLinkCopied(false), 1500);
   }
@@ -474,26 +478,39 @@ export function PromotionCenter({
   }
 
   async function shareCampaign() {
-    if (!product || !ready || !messageDraft) return;
+    if (!product || !ready || !messageDraft.trim()) return;
     setShareNote("");
     const blob = await createArtworkBlob(canvasRef.current);
     if (!blob) return;
+
+    const textCopied = await tryCopyText(messageDraft);
     const file = new File([blob], `sra-make-${product.id.slice(-7)}.png`, { type: "image/png" });
 
     if (navigator.share && navigator.canShare?.({ files: [file] })) {
       try {
         await navigator.share({ files: [file], title: product.name, text: messageDraft });
         markActiveAiCopyUsed();
+        setShareNote(
+          textCopied
+            ? "Campanha compartilhada. O texto também ficou copiado: se o WhatsApp mostrar só a foto, cole a descrição no campo de legenda."
+            : "Campanha compartilhada. Alguns celulares podem enviar somente a foto; use o botão WhatsApp abaixo para enviar o texto completo."
+        );
         return;
       } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") return;
+        if (error instanceof DOMException && error.name === "AbortError") {
+          if (textCopied) setShareNote("Compartilhamento cancelado. O texto da campanha continua copiado.");
+          return;
+        }
       }
     }
 
     downloadBlob(blob);
-    await navigator.clipboard.writeText(messageDraft);
     markActiveAiCopyUsed();
-    setShareNote("Arte baixada e mensagem copiada.");
+    setShareNote(
+      textCopied
+        ? "Arte baixada e texto copiado. Anexe a arte no WhatsApp e cole a descrição."
+        : "Arte baixada. Use o botão WhatsApp abaixo para abrir a descrição completa."
+    );
   }
 
   function openWhatsApp() {
@@ -544,18 +561,12 @@ export function PromotionCenter({
       const variations = (data.variations as unknown[])
         .map((entry) => {
           if (!entry || typeof entry !== "object") return null;
-          const variation = entry as {
-            strategy?: unknown;
-            hook?: unknown;
-            support?: unknown;
-          };
+          const variation = entry as { strategy?: unknown; hook?: unknown; support?: unknown };
           if (
             !isAiCopyStrategy(variation.strategy) ||
             typeof variation.hook !== "string" ||
             typeof variation.support !== "string"
-          ) {
-            return null;
-          }
+          ) return null;
           return {
             strategy: variation.strategy,
             hook: variation.hook.trim(),
@@ -569,17 +580,13 @@ export function PromotionCenter({
       }
 
       setAiCopyResult({
-        suggestionId:
-          typeof data.suggestionId === "string" ? data.suggestionId : null,
+        suggestionId: typeof data.suggestionId === "string" ? data.suggestionId : null,
         variations,
         model: typeof data.model === "string" ? data.model : "Gemini",
-        promptVersion:
-          typeof data.promptVersion === "string" ? data.promptVersion : "v1",
+        promptVersion: typeof data.promptVersion === "string" ? data.promptVersion : "v1",
       });
     } catch (error) {
-      setAiCopyError(
-        error instanceof Error ? error.message : "Não foi possível gerar abordagens agora."
-      );
+      setAiCopyError(error instanceof Error ? error.message : "Não foi possível gerar abordagens agora.");
     } finally {
       setAiCopyLoading(false);
     }
@@ -591,7 +598,6 @@ export function PromotionCenter({
       hook: variation.hook,
       support: variation.support,
     });
-
     setMessageDraft(nextMessage);
     setActiveAiCopy({
       suggestionId: aiCopyResult?.suggestionId ?? null,
@@ -618,7 +624,7 @@ export function PromotionCenter({
           <Sparkles className="mt-0.5 text-rosa-profundo" size={20} />
           <div>
             <h2 className="font-serif text-xl font-bold text-texto">Campanha completa em um clique</h2>
-            <p className="mt-1 text-sm text-cinza">Foto, estratégia de copy, produto, preço e link curto prontos para compartilhar.</p>
+            <p className="mt-1 text-sm text-cinza">Escolha a melhor foto, a estratégia de copy e compartilhe produto, preço e link curto.</p>
           </div>
         </div>
         <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
@@ -640,9 +646,7 @@ export function PromotionCenter({
               className="w-full rounded-xl border border-rosa/20 bg-white px-3 py-3 text-sm text-texto"
             >
               {!selectedProductIsVisible ? (
-                <option value="" disabled>
-                  {filteredAvailable.length ? "Selecione um produto" : "Nenhum produto encontrado"}
-                </option>
+                <option value="" disabled>{filteredAvailable.length ? "Selecione um produto" : "Nenhum produto encontrado"}</option>
               ) : null}
               {filteredAvailable.map((item) => (
                 <option key={item.id} value={item.id}>
@@ -650,9 +654,7 @@ export function PromotionCenter({
                 </option>
               ))}
             </select>
-            <span className="mt-1 block text-xs text-cinza">
-              {filteredAvailable.length} de {available.length} produtos disponíveis
-            </span>
+            <span className="mt-1 block text-xs text-cinza">{filteredAvailable.length} de {available.length} produtos disponíveis</span>
           </label>
           <div>
             <span className="mb-2 block text-xs font-bold uppercase tracking-wide text-cinza">Modelo automático</span>
@@ -665,7 +667,10 @@ export function PromotionCenter({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <ImageIcon className="text-rosa-profundo" size={20} />
-            <div><h2 className="font-serif text-lg font-bold text-texto">Campanha pronta</h2><p className="text-sm text-cinza">Formato otimizado para leitura rápida no WhatsApp, com copy estratégica e link curto rastreável.</p></div>
+            <div>
+              <h2 className="font-serif text-lg font-bold text-texto">Campanha pronta</h2>
+              <p className="text-sm text-cinza">Formato otimizado para WhatsApp, com foto escolhida, copy estratégica e link rastreável.</p>
+            </div>
           </div>
           <div className="flex gap-2">
             {(["status", "quadrado"] as const).map((value) => (
@@ -677,44 +682,63 @@ export function PromotionCenter({
         </div>
 
         <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(260px,420px)_1fr]">
-          <div className="rounded-2xl bg-creme p-3"><canvas ref={canvasRef} className="h-auto w-full rounded-xl bg-white" /></div>
+          <div>
+            <div className="rounded-2xl bg-creme p-3">
+              <canvas ref={canvasRef} className="h-auto w-full rounded-xl bg-white" />
+            </div>
+
+            {product.images.length > 1 ? (
+              <div className="mt-3 rounded-xl border border-rosa/15 bg-white p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-bold text-texto">Escolha a foto da arte</p>
+                  <span className="text-[10px] text-cinza">{product.images.length} fotos cadastradas</span>
+                </div>
+                <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+                  {product.images.map((image, index) => {
+                    const selected = selectedImageUrl === image.url;
+                    return (
+                      <button
+                        key={image.id}
+                        type="button"
+                        onClick={() => { setSelectedImageUrl(image.url); setShareNote(""); }}
+                        aria-label={`Usar foto ${index + 1}`}
+                        title={`Foto ${index + 1}`}
+                        className={`relative h-20 w-20 shrink-0 overflow-hidden rounded-xl border-2 bg-white bg-contain bg-center bg-no-repeat ${selected ? "border-rosa-profundo" : "border-rosa/15"}`}
+                        style={{ backgroundImage: `url(${JSON.stringify(image.url).slice(1, -1)})` }}
+                      >
+                        <span className={`absolute bottom-1 right-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold ${selected ? "bg-rosa-profundo text-white" : "bg-white/90 text-texto"}`}>{index + 1}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
+          </div>
+
           <div className="flex min-w-0 flex-col gap-3">
             <div className="rounded-xl bg-creme p-4">
               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                <span className="text-xs font-bold uppercase tracking-wide text-cinza">
-                  Texto da campanha
-                </span>
+                <span className="text-xs font-bold uppercase tracking-wide text-cinza">Texto da campanha</span>
                 {activeAiCopy ? (
-                  <span className="rounded-full bg-white px-2 py-1 text-[10px] font-bold text-rosa-profundo">
-                    Copy IA · editável
-                  </span>
+                  <span className="rounded-full bg-white px-2 py-1 text-[10px] font-bold text-rosa-profundo">Copy IA · editável</span>
                 ) : (
                   <span className="text-[10px] font-medium text-cinza">Modelo fixo · editável</span>
                 )}
               </div>
               <textarea
                 value={messageDraft}
-                onChange={(event) => {
-                  setMessageDraft(event.target.value);
-                  setShareNote("");
-                }}
+                onChange={(event) => { setMessageDraft(event.target.value); setShareNote(""); }}
                 rows={11}
                 className="w-full resize-y rounded-lg border border-rosa/10 bg-white p-3 text-sm leading-6 text-texto outline-none focus:border-rosa-profundo"
               />
-              <p className="mt-1 text-[10px] leading-4 text-cinza">
-                Revise antes de compartilhar. Produto, preço, link e classificação continuam vindo do sistema; a IA trabalha apenas com fatos públicos do cadastro.
-              </p>
+              <p className="mt-1 text-[10px] leading-4 text-cinza">Revise antes de compartilhar. Produto, preço, link e classificação continuam vindo do sistema; a IA trabalha apenas com fatos públicos do cadastro.</p>
             </div>
 
             <div className="rounded-xl border border-rosa/15 bg-white p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <p className="flex items-center gap-1.5 text-xs font-bold text-texto">
-                    <Sparkles size={14} /> Copy estratégica com IA
-                  </p>
-                  <p className="mt-1 text-[10px] leading-4 text-cinza">
-                    Três técnicas diferentes: desejo/benefício, dor/solução e curiosidade. O sistema rejeita frases genéricas, prova social inventada e urgência falsa antes de mostrar as opções.
-                  </p>
+                  <p className="flex items-center gap-1.5 text-xs font-bold text-texto"><Sparkles size={14} /> Copy estratégica com IA</p>
+                  <p className="mt-1 text-[10px] leading-4 text-cinza">Três técnicas diferentes: desejo/benefício, dor/solução e curiosidade. O sistema rejeita frases genéricas, prova social inventada e urgência falsa antes de mostrar as opções.</p>
                 </div>
                 <button
                   type="button"
@@ -726,9 +750,7 @@ export function PromotionCenter({
                 </button>
               </div>
 
-              {aiCopyError ? (
-                <p className="mt-2 text-xs text-vermelho">{aiCopyError}</p>
-              ) : null}
+              {aiCopyError ? <p className="mt-2 text-xs text-vermelho">{aiCopyError}</p> : null}
 
               {aiCopyResult ? (
                 <div className="mt-3 space-y-2">
@@ -739,31 +761,17 @@ export function PromotionCenter({
                         key={`${variation.strategy}-${variation.hook}-${index}`}
                         type="button"
                         onClick={() => selectAiVariation(variation, index)}
-                        className={`block w-full rounded-xl border p-3 text-left transition ${
-                          selected
-                            ? "border-rosa-profundo bg-rosa/5"
-                            : "border-rosa/15 bg-creme/40 hover:border-rosa-profundo/40"
-                        }`}
+                        className={`block w-full rounded-xl border p-3 text-left transition ${selected ? "border-rosa-profundo bg-rosa/5" : "border-rosa/15 bg-creme/40 hover:border-rosa-profundo/40"}`}
                       >
-                        <span className="text-[10px] font-bold uppercase tracking-wide text-rosa-profundo">
-                          {strategyLabel(variation.strategy)}
-                        </span>
+                        <span className="text-[10px] font-bold uppercase tracking-wide text-rosa-profundo">{strategyLabel(variation.strategy)}</span>
                         <p className="mt-1 text-sm font-bold leading-5 text-texto">{variation.hook}</p>
                         <p className="mt-1.5 text-[11px] leading-4 text-cinza">{variation.support}</p>
                       </button>
                     );
                   })}
                   <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-                    <button
-                      type="button"
-                      onClick={useTemplateMessage}
-                      className="text-[11px] font-bold text-rosa-profundo underline underline-offset-2"
-                    >
-                      Voltar ao modelo fixo
-                    </button>
-                    <span className="text-[9px] text-cinza">
-                      {aiCopyResult.model} · {aiCopyResult.promptVersion}
-                    </span>
+                    <button type="button" onClick={useTemplateMessage} className="text-[11px] font-bold text-rosa-profundo underline underline-offset-2">Voltar ao modelo fixo</button>
+                    <span className="text-[9px] text-cinza">{aiCopyResult.model} · {aiCopyResult.promptVersion}</span>
                   </div>
                 </div>
               ) : null}
@@ -777,21 +785,28 @@ export function PromotionCenter({
               </div>
             </div>
 
-            <button type="button" onClick={shareCampaign} disabled={!ready || !messageDraft.trim()} className="flex items-center justify-center gap-2 rounded-xl bg-rosa-profundo px-4 py-3 text-sm font-bold text-white disabled:opacity-40"><Share2 size={17} /> Compartilhar campanha</button>
+            <div className="rounded-xl border border-rosa-profundo/15 bg-rosa/5 p-3 text-[11px] leading-4 text-cinza">
+              <strong className="text-texto">Compartilhamento no WhatsApp:</strong> alguns celulares aceitam a foto pelo menu de compartilhar, mas descartam o texto. Por segurança, o botão principal copia a descrição antes de abrir o compartilhamento. Se aparecer só a foto, basta colar a legenda.
+            </div>
+
+            <button type="button" onClick={shareCampaign} disabled={!ready || !messageDraft.trim()} className="flex items-center justify-center gap-2 rounded-xl bg-rosa-profundo px-4 py-3 text-sm font-bold text-white disabled:opacity-40"><Share2 size={17} /> Compartilhar arte + texto</button>
 
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               <button type="button" onClick={copyMessage} disabled={!messageDraft.trim()} className="flex items-center justify-center gap-1.5 rounded-xl border border-rosa/20 px-3 py-3 text-xs font-bold text-texto disabled:opacity-40"><Copy size={15} />{copied ? "Copiado" : "Copiar texto"}</button>
               <button type="button" onClick={downloadArtwork} disabled={!ready} className="flex items-center justify-center gap-1.5 rounded-xl border border-rosa/20 px-3 py-3 text-xs font-bold text-texto disabled:opacity-40"><Download size={15} />Baixar arte</button>
-              <button type="button" onClick={openWhatsApp} disabled={!messageDraft.trim()} className="col-span-2 flex items-center justify-center gap-1.5 rounded-xl border border-rosa/20 px-3 py-3 text-xs font-bold text-texto disabled:opacity-40 sm:col-span-1"><ExternalLink size={15} />WhatsApp</button>
+              <button type="button" onClick={openWhatsApp} disabled={!messageDraft.trim()} className="col-span-2 flex items-center justify-center gap-1.5 rounded-xl border border-rosa/20 px-3 py-3 text-xs font-bold text-texto disabled:opacity-40 sm:col-span-1"><ExternalLink size={15} />WhatsApp com texto</button>
             </div>
-            {shareNote ? <p className="text-xs font-medium text-cinza">{shareNote}</p> : null}
+            {shareNote ? <p className="rounded-lg bg-creme px-3 py-2 text-xs font-medium leading-5 text-cinza">{shareNote}</p> : null}
           </div>
         </div>
       </section>
 
       <section className="rounded-2xl border border-rosa/15 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div><h2 className="font-serif text-lg font-bold text-texto">Sugestões de hoje</h2><p className="text-sm text-cinza">Três produtos variados, priorizando imagem, estoque, novidade, destaque, mais vendidos e promoção real.</p></div>
+          <div>
+            <h2 className="font-serif text-lg font-bold text-texto">Sugestões de hoje</h2>
+            <p className="text-sm text-cinza">Três produtos variados, priorizando imagem, estoque, novidade, destaque, mais vendidos e promoção real.</p>
+          </div>
           <button type="button" onClick={generateNewSuggestions} className="flex items-center gap-2 rounded-xl border border-rosa/20 px-3 py-2 text-xs font-bold text-texto"><RefreshCw size={15} />Gerar novas sugestões</button>
         </div>
         <div className="mt-4 space-y-2">
@@ -800,7 +815,10 @@ export function PromotionCenter({
             if (!queueProduct) return null;
             return (
               <div key={`${item.time}-${item.productId}`} className="flex flex-col gap-3 rounded-xl border border-rosa/10 p-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0"><p className="truncate text-sm font-bold text-texto">{queueProduct.name}</p><p className="mt-1 text-xs text-cinza"><Clock3 size={12} className="mr-1 inline" />{item.time} · {queueProduct.category.name} · {campaignLabel(item.kind)}</p></div>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-bold text-texto">{queueProduct.name}</p>
+                  <p className="mt-1 text-xs text-cinza"><Clock3 size={12} className="mr-1 inline" />{item.time} · {queueProduct.category.name} · {campaignLabel(item.kind)}</p>
+                </div>
                 <div className="flex gap-2">
                   <button type="button" onClick={() => { setProductId(item.productId); setProductQuery(""); setFormat("status"); window.scrollTo({ top: 0, behavior: "smooth" }); }} className="rounded-lg border border-rosa/20 px-3 py-2 text-xs font-bold text-texto">Abrir</button>
                   <button type="button" onClick={() => togglePublished(index)} className={`flex items-center justify-center gap-1 rounded-lg px-3 py-2 text-xs font-bold ${item.done ? "border border-rosa/20 text-cinza" : "bg-rosa-profundo text-white"}`}>{item.done ? <><Check size={14} /> Publicado</> : "Marcar publicado"}</button>
