@@ -22,6 +22,7 @@ model Category {
   description       String?
   order             Int               @default(0)
   active             Boolean           @default(true)
+  showOnHome        Boolean           @default(true)
   subcategories     Subcategory[]
   products          Product[]
   productCategories ProductCategory[]
@@ -316,6 +317,8 @@ model StoreSettings {
   highlight1               String?
   highlight2               String?
   highlight3               String?
+  homeBrandOrder           String[] @default([])
+  homeHiddenBrands         String[] @default([])
   deliveryEnabled          Boolean  @default(true)
   pickupEnabled            Boolean  @default(true)
   updatedAt                DateTime @updatedAt
