@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Sparkles } from "lucide-react";
 import { ProductImageEditor } from "@/components/admin/ProductImageEditor";
+import { useNewProductDraft } from "@/hooks/useNewProductDraft";
 import {
   AdminNotice,
   ConfirmDialog,
@@ -169,6 +170,56 @@ export function ProductForm({
   const gtinValid = isValidGtin(sku);
   const additionalCategoryCount = categoryIds.filter((id) => id !== categoryId).length;
   const canGenerateDescription = Boolean(name.trim() && brand.trim() && categoryId);
+
+  const { clearDraft } = useNewProductDraft({
+    enabled: !isEdit,
+    dirty,
+    values: {
+      name,
+      brand,
+      sku,
+      description,
+      price,
+      promoPrice,
+      costPrice,
+      stockQty,
+      featured,
+      isNew,
+      bestSeller,
+      active,
+      categoryId,
+      categoryIds,
+      subcategoryId,
+      variants,
+    },
+    hadUnsavedImages: newImages.length > 0,
+    onRestore: (draft, hadUnsavedImages) => {
+      setName(draft.name);
+      setBrand(draft.brand);
+      setSku(draft.sku);
+      setDescription(draft.description);
+      setPrice(draft.price);
+      setPromoPrice(draft.promoPrice);
+      setCostPrice(draft.costPrice);
+      setStockQty(draft.stockQty);
+      setFeatured(draft.featured);
+      setIsNew(draft.isNew);
+      setBestSeller(draft.bestSeller);
+      setActive(draft.active);
+      setCategoryId(draft.categoryId);
+      setCategoryIds(draft.categoryIds);
+      setSubcategoryId(draft.subcategoryId);
+      setVariants(draft.variants);
+      clearAiDescriptionTracking();
+      setError(null);
+      setDirty(true);
+      setSuccess(
+        hadUnsavedImages
+          ? "Rascunho recuperado automaticamente. Os dados foram preservados; selecione novamente as fotos que ainda não tinham sido salvas."
+          : "Rascunho recuperado automaticamente. Você pode continuar de onde parou."
+      );
+    },
+  });
 
   useEffect(() => {
     const urls = newImages.map((file) => URL.createObjectURL(file));
@@ -515,6 +566,8 @@ export function ProductForm({
             } catch {
               // O cadastro continua preservado mesmo sem feedback persistido.
             }
+            clearDraft();
+            setDirty(false);
             router.replace(`/admin/produtos/${productId}`);
             return;
           }
@@ -533,6 +586,7 @@ export function ProductForm({
         return;
       }
 
+      clearDraft();
       try {
         sessionStorage.setItem(
           PRODUCT_SAVE_MESSAGE_KEY,
@@ -792,7 +846,13 @@ export function ProductForm({
         onConfirm={deleteExistingImage}
       />
 
-      <UnsavedChangesGuard when={dirty && !saving} onDiscard={() => setDirty(false)} />
+      <UnsavedChangesGuard
+        when={dirty && !saving}
+        onDiscard={() => {
+          if (!isEdit) clearDraft();
+          setDirty(false);
+        }}
+      />
 
       <style jsx>{`
         .input {
