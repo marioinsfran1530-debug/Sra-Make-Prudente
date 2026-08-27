@@ -388,7 +388,7 @@ export function ProductsTable({ products }: { products: Row[] }) {
                   </button>
 
                   {openVitrineId === product.id && (
-                    <div className="absolute bottom-full right-0 z-30 mb-2 w-52 rounded-2xl border border-rosa/10 bg-white p-2 shadow-xl">
+                    <div className="absolute left-0 top-full z-30 mt-2 w-52 max-w-[calc(100vw-2rem)] rounded-2xl border border-rosa/10 bg-white p-2 shadow-xl sm:bottom-full sm:left-auto sm:right-0 sm:top-auto sm:mb-2 sm:mt-0">
                       <p className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-cinza">
                         Exibir produto em
                       </p>
