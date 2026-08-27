@@ -1,3 +1,6 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   Baby,
@@ -32,6 +35,11 @@ const CATEGORY_ICONS: Record<string, LucideIcon> = {
   infantil: Baby,
 };
 
+type MerchandisingPayload = {
+  categories?: { slug: string; order: number; showOnHome: boolean }[];
+  brands?: string[];
+};
+
 function normalize(value: string) {
   return value
     .toLowerCase()
@@ -45,7 +53,33 @@ export function HomeCategoryRail({
 }: {
   categories: { name: string; slug: string }[];
 }) {
-  if (categories.length === 0) return null;
+  const [visibleCategories, setVisibleCategories] = useState(categories);
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/home-merchandising")
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data: MerchandisingPayload | null) => {
+        if (!active || !data?.categories) return;
+        const config = new Map(data.categories.map((item) => [item.slug, item]));
+        const next = categories
+          .filter((category) => config.get(category.slug)?.showOnHome !== false)
+          .sort((a, b) => {
+            const aOrder = config.get(a.slug)?.order ?? Number.MAX_SAFE_INTEGER;
+            const bOrder = config.get(b.slug)?.order ?? Number.MAX_SAFE_INTEGER;
+            return aOrder - bOrder || a.name.localeCompare(b.name, "pt-BR");
+          });
+        setVisibleCategories(next);
+      })
+      .catch(() => {
+        // Mantém o fallback renderizado pelo servidor se a configuração não carregar.
+      });
+    return () => {
+      active = false;
+    };
+  }, [categories]);
+
+  if (visibleCategories.length === 0) return null;
 
   return (
     <section className="mt-3">
@@ -67,7 +101,7 @@ export function HomeCategoryRail({
       </div>
 
       <div className="flex snap-x snap-mandatory gap-2.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {categories.map((category) => {
+        {visibleCategories.map((category) => {
           const slug = normalize(category.slug);
           const name = normalize(category.name);
           const Icon = CATEGORY_ICONS[slug] ?? CATEGORY_ICONS[name] ?? ShoppingBag;
@@ -95,7 +129,25 @@ export function HomeCategoryRail({
 }
 
 export function BrandRail({ brands }: { brands: string[] }) {
-  if (brands.length === 0) return null;
+  const [visibleBrands, setVisibleBrands] = useState(brands);
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/home-merchandising")
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data: MerchandisingPayload | null) => {
+        if (!active || !Array.isArray(data?.brands)) return;
+        setVisibleBrands(data.brands);
+      })
+      .catch(() => {
+        // Mantém o ranking automático do servidor como fallback.
+      });
+    return () => {
+      active = false;
+    };
+  }, [brands]);
+
+  if (visibleBrands.length === 0) return null;
 
   return (
     <section className="mt-8">
@@ -117,7 +169,7 @@ export function BrandRail({ brands }: { brands: string[] }) {
       </div>
 
       <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {brands.map((brand) => {
+        {visibleBrands.map((brand) => {
           const initial = brand.trim().charAt(0).toUpperCase() || "S";
 
           return (
