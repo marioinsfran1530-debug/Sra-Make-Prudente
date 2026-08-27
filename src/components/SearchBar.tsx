@@ -12,10 +12,16 @@ export function SearchBar({ initialValue = "" }: { initialValue?: string }) {
   const [floating, setFloating] = useState(false);
   const shellRef = useRef<HTMLDivElement>(null);
 
-  // Na Home a busca vira uma barra de apoio durante a rolagem. Em páginas de
-  // categoria ela continua no fluxo normal para não disputar espaço com a
-  // navegação de categorias, que também é sticky.
-  const keepVisible = pathname === "/" || pathname === "/previa";
+  const catalogSticky =
+    pathname === "/categoria" || pathname.startsWith("/categoria/");
+
+  // A busca acompanha a rolagem nas principais páginas de descoberta. No
+  // catálogo ela trabalha em conjunto com a navegação de categorias, que fica
+  // logo abaixo da barra fixa.
+  const keepVisible =
+    pathname === "/" ||
+    pathname === "/previa" ||
+    catalogSticky;
 
   useEffect(() => {
     if (!keepVisible) {
@@ -44,19 +50,24 @@ export function SearchBar({ initialValue = "" }: { initialValue?: string }) {
     const query = value.trim();
     if (!query) return;
 
-    // Registra explicitamente o uso da barra antes da navegação. O evento de
-    // resultados é separado por contexto para não inflar os relatórios.
     trackEvent("search", { query, context: "search_submit" });
     router.push(`/busca?q=${encodeURIComponent(query)}`);
   }
 
   return (
-    <div ref={shellRef} className={keepVisible ? "min-h-[66px]" : undefined}>
+    <div
+      ref={shellRef}
+      className={
+        keepVisible ? (catalogSticky ? "min-h-[52px]" : "min-h-[66px]") : undefined
+      }
+    >
       <form
         onSubmit={handleSubmit}
         className={
           floating
-            ? "fixed inset-x-0 top-0 z-[60] bg-[#FFF7FB]/95 px-4 pb-2 pt-2 shadow-md backdrop-blur-md"
+            ? catalogSticky
+              ? "fixed inset-x-0 top-0 z-[60] bg-[#FFF7FB] px-4 py-1 shadow-sm"
+              : "fixed inset-x-0 top-0 z-[60] bg-[#FFF7FB]/95 px-4 pb-2 pt-2 shadow-md backdrop-blur-md"
             : "px-4 pb-3"
         }
       >
