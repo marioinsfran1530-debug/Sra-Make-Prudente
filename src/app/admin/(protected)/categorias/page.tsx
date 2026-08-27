@@ -4,6 +4,7 @@ import { HomeMerchandisingManager } from "@/components/admin/HomeMerchandisingMa
 import {
   getHomeBrandSettings,
   getHomeCategoryVisibility,
+  mergeBrandGroups,
 } from "@/lib/home-merchandising";
 
 export default async function AdminCategoriasPage() {
@@ -28,9 +29,9 @@ export default async function AdminCategoriasPage() {
     showOnHome: categoryVisibility.get(category.id) ?? true,
   }));
 
-  const brands = brandGroups
-    .map((item) => ({ name: item.brand.trim(), count: item._count._all }))
-    .filter((item) => Boolean(item.name));
+  const brands = mergeBrandGroups(
+    brandGroups.map((item) => ({ brand: item.brand, count: item._count._all }))
+  );
 
   return (
     <div>
