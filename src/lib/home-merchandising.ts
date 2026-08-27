@@ -5,6 +5,64 @@ export type HomeBrandSettings = {
   homeHiddenBrands: string[];
 };
 
+export type HomeBrandCount = {
+  name: string;
+  count: number;
+};
+
+const EMPTY_BRAND_KEYS = new Set([
+  "",
+  "-",
+  "n/a",
+  "na",
+  "sem marca",
+  "sem marca definida",
+  "nao informado",
+  "não informado",
+  "generica",
+  "genérica",
+]);
+
+export function cleanBrandName(value: string | null | undefined) {
+  const name = (value ?? "").replace(/\s+/g, " ").trim();
+  if (!name) return null;
+  if (EMPTY_BRAND_KEYS.has(name.toLocaleLowerCase("pt-BR"))) return null;
+  return name;
+}
+
+export function brandKey(value: string | null | undefined) {
+  const clean = cleanBrandName(value);
+  return clean ? clean.toLocaleLowerCase("pt-BR") : "";
+}
+
+export function mergeBrandGroups(
+  groups: Array<{ brand: string; count: number }>
+): HomeBrandCount[] {
+  const merged = new Map<string, HomeBrandCount>();
+
+  for (const group of groups) {
+    const name = cleanBrandName(group.brand);
+    if (!name) continue;
+    const key = brandKey(name);
+    const current = merged.get(key);
+
+    if (!current) {
+      merged.set(key, { name, count: group.count });
+      continue;
+    }
+
+    const preferIncoming = group.count > current.count;
+    merged.set(key, {
+      name: preferIncoming ? name : current.name,
+      count: current.count + group.count,
+    });
+  }
+
+  return [...merged.values()].sort(
+    (a, b) => b.count - a.count || a.name.localeCompare(b.name, "pt-BR")
+  );
+}
+
 export async function getHomeCategoryVisibility() {
   const rows = await prisma.$queryRaw<Array<{ id: string; showOnHome: boolean }>>`
     SELECT "id", "showOnHome"
@@ -35,19 +93,19 @@ export function orderBrandsForHome(
   settings: HomeBrandSettings,
   limit = 10
 ) {
-  const hidden = new Set(settings.homeHiddenBrands.map((brand) => brand.trim()).filter(Boolean));
+  const hiddenKeys = new Set(settings.homeHiddenBrands.map(brandKey).filter(Boolean));
   const configuredIndex = new Map(
     settings.homeBrandOrder
-      .map((brand) => brand.trim())
+      .map(brandKey)
       .filter(Boolean)
-      .map((brand, index) => [brand, index] as const)
+      .map((key, index) => [key, index] as const)
   );
 
   return [...brandCounts.entries()]
-    .filter(([brand]) => !hidden.has(brand))
+    .filter(([brand]) => !hiddenKeys.has(brandKey(brand)))
     .sort((a, b) => {
-      const aIndex = configuredIndex.get(a[0]);
-      const bIndex = configuredIndex.get(b[0]);
+      const aIndex = configuredIndex.get(brandKey(a[0]));
+      const bIndex = configuredIndex.get(brandKey(b[0]));
       const aConfigured = aIndex !== undefined;
       const bConfigured = bIndex !== undefined;
 
