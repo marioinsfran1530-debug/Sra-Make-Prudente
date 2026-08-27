@@ -48,25 +48,25 @@ export function HomeCategoryRail({
   if (categories.length === 0) return null;
 
   return (
-    <section className="mt-5">
-      <div className="mb-3 flex items-end justify-between gap-3 px-4">
+    <section className="mt-3">
+      <div className="mb-2 flex items-end justify-between gap-3 px-4">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-rosa-profundo">
+          <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-rosa-profundo">
             Encontre mais rápido
           </p>
-          <h2 className="mt-0.5 font-serif text-lg font-bold text-texto">
+          <h2 className="mt-0.5 font-serif text-base font-bold text-texto">
             O que você procura hoje?
           </h2>
         </div>
         <Link
           href="/categoria"
-          className="inline-flex shrink-0 items-center gap-0.5 text-xs font-bold text-rosa-profundo"
+          className="inline-flex shrink-0 items-center gap-0.5 text-[11px] font-bold text-rosa-profundo"
         >
-          Ver todas <ChevronRight size={14} />
+          Ver todas <ChevronRight size={13} />
         </Link>
       </div>
 
-      <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="flex snap-x snap-mandatory gap-2.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {categories.map((category) => {
           const slug = normalize(category.slug);
           const name = normalize(category.name);
@@ -76,14 +76,14 @@ export function HomeCategoryRail({
             <Link
               key={category.slug}
               href={`/categoria/${category.slug}`}
-              className="group flex w-[84px] flex-none snap-start flex-col items-center text-center"
+              className="group flex w-[76px] flex-none snap-start flex-col items-center text-center"
             >
-              <span className="flex h-[66px] w-[66px] items-center justify-center rounded-full border border-rosa/15 bg-white shadow-sm transition group-hover:-translate-y-0.5 group-hover:border-rosa/30 group-hover:shadow-md">
-                <span className="flex h-[52px] w-[52px] items-center justify-center rounded-full bg-creme text-rosa-profundo">
-                  <Icon size={23} strokeWidth={1.8} />
+              <span className="flex h-14 w-14 items-center justify-center rounded-full border border-rosa/15 bg-white shadow-sm transition group-hover:-translate-y-0.5 group-hover:border-rosa/30 group-hover:shadow-md">
+                <span className="flex h-11 w-11 items-center justify-center rounded-full bg-creme text-rosa-profundo">
+                  <Icon size={20} strokeWidth={1.8} />
                 </span>
               </span>
-              <span className="mt-2 line-clamp-2 text-[11px] font-semibold leading-tight text-texto">
+              <span className="mt-1.5 line-clamp-2 text-[10px] font-semibold leading-tight text-texto">
                 {category.name}
               </span>
             </Link>
