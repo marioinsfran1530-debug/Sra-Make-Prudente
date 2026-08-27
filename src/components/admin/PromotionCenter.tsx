@@ -289,14 +289,11 @@ async function drawArtwork(
 
   ctx.fillStyle = "#FFFFFF";
   ctx.fillRect(margin, imageTop, imageWidth, imageHeight);
-  ctx.strokeStyle = "#E0C0C0";
-  ctx.lineWidth = 3;
-  ctx.strokeRect(margin, imageTop, imageWidth, imageHeight);
 
   if (imageUrl) {
     try {
       const image = await loadImage(imageUrl);
-      const pad = 24;
+      const pad = 12;
       const usableW = imageWidth - pad * 2;
       const usableH = imageHeight - pad * 2;
       const scale = Math.min(usableW / image.width, usableH / image.height);
