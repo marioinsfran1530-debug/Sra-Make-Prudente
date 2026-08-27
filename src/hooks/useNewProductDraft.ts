@@ -93,10 +93,15 @@ export function useNewProductDraft({
   const latestDirty = useRef(dirty);
   const onRestoreRef = useRef(onRestore);
 
-  latestValues.current = values;
-  latestHadUnsavedImages.current = hadUnsavedImages;
-  latestDirty.current = dirty;
-  onRestoreRef.current = onRestore;
+  useEffect(() => {
+    latestValues.current = values;
+    latestHadUnsavedImages.current = hadUnsavedImages;
+    latestDirty.current = dirty;
+  }, [values, hadUnsavedImages, dirty]);
+
+  useEffect(() => {
+    onRestoreRef.current = onRestore;
+  }, [onRestore]);
 
   useEffect(() => {
     if (!enabled) {
@@ -139,7 +144,7 @@ export function useNewProductDraft({
     if (!enabled) return;
 
     const persistBeforeBackground = () => {
-      if (document.visibilityState !== "hidden" || !latestDirty.current) return;
+      if (!latestDirty.current) return;
       try {
         writeDraft(latestValues.current, latestHadUnsavedImages.current);
       } catch {
@@ -147,10 +152,14 @@ export function useNewProductDraft({
       }
     };
 
-    document.addEventListener("visibilitychange", persistBeforeBackground);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") persistBeforeBackground();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("pagehide", persistBeforeBackground);
     return () => {
-      document.removeEventListener("visibilitychange", persistBeforeBackground);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("pagehide", persistBeforeBackground);
     };
   }, [enabled]);
