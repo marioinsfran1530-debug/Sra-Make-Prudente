@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getHomeBrandSettings, orderBrandsForHome } from "@/lib/home-merchandising";
+import {
+  getHomeBrandSettings,
+  mergeBrandGroups,
+  orderBrandsForHome,
+} from "@/lib/home-merchandising";
 
 export const dynamic = "force-dynamic";
 
@@ -20,12 +24,10 @@ export async function GET() {
     getHomeBrandSettings(),
   ]);
 
-  const brandCounts = new Map<string, number>();
-  for (const item of brandGroups) {
-    const brand = item.brand.trim();
-    if (!brand) continue;
-    brandCounts.set(brand, (brandCounts.get(brand) ?? 0) + item._count._all);
-  }
+  const mergedBrands = mergeBrandGroups(
+    brandGroups.map((item) => ({ brand: item.brand, count: item._count._all }))
+  );
+  const brandCounts = new Map(mergedBrands.map((brand) => [brand.name, brand.count]));
 
   return NextResponse.json(
     {
