@@ -12,6 +12,7 @@ function BuscaContent() {
   const searchParams = useSearchParams();
   const initialQ = searchParams.get("q") ?? "";
   const [query, setQuery] = useState(initialQ);
+  const [brandBrowse, setBrandBrowse] = useState(searchParams.get("source") === "brand_rail");
   const [products, setProducts] = useState<PublicProduct[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -28,17 +29,19 @@ function BuscaContent() {
         .then((data) => {
           setProducts(data.products);
           const resultCount = data.products.length;
-          trackEvent("search", {
-            query: q,
-            resultCount,
-            itemCount: resultCount,
-            context: "search_results",
-          });
+          if (!brandBrowse) {
+            trackEvent("search", {
+              query: q,
+              resultCount,
+              itemCount: resultCount,
+              context: "search_results",
+            });
+          }
         })
         .finally(() => setLoading(false));
     }, 300);
     return () => clearTimeout(timeout);
-  }, [query]);
+  }, [query, brandBrowse]);
 
   return (
     <main className="pt-3">
@@ -48,7 +51,10 @@ function BuscaContent() {
           <input
             autoFocus
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              setBrandBrowse(false);
+              setQuery(e.target.value);
+            }}
             placeholder="Buscar produto, marca ou categoria..."
             className="bg-transparent outline-none text-sm flex-1 text-texto"
           />
@@ -63,7 +69,11 @@ function BuscaContent() {
       ) : (
         <div className="pb-6">
           <p className="px-4 text-xs mb-2 text-cinza">
-            {loading ? "Buscando..." : `${products.length} resultados para "${query}"`}
+            {loading
+              ? "Buscando..."
+              : brandBrowse
+                ? `${products.length} produtos da marca “${query}”`
+                : `${products.length} resultados para “${query}”`}
           </p>
           {!loading && products.length === 0 ? (
             <EmptyState />
