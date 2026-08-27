@@ -4,7 +4,7 @@ import { OrdersTable } from "@/components/admin/OrdersTable";
 export default async function AdminPedidosPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ status?: string }>;
+  searchParams?: Promise<{ status?: string; period?: string }>;
 }) {
   const params = searchParams ? await searchParams : undefined;
   const orders = await prisma.order.findMany({
@@ -18,6 +18,7 @@ export default async function AdminPedidosPage({
       total: true,
       status: true,
       createdAt: true,
+      updatedAt: true,
     },
   });
 
@@ -32,6 +33,7 @@ export default async function AdminPedidosPage({
 
       <OrdersTable
         initialStatus={params?.status ?? ""}
+        initialPeriod={params?.period ?? "30d"}
         orders={orders.map((order) => ({
           id: order.id,
           number: order.number,
@@ -40,6 +42,7 @@ export default async function AdminPedidosPage({
           total: Number(order.total),
           status: order.status,
           createdAt: order.createdAt.toISOString(),
+          updatedAt: order.updatedAt.toISOString(),
         }))}
       />
     </div>
