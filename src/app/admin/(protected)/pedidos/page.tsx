@@ -1,48 +1,47 @@
-import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { money } from "@/lib/money";
+import { OrdersTable } from "@/components/admin/OrdersTable";
 
-const STATUS_LABEL: Record<string, string> = {
-  NOVO: "Novo",
-  EM_CONFIRMACAO: "Em confirmação",
-  CONFIRMADO: "Confirmado",
-  SEPARANDO: "Separando",
-  PRONTO_RETIRADA: "Pronto para retirada",
-  SAIU_ENTREGA: "Saiu para entrega",
-  FINALIZADO: "Finalizado",
-  CANCELADO: "Cancelado",
-};
-
-export default async function AdminPedidosPage() {
+export default async function AdminPedidosPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ status?: string }>;
+}) {
+  const params = searchParams ? await searchParams : undefined;
   const orders = await prisma.order.findMany({
     orderBy: { createdAt: "desc" },
-    take: 100,
+    take: 500,
+    select: {
+      id: true,
+      number: true,
+      customerName: true,
+      customerPhone: true,
+      total: true,
+      status: true,
+      createdAt: true,
+    },
   });
 
   return (
-    <div>
-      <h1 className="font-serif font-bold text-xl text-texto mb-4">Pedidos</h1>
-      <div className="flex flex-col gap-2">
-        {orders.length === 0 && <p className="text-xs text-cinza">Nenhum pedido ainda.</p>}
-        {orders.map((o) => (
-          <Link
-            key={o.id}
-            href={`/admin/pedidos/${o.id}`}
-            className="flex items-center justify-between bg-white rounded-xl px-4 py-3"
-            style={{ boxShadow: "0 2px 10px rgba(35,20,42,0.06)" }}
-          >
-            <div>
-              <p className="text-sm font-bold text-texto">
-                #{o.number} — {o.customerName}
-              </p>
-              <p className="text-xs text-cinza">
-                {new Date(o.createdAt).toLocaleDateString("pt-BR")} · {STATUS_LABEL[o.status]}
-              </p>
-            </div>
-            <p className="text-sm font-extrabold text-rosa-profundo">{money(Number(o.total))}</p>
-          </Link>
-        ))}
+    <div className="mx-auto max-w-5xl">
+      <div className="mb-4">
+        <h1 className="font-serif text-xl font-bold text-texto">Pedidos</h1>
+        <p className="mt-1 text-xs text-cinza">
+          Priorize novos pedidos, acompanhe os que estão em andamento e encontre clientes rapidamente.
+        </p>
       </div>
+
+      <OrdersTable
+        initialStatus={params?.status ?? ""}
+        orders={orders.map((order) => ({
+          id: order.id,
+          number: order.number,
+          customerName: order.customerName,
+          customerPhone: order.customerPhone,
+          total: Number(order.total),
+          status: order.status,
+          createdAt: order.createdAt.toISOString(),
+        }))}
+      />
     </div>
   );
 }
