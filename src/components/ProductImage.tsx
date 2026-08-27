@@ -7,10 +7,12 @@ export function ProductImage({
   name,
   imageUrl,
   className = "",
+  loading = "eager",
 }: {
   name: string;
   imageUrl?: string | null;
   className?: string;
+  loading?: "eager" | "lazy";
 }) {
   const [failed, setFailed] = useState(false);
 
@@ -19,11 +21,17 @@ export function ProductImage({
   }, [imageUrl]);
 
   if (imageUrl && !failed) {
+    // Mantemos <img> porque as fotos já chegam do storage público, mas
+    // listagens podem adiar downloads fora da viewport para não competir
+    // com o conteúdo principal da página.
     // eslint-disable-next-line @next/next/no-img-element
     return (
       <img
         src={imageUrl}
         alt={name}
+        loading={loading}
+        decoding="async"
+        fetchPriority={loading === "lazy" ? "low" : "auto"}
         onError={() => setFailed(true)}
         className={`object-cover bg-white ${className}`}
       />
