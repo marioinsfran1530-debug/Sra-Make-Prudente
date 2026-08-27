@@ -1,1 +1,0 @@
-Migration aplicada no Supabase em 2026-08-27: prepare_counter_sales. O SQL correspondente está registrado na branch develop em prisma/migrations/20260827140500_prepare_counter_sales/migration.sql.
