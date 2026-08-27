@@ -12,10 +12,14 @@ export function SearchBar({ initialValue = "" }: { initialValue?: string }) {
   const [floating, setFloating] = useState(false);
   const shellRef = useRef<HTMLDivElement>(null);
 
-  // Na Home a busca vira uma barra de apoio durante a rolagem. Em páginas de
-  // categoria ela continua no fluxo normal para não disputar espaço com a
-  // navegação de categorias, que também é sticky.
-  const keepVisible = pathname === "/" || pathname === "/previa";
+  // A busca acompanha a rolagem nas principais páginas de descoberta. No
+  // catálogo ela trabalha em conjunto com a navegação de categorias, que fica
+  // logo abaixo da barra fixa.
+  const keepVisible =
+    pathname === "/" ||
+    pathname === "/previa" ||
+    pathname === "/categoria" ||
+    pathname.startsWith("/categoria/");
 
   useEffect(() => {
     if (!keepVisible) {
@@ -44,8 +48,6 @@ export function SearchBar({ initialValue = "" }: { initialValue?: string }) {
     const query = value.trim();
     if (!query) return;
 
-    // Registra explicitamente o uso da barra antes da navegação. O evento de
-    // resultados é separado por contexto para não inflar os relatórios.
     trackEvent("search", { query, context: "search_submit" });
     router.push(`/busca?q=${encodeURIComponent(query)}`);
   }
