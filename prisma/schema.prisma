@@ -147,18 +147,27 @@ model AiSuggestionMetric {
   @@index([model, promptVersion, createdAt])
 }
 
-// ---------- Pedidos ----------
+// ---------- Pedidos / vendas ----------
 
 enum payment_method {
   PIX
   DINHEIRO
   CARTAO
+  DEBITO
+  CREDITO
   CONFIRMAR_WHATSAPP
 }
 
 enum delivery_type {
   RETIRADA
   ENTREGA
+}
+
+enum order_channel {
+  CATALOGO
+  WHATSAPP
+  LOJA_FISICA
+  MANUAL
 }
 
 enum order_status {
@@ -177,25 +186,45 @@ model Order {
   number        Int    @unique @default(autoincrement())
   customerName  String
   customerPhone String
-  subtotal    Decimal @db.Decimal(10, 2)
-  deliveryFee Decimal @default(0) @db.Decimal(10, 2)
-  total       Decimal @db.Decimal(10, 2)
-  deliveryType delivery_type
-  address      String?
-  payment      payment_method
-  notes        String?
-  origin      String?
-  referrer    String?
-  landingPage String?
-  utmSource   String?
-  utmMedium   String?
-  utmCampaign String?
-  utmContent  String?
-  sessionId   String?
-  status order_status @default(NOVO)
-  items  OrderItem[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  subtotal      Decimal @db.Decimal(10, 2)
+  discount      Decimal @default(0) @db.Decimal(10, 2)
+  deliveryFee   Decimal @default(0) @db.Decimal(10, 2)
+  total         Decimal @db.Decimal(10, 2)
+  deliveryType  delivery_type
+  address       String?
+  payment       payment_method
+  payments      OrderPayment[]
+  channel       order_channel @default(CATALOGO)
+  createdById   String?
+  createdBy     AdminProfile? @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  notes         String?
+  origin        String?
+  referrer      String?
+  landingPage   String?
+  utmSource     String?
+  utmMedium     String?
+  utmCampaign   String?
+  utmContent    String?
+  sessionId     String?
+  status        order_status @default(NOVO)
+  items         OrderItem[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([channel, createdAt])
+  @@index([createdById, createdAt])
+}
+
+model OrderPayment {
+  id        String         @id @default(cuid())
+  orderId   String
+  order     Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  method    payment_method
+  amount    Decimal        @db.Decimal(10, 2)
+  createdAt DateTime       @default(now())
+
+  @@index([orderId])
+  @@index([method, createdAt])
 }
 
 model OrderItem {
@@ -257,6 +286,7 @@ model AdminProfile {
   name      String?
   role      admin_role @default(EDITOR)
   active    Boolean    @default(true)
+  orders    Order[]
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
 }
