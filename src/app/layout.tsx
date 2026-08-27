@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
+import { PwaLaunchPreserver } from "@/components/PwaLaunchPreserver";
 import "./globals.css";
 
 const SITE_URL = "https://www.sramakeprudente.com.br";
@@ -134,6 +135,7 @@ export default function RootLayout({
   return (
     <html lang="pt-BR">
       <body>
+        <PwaLaunchPreserver />
         <Script
           src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
           strategy="afterInteractive"
