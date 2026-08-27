@@ -16,9 +16,6 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // getAdminSession já valida o usuário com supabase.auth.getUser() e,
-  // em seguida, confirma o perfil administrativo ativo no banco. Evitamos
-  // uma segunda leitura de sessão por cookie e também uma chamada redundante.
   const adminSession = await getAdminSession();
 
   if (!adminSession) {
@@ -29,43 +26,43 @@ export default async function AdminLayout({
     <div className="min-h-screen bg-creme">
       <AdminImageUploadOptimizer />
 
-      <header className="px-6 py-4 border-b border-rosa/20 bg-white">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="font-serif font-bold text-texto">
-              Sra Make — Painel administrativo
+      <header className="border-b border-rosa/20 bg-white px-4 py-3 sm:px-6 sm:py-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="font-serif text-lg font-bold leading-tight text-texto sm:text-base">
+              <span className="sm:hidden">Sra Make — Painel</span>
+              <span className="hidden sm:inline">Sra Make — Painel administrativo</span>
             </p>
 
-            <p className="text-[10px] text-cinza mt-1">
+            <p className="mt-1 hidden truncate text-[10px] text-cinza sm:block">
               {adminSession.email}
             </p>
 
-            <p className="text-[10px] text-cinza mt-0.5">
+            <p className="mt-0.5 text-[10px] text-cinza">
               {adminSession.role === "ADMIN" ? "Administrador" : "Editor"}
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             <Link
               href="/?preview=admin"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1.5 rounded-full border border-rosa/20 px-4 py-2 text-xs font-bold text-rosa-profundo hover:bg-creme transition"
+              className="flex items-center gap-1 rounded-full border border-rosa/20 px-3 py-2 text-[11px] font-bold text-rosa-profundo transition hover:bg-creme sm:gap-1.5 sm:px-4 sm:text-xs"
             >
-              Ver catálogo
-              <ExternalLink size={14} />
+              <span className="sm:hidden">Catálogo</span>
+              <span className="hidden sm:inline">Ver catálogo</span>
+              <ExternalLink size={13} />
             </Link>
 
             <LogoutButton />
           </div>
         </div>
 
-        <AdminNav
-          isAdmin={adminSession.role === "ADMIN"}
-        />
+        <AdminNav isAdmin={adminSession.role === "ADMIN"} />
       </header>
 
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         {children}
       </div>
     </div>
