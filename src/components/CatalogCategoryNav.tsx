@@ -30,17 +30,20 @@ export function CatalogCategoryNav({
   const [mobileOpen, setMobileOpen] = useState(false);
   const [openDesktop, setOpenDesktop] = useState<string | null>(null);
   const [openMobile, setOpenMobile] = useState<string | null>(null);
+  const activeCategoryName = categories.find(
+    (category) => category.slug === activeCategory
+  )?.name;
 
   return (
     <>
       {/* DESKTOP */}
-      <div className="hidden lg:block sticky top-0 z-40 px-4 mb-4 bg-[#FFF7FB]/95 backdrop-blur-sm py-2">
-        <div className="relative flex items-center gap-2 rounded-2xl bg-white border border-rosa/10 shadow-md px-3 py-2">
+      <div className="hidden lg:block sticky top-[66px] z-50 px-4 mb-3 bg-[#FFF7FB]/95 backdrop-blur-md py-1.5">
+        <div className="relative flex items-center gap-2 rounded-2xl bg-white border border-rosa/10 shadow-sm px-3 py-2">
           <Link
             href="/categoria"
             className={`px-4 py-2 rounded-xl text-xs font-bold transition ${
               !activeCategory
-                ? "bg-rosa-profundo text-white"
+                ? "bg-rosa-profundo text-white shadow-sm"
                 : "text-texto hover:bg-rosa/5"
             }`}
           >
@@ -61,7 +64,7 @@ export function CatalogCategoryNav({
                   href={`/categoria/${category.slug}`}
                   className={`flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold transition ${
                     activeCategory === category.slug
-                      ? "bg-rosa-profundo text-white"
+                      ? "bg-rosa-profundo text-white shadow-sm"
                       : "text-texto hover:bg-rosa/5"
                   }`}
                 >
@@ -74,7 +77,7 @@ export function CatalogCategoryNav({
 
                 {opened && category.subcategories.length > 0 && (
                   <div
-                    className="absolute left-0 top-full pt-2 z-50"
+                    className="absolute left-0 top-full pt-2 z-[70]"
                     onMouseEnter={() => setOpenDesktop(category.slug)}
                     onMouseLeave={() => setOpenDesktop(null)}
                   >
@@ -109,24 +112,33 @@ export function CatalogCategoryNav({
       </div>
 
       {/* MOBILE */}
-      <div className="lg:hidden sticky top-0 z-40 px-4 mb-4 bg-[#FFF7FB]/95 backdrop-blur-sm py-2">
+      <div className="lg:hidden sticky top-[66px] z-50 px-4 mb-3 bg-[#FFF7FB]/95 backdrop-blur-md py-1.5">
         <button
           type="button"
           onClick={() => setMobileOpen(true)}
-          className="w-full flex items-center justify-between rounded-xl bg-white border border-rosa/15 shadow-md px-4 py-3"
+          className="w-full flex items-center justify-between rounded-2xl bg-white border border-rosa/10 shadow-sm px-4 py-2.5 transition active:scale-[0.995]"
         >
-          <span className="flex items-center gap-2 text-sm font-bold text-texto">
-            <Menu size={18} className="text-rosa-profundo" />
-            Categorias
+          <span className="flex min-w-0 items-center gap-3 text-left">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-creme text-rosa-profundo">
+              <Menu size={17} />
+            </span>
+            <span className="min-w-0">
+              <span className="block text-[9px] font-bold uppercase tracking-[0.14em] text-rosa-profundo">
+                Categorias
+              </span>
+              <span className="block truncate text-sm font-bold text-texto">
+                {activeCategoryName || "Todos os produtos"}
+              </span>
+            </span>
           </span>
 
-          <ChevronRight size={18} className="text-cinza" />
+          <ChevronRight size={18} className="shrink-0 text-cinza" />
         </button>
       </div>
 
       {/* MENU LATERAL MOBILE */}
       {mobileOpen && (
-        <div className="lg:hidden fixed inset-0 z-50">
+        <div className="lg:hidden fixed inset-0 z-[80]">
           <button
             type="button"
             aria-label="Fechar categorias"
