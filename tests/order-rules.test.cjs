@@ -41,14 +41,28 @@ test("pedido novo só pode confirmar ou cancelar", () => {
   assert.equal(canTransitionOrder("NOVO", "FINALIZADO"), false);
 });
 
-test("pedido confirmado pode finalizar ou cancelar, sem confirmar novamente", () => {
+test("pedido confirmado pode iniciar separação, finalizar ou cancelar", () => {
+  assert.deepEqual(getAllowedOrderTransitions("CONFIRMADO"), [
+    "SEPARANDO",
+    "FINALIZADO",
+    "CANCELADO",
+  ]);
+  assert.equal(canTransitionOrder("CONFIRMADO", "SEPARANDO"), true);
   assert.equal(canTransitionOrder("CONFIRMADO", "FINALIZADO"), true);
   assert.equal(canTransitionOrder("CONFIRMADO", "CANCELADO"), true);
   assert.equal(canTransitionOrder("CONFIRMADO", "CONFIRMADO"), false);
 });
 
-test("status intermediários antigos preservam compatibilidade", () => {
-  for (const status of ["SEPARANDO", "PRONTO_RETIRADA", "SAIU_ENTREGA"]) {
+test("pedido em separação pode avançar para retirada ou entrega", () => {
+  assert.equal(canTransitionOrder("SEPARANDO", "PRONTO_RETIRADA"), true);
+  assert.equal(canTransitionOrder("SEPARANDO", "SAIU_ENTREGA"), true);
+  assert.equal(canTransitionOrder("SEPARANDO", "FINALIZADO"), true);
+  assert.equal(canTransitionOrder("SEPARANDO", "CANCELADO"), true);
+});
+
+test("pedido pronto ou em entrega só pode finalizar ou cancelar", () => {
+  for (const status of ["PRONTO_RETIRADA", "SAIU_ENTREGA"]) {
+    assert.deepEqual(getAllowedOrderTransitions(status), ["FINALIZADO", "CANCELADO"]);
     assert.equal(canTransitionOrder(status, "FINALIZADO"), true);
     assert.equal(canTransitionOrder(status, "CANCELADO"), true);
   }
