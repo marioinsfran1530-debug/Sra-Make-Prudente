@@ -43,9 +43,9 @@ export function AdminNav({
   return (
     <nav
       aria-label="Navegação do painel"
-      className="mt-4 overflow-x-auto rounded-2xl border border-rosa/15 bg-white px-2 py-2 shadow-md [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      className="mt-4 rounded-2xl border border-rosa/15 bg-white p-2 shadow-md"
     >
-      <div className="flex min-w-max items-center gap-1.5 text-xs font-bold sm:flex-wrap sm:min-w-0">
+      <div className="grid grid-cols-3 gap-1.5 text-[11px] font-bold sm:flex sm:flex-wrap sm:text-xs">
         {items.map((item) => {
           const active = isActive(item.href);
 
@@ -54,7 +54,7 @@ export function AdminNav({
               key={item.href}
               href={item.href}
               aria-current={active ? "page" : undefined}
-              className={`whitespace-nowrap rounded-xl px-3 py-2 transition ${
+              className={`flex min-h-10 items-center justify-center rounded-xl px-2 py-2 text-center leading-tight transition sm:min-h-0 sm:px-3 ${
                 active
                   ? "bg-rosa-profundo text-white shadow-sm"
                   : "text-cinza hover:bg-rosa/5 hover:text-rosa-profundo"
