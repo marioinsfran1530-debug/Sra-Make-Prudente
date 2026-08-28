@@ -27,7 +27,7 @@ type PopularPreview = HomeProduct & {
 type Tab = "featured" | "new" | "popular";
 type Notice = { tone: "success" | "error"; message: string } | null;
 
-function ordered<T extends { id: string }>(items: T[], ids: string[]) {
+function ordered<T extends { id: string; name: string }>(items: T[], ids: string[]) {
   const index = new Map(ids.map((id, position) => [id, position] as const));
   return [...items].sort((a, b) => {
     const aIndex = index.get(a.id);
