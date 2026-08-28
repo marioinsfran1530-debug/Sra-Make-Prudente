@@ -16,6 +16,7 @@ export default async function NewCounterSalePage() {
       price: true,
       promoPrice: true,
       stockQty: true,
+      category: { select: { id: true, name: true, slug: true, active: true } },
       images: { orderBy: { order: "asc" }, take: 1, select: { url: true, alt: true } },
       variants: {
         where: { active: true },
@@ -41,6 +42,9 @@ export default async function NewCounterSalePage() {
     promoPrice: product.promoPrice === null ? null : Number(product.promoPrice),
     stockQty: product.stockQty,
     imageUrl: product.images[0]?.url ?? null,
+    category: product.category.active
+      ? { id: product.category.id, name: product.category.name, slug: product.category.slug }
+      : null,
     variants: product.variants.map((variant) => ({
       id: variant.id,
       name: variant.name,
