@@ -15,6 +15,13 @@ import { SearchBar } from "@/components/SearchBar";
 import { StoreAccountButton } from "@/components/StoreAccountButton";
 import { WhatsAppLink } from "@/components/TrackedLink";
 import { getCategories, getProducts, getStoreSettings } from "@/lib/data";
+import {
+  excludeHiddenProducts,
+  getHomePopularitySignals,
+  getHomeProductOrderSettings,
+  orderProductsByConfiguredIds,
+  rankPopularProducts,
+} from "@/lib/home-merchandising";
 import { resolveStorefrontConversion } from "@/lib/storefront-conversion";
 import { waLink } from "@/lib/whatsapp";
 
@@ -26,21 +33,49 @@ export const metadata: Metadata = {
 };
 
 export default async function PreviewHomePage() {
-  const [categories, products, settings] = await Promise.all([
+  const [categories, products, settings, merchandising, popularity] = await Promise.all([
     getCategories(),
     getProducts(),
     getStoreSettings(),
+    getHomeProductOrderSettings(),
+    getHomePopularitySignals(),
   ]);
 
   const sellableProducts = products.filter(
     (product) => product.stock !== "INDISPONIVEL"
   );
-  const offers = sellableProducts.filter(
-    (product) => product.promoPrice !== null && product.promoPrice < product.price
+
+  const offers = orderProductsByConfiguredIds(
+    excludeHiddenProducts(
+      sellableProducts.filter(
+        (product) => product.promoPrice !== null && product.promoPrice < product.price
+      ),
+      merchandising.homeHiddenOffers
+    ),
+    merchandising.homeOfferOrder
   );
-  const bestSellers = sellableProducts.filter((product) => product.bestSeller);
-  const featured = sellableProducts.filter((product) => product.featured);
-  const news = sellableProducts.filter((product) => product.isNew);
+
+  const bestSellers = excludeHiddenProducts(
+    rankPopularProducts(sellableProducts, popularity),
+    merchandising.homeHiddenPopular
+  );
+
+  const featured = orderProductsByConfiguredIds(
+    excludeHiddenProducts(
+      sellableProducts.filter((product) => product.featured),
+      merchandising.homeHiddenFeatured
+    ),
+    merchandising.homeFeaturedOrder
+  );
+
+  const news = orderProductsByConfiguredIds(
+    excludeHiddenProducts(
+      sellableProducts.filter((product) => product.isNew),
+      merchandising.homeHiddenNew
+    ),
+    merchandising.homeNewOrder
+  );
+
   const underTwenty = sellableProducts
     .filter((product) => (product.promoPrice ?? product.price) <= 19.99)
     .slice(0, 8);
