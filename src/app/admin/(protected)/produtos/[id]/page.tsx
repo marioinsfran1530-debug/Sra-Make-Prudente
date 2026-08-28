@@ -10,6 +10,7 @@ const mobileFormDensity = `
   max-sm:[&_form_.input]:!min-h-[42px]
   max-sm:[&_form_.input]:!rounded-lg
   max-sm:[&_form_.input]:!px-2.5
+  max-sm:[&_form_input.input.tabular-nums]:!pl-[42px]
   max-sm:[&_form_.input]:!py-1.5
   max-sm:[&_form_.input]:!text-[13px]
   max-sm:[&_form_textarea.input]:!h-[64px]
