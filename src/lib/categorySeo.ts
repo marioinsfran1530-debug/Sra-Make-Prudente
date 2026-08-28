@@ -7,12 +7,12 @@ export type CategorySeoContent = {
 
 const CATEGORY_SEO: Record<string, CategorySeoContent> = {
   maquiagem: {
-    title: "Maquiagem em Presidente Prudente",
+    title: "Loja de Maquiagem em Presidente Prudente",
     description:
-      "Compre maquiagem em Presidente Prudente na Sra Make Prudente. Encontre bases, corretivos, pós, blushes, batons, gloss, máscaras, paletas e acessórios.",
+      "Loja de maquiagem em Presidente Prudente/SP. Encontre bases, corretivos, pós, blushes, batons, gloss, máscaras e paletas na Sra Make, com retirada e entrega.",
     intro:
-      "Encontre maquiagem em Presidente Prudente para o dia a dia, presentes ou uso profissional. A Sra Make reúne opções de diferentes marcas, faixas de preço e acabamentos, com atendimento para ajudar na escolha.",
-    about: ["bases e corretivos", "pós, blushes e iluminadores", "batons e gloss", "máscaras, lápis e paletas"],
+      "Na Sra Make, loja de maquiagem em Presidente Prudente, você encontra opções para o dia a dia, presentes ou uso profissional, com diferentes marcas, faixas de preço e atendimento para ajudar na escolha.",
+    about: ["loja de maquiagem", "bases e corretivos", "pós, blushes e iluminadores", "batons, gloss, máscaras e paletas"],
   },
   lash: {
     title: "Produtos para Lash e Cílios em Presidente Prudente",
