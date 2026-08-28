@@ -7,7 +7,7 @@ const SITE_URL = "https://www.sramakeprudente.com.br";
 const TITLE = "Loja de Maquiagem em Presidente Prudente | Sra Make";
 const DESCRIPTION =
   "Loja de maquiagem em Presidente Prudente/SP. Compre bases, corretivos, batons, gloss, paletas, cílios, lash, nail e cosméticos, com retirada e entrega local.";
-const SOCIAL_IMAGE_URL = `${SITE_URL}/icon-512.png`;
+const SOCIAL_IMAGE_URL = `${SITE_URL}/app-icon/512?v=3`;
 const GA_MEASUREMENT_ID = "G-60T57RTWD1";
 
 function jsonLd(data: Record<string, unknown>) {
@@ -28,8 +28,8 @@ export const metadata: Metadata = {
     google: "waC6jBl3IyhXL_nQhs90X6YCZYUie2RXV0MT9EAXA9Y",
   },
   icons: {
-    icon: [{ url: "/favicon-32.png", sizes: "32x32", type: "image/png" }],
-    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+    icon: [{ url: "/app-icon/32?v=3", sizes: "32x32", type: "image/png" }],
+    apple: [{ url: "/app-icon/apple?v=3", sizes: "180x180", type: "image/png" }],
   },
   openGraph: {
     title: TITLE,
@@ -79,8 +79,8 @@ export default function RootLayout({
     alternateName: "Sra Make",
     legalName: "Sra Make Prudente",
     url: SITE_URL,
-    logo: `${SITE_URL}/icon-512.png`,
-    image: `${SITE_URL}/icon-512.png`,
+    logo: `${SITE_URL}/app-icon/512?v=3`,
+    image: `${SITE_URL}/app-icon/512?v=3`,
     description: DESCRIPTION,
     telephone: "+55 18 99124-8713",
     priceRange: "R$",
