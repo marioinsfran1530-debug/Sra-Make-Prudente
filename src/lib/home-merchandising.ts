@@ -5,9 +5,13 @@ export type HomeBrandSettings = {
   homeHiddenBrands: string[];
 };
 
-export type HomeProductOrderSettings = {
+export type HomeProductMerchandisingSettings = {
   homeFeaturedOrder: string[];
   homeNewOrder: string[];
+  homeHiddenOffers: string[];
+  homeHiddenFeatured: string[];
+  homeHiddenPopular: string[];
+  homeHiddenNew: string[];
 };
 
 export type HomeBrandCount = {
@@ -106,18 +110,36 @@ export async function getHomeBrandSettings(): Promise<HomeBrandSettings> {
   };
 }
 
-export async function getHomeProductOrderSettings(): Promise<HomeProductOrderSettings> {
-  const settings = await prisma.storeSettings.findFirst({
-    orderBy: { updatedAt: "desc" },
-    select: {
-      homeFeaturedOrder: true,
-      homeNewOrder: true,
-    },
-  });
+export async function getHomeProductOrderSettings(): Promise<HomeProductMerchandisingSettings> {
+  const rows = await prisma.$queryRaw<
+    Array<{
+      homeFeaturedOrder: string[] | null;
+      homeNewOrder: string[] | null;
+      homeHiddenOffers: string[] | null;
+      homeHiddenFeatured: string[] | null;
+      homeHiddenPopular: string[] | null;
+      homeHiddenNew: string[] | null;
+    }>
+  >`
+    SELECT
+      "homeFeaturedOrder",
+      "homeNewOrder",
+      "homeHiddenOffers",
+      "homeHiddenFeatured",
+      "homeHiddenPopular",
+      "homeHiddenNew"
+    FROM "StoreSettings"
+    ORDER BY "updatedAt" DESC
+    LIMIT 1
+  `;
 
   return {
-    homeFeaturedOrder: settings?.homeFeaturedOrder ?? [],
-    homeNewOrder: settings?.homeNewOrder ?? [],
+    homeFeaturedOrder: rows[0]?.homeFeaturedOrder ?? [],
+    homeNewOrder: rows[0]?.homeNewOrder ?? [],
+    homeHiddenOffers: rows[0]?.homeHiddenOffers ?? [],
+    homeHiddenFeatured: rows[0]?.homeHiddenFeatured ?? [],
+    homeHiddenPopular: rows[0]?.homeHiddenPopular ?? [],
+    homeHiddenNew: rows[0]?.homeHiddenNew ?? [],
   };
 }
 
@@ -172,6 +194,15 @@ export function orderProductsByConfiguredIds<T extends { id: string }>(
   });
 }
 
+export function excludeHiddenProducts<T extends { id: string }>(
+  products: T[],
+  hiddenIds: string[]
+) {
+  if (hiddenIds.length === 0) return products;
+  const hidden = new Set(hiddenIds);
+  return products.filter((product) => !hidden.has(product.id));
+}
+
 export async function getHomePopularitySignals(days = 30): Promise<HomePopularitySignals> {
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
   const rows = await prisma.analyticsEvent.findMany({
@@ -204,8 +235,6 @@ export async function getHomePopularitySignals(days = 30): Promise<HomePopularit
     );
   }
 
-  // Com tráfego muito baixo, uma única pessoa pode distorcer a vitrine.
-  // A tag bestSeller continua sendo a fonte editorial até termos uma base mínima.
   const enoughData = commercialSessions.size >= 5 && uniqueSignals.size >= 8;
 
   return {
@@ -223,15 +252,8 @@ export function rankPopularProducts<T extends { id: string; bestSeller: boolean 
   const tagged = products.filter((product) => product.bestSeller);
   if (!signals.enoughData) return tagged;
 
-  const scored = products
-    .filter((product) => (signals.scores.get(product.id) ?? 0) > 0)
-    .sort((a, b) => {
-      const scoreDiff = (signals.scores.get(b.id) ?? 0) - (signals.scores.get(a.id) ?? 0);
-      if (scoreDiff !== 0) return scoreDiff;
-      if (a.bestSeller !== b.bestSeller) return a.bestSeller ? -1 : 1;
-      return 0;
-    });
-
-  const scoredIds = new Set(scored.map((product) => product.id));
-  return [...scored, ...tagged.filter((product) => !scoredIds.has(product.id))];
+  return [...tagged].sort((a, b) => {
+    const scoreDiff = (signals.scores.get(b.id) ?? 0) - (signals.scores.get(a.id) ?? 0);
+    return scoreDiff;
+  });
 }

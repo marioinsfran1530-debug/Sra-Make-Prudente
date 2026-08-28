@@ -16,7 +16,9 @@ import { StoreAccountButton } from "@/components/StoreAccountButton";
 import { WhatsAppLink } from "@/components/TrackedLink";
 import { getCategories, getProducts, getStoreSettings } from "@/lib/data";
 import {
+  excludeHiddenProducts,
   getHomePopularitySignals,
+  getHomeProductOrderSettings,
   orderProductsByConfiguredIds,
   rankPopularProducts,
 } from "@/lib/home-merchandising";
@@ -31,10 +33,11 @@ export const metadata: Metadata = {
 };
 
 export default async function PreviewHomePage() {
-  const [categories, products, settings, popularity] = await Promise.all([
+  const [categories, products, settings, merchandising, popularity] = await Promise.all([
     getCategories(),
     getProducts(),
     getStoreSettings(),
+    getHomeProductOrderSettings(),
     getHomePopularitySignals(),
   ]);
 
@@ -42,63 +45,38 @@ export default async function PreviewHomePage() {
     (product) => product.stock !== "INDISPONIVEL"
   );
 
-  const featuredTagged = orderProductsByConfiguredIds(
-    sellableProducts.filter((product) => product.featured),
-    settings?.homeFeaturedOrder ?? []
-  );
-  const allOffers = sellableProducts.filter(
-    (product) => product.promoPrice !== null && product.promoPrice < product.price
-  );
-  const popularRanked = rankPopularProducts(sellableProducts, popularity);
-  const newTagged = orderProductsByConfiguredIds(
-    sellableProducts.filter((product) => product.isNew),
-    settings?.homeNewOrder ?? []
+  const offers = excludeHiddenProducts(
+    sellableProducts.filter(
+      (product) => product.promoPrice !== null && product.promoPrice < product.price
+    ),
+    merchandising.homeHiddenOffers
   );
 
-  let firstSectionKind: "featured" | "offers" | "popular" | "new" = "featured";
-  let firstSectionProducts = featuredTagged.slice(0, 8);
-  let firstSectionTitle = "Destaques";
+  const bestSellers = excludeHiddenProducts(
+    rankPopularProducts(sellableProducts, popularity),
+    merchandising.homeHiddenPopular
+  );
 
-  if (firstSectionProducts.length === 0 && allOffers.length >= 2) {
-    firstSectionKind = "offers";
-    firstSectionProducts = allOffers.slice(0, 8);
-    firstSectionTitle = "Ofertas para aproveitar";
-  } else if (firstSectionProducts.length === 0 && popularRanked.length > 0) {
-    firstSectionKind = "popular";
-    firstSectionProducts = popularRanked.slice(0, 8);
-    firstSectionTitle = "Mais procurados";
-  } else if (firstSectionProducts.length === 0) {
-    firstSectionKind = "new";
-    firstSectionProducts = newTagged.slice(0, 8);
-    firstSectionTitle = "Novidades";
-  }
+  const featured = orderProductsByConfiguredIds(
+    excludeHiddenProducts(
+      sellableProducts.filter((product) => product.featured),
+      merchandising.homeHiddenFeatured
+    ),
+    merchandising.homeFeaturedOrder
+  );
 
-  const usedProductIds = new Set(firstSectionProducts.map((product) => product.id));
-
-  const popularProducts =
-    firstSectionKind === "popular"
-      ? []
-      : popularRanked
-          .filter((product) => !usedProductIds.has(product.id))
-          .slice(0, 8);
-  popularProducts.forEach((product) => usedProductIds.add(product.id));
-
-  const news =
-    firstSectionKind === "new"
-      ? []
-      : newTagged
-          .filter((product) => !usedProductIds.has(product.id))
-          .slice(0, 8);
-  news.forEach((product) => usedProductIds.add(product.id));
+  const news = orderProductsByConfiguredIds(
+    excludeHiddenProducts(
+      sellableProducts.filter((product) => product.isNew),
+      merchandising.homeHiddenNew
+    ),
+    merchandising.homeNewOrder
+  );
 
   const underTwenty = sellableProducts
-    .filter((product) => !usedProductIds.has(product.id))
     .filter((product) => (product.promoPrice ?? product.price) <= 19.99)
     .slice(0, 8);
-  underTwenty.forEach((product) => usedProductIds.add(product.id));
-
   const kits = sellableProducts
-    .filter((product) => !usedProductIds.has(product.id))
     .filter((product) => {
       const searchable = [
         product.name,
@@ -110,6 +88,19 @@ export default async function PreviewHomePage() {
       return searchable.includes("kit");
     })
     .slice(0, 8);
+
+  const firstSectionProducts =
+    offers.length >= 2
+      ? offers.slice(0, 8)
+      : bestSellers.length > 0
+        ? bestSellers.slice(0, 8)
+        : featured.slice(0, 8);
+  const firstSectionTitle =
+    offers.length >= 2
+      ? "Ofertas para aproveitar"
+      : bestSellers.length > 0
+        ? "Mais procurados"
+        : "Destaques";
 
   const brandCounts = new Map<string, number>();
   sellableProducts.forEach((product) => {
@@ -255,7 +246,7 @@ export default async function PreviewHomePage() {
       {firstSectionProducts.length > 0 && (
         <ProductSection
           title={firstSectionTitle}
-          eyebrow={firstSectionKind === "featured" ? "Escolhidos pela loja" : "Selecionados para você"}
+          eyebrow="Selecionados para você"
           products={firstSectionProducts}
         />
       )}
@@ -319,11 +310,11 @@ export default async function PreviewHomePage() {
         </div>
       </section>
 
-      {popularProducts.length > 0 && (
+      {bestSellers.length > 0 && (
         <ProductSection
           title="Mais procurados"
-          eyebrow={popularity.enoughData ? "Escolhas das clientes" : "Favoritos da nossa vitrine"}
-          products={popularProducts}
+          eyebrow="O que as clientes estão buscando"
+          products={bestSellers.slice(0, 8)}
         />
       )}
 
@@ -331,7 +322,7 @@ export default async function PreviewHomePage() {
         <ProductSection
           title="Novidades"
           eyebrow="Chegaram por aqui"
-          products={news}
+          products={news.slice(0, 8)}
         />
       )}
 

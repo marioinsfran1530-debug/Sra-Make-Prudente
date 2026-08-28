@@ -9,7 +9,7 @@ import {
 } from "@/lib/home-merchandising";
 
 export default async function AdminHomeMerchandisingPage() {
-  const [products, orders, popularity] = await Promise.all([
+  const [products, merchandising, popularity] = await Promise.all([
     prisma.product.findMany({
       where: { active: true },
       orderBy: { updatedAt: "desc" },
@@ -43,38 +43,47 @@ export default async function AdminHomeMerchandisingPage() {
     bestSeller: product.bestSeller,
   }));
 
-  const popularPreview = rankPopularProducts(items, popularity)
-    .slice(0, 8)
-    .map((product) => ({
-      ...product,
-      score: popularity.scores.get(product.id) ?? 0,
-      source:
-        popularity.enoughData && (popularity.scores.get(product.id) ?? 0) > 0
-          ? ("CLIENTES" as const)
-          : ("TAG" as const),
-    }));
+  const popularPreview = rankPopularProducts(items, popularity).map((product) => ({
+    ...product,
+    score: popularity.scores.get(product.id) ?? 0,
+    source:
+      popularity.enoughData && (popularity.scores.get(product.id) ?? 0) > 0
+        ? ("CLIENTES" as const)
+        : ("TAG" as const),
+  }));
 
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <Link href="/admin/loja" className="mb-2 inline-flex items-center gap-1 text-xs font-bold text-rosa-profundo">
+          <Link
+            href="/admin/loja"
+            className="mb-2 inline-flex items-center gap-1 text-xs font-bold text-rosa-profundo"
+          >
             <ChevronLeft size={14} /> Voltar para Loja
           </Link>
           <h1 className="font-serif text-xl font-bold text-texto">Organização da Home</h1>
           <p className="mt-1 text-xs leading-relaxed text-cinza">
-            Controle a ordem das vitrines sem perder as tags cadastradas nos produtos.
+            A estrutura da Home continua a mesma. Aqui você apenas escolhe o que aparece e, em Destaques e Novidades, também define a ordem.
           </p>
         </div>
-        <Link href="/previa" target="_blank" className="inline-flex min-h-10 items-center rounded-xl border border-rosa/20 px-3 text-xs font-bold text-rosa-profundo">
+        <Link
+          href="/previa"
+          target="_blank"
+          className="inline-flex min-h-10 items-center rounded-xl border border-rosa/20 px-3 text-xs font-bold text-rosa-profundo"
+        >
           Ver prévia
         </Link>
       </div>
 
       <HomeProductMerchandisingManager
         products={items}
-        featuredOrder={orders.homeFeaturedOrder}
-        newOrder={orders.homeNewOrder}
+        featuredOrder={merchandising.homeFeaturedOrder}
+        newOrder={merchandising.homeNewOrder}
+        hiddenOffers={merchandising.homeHiddenOffers}
+        hiddenFeatured={merchandising.homeHiddenFeatured}
+        hiddenPopular={merchandising.homeHiddenPopular}
+        hiddenNew={merchandising.homeHiddenNew}
         popularPreview={popularPreview}
         popularityEnoughData={popularity.enoughData}
         popularitySessions={popularity.uniqueSessions}
