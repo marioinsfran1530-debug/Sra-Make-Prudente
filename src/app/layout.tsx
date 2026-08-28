@@ -4,9 +4,9 @@ import { PwaLaunchPreserver } from "@/components/PwaLaunchPreserver";
 import "./globals.css";
 
 const SITE_URL = "https://www.sramakeprudente.com.br";
-const TITLE = "Sra Make Prudente | Maquiagem, Lash, Nail e Cosméticos";
+const TITLE = "Loja de Maquiagem em Presidente Prudente | Sra Make";
 const DESCRIPTION =
-  "Loja de maquiagem e cosméticos em Presidente Prudente/SP. Encontre maquiagem, lash, nail, skincare e acessórios, com atendimento personalizado, retirada e entrega.";
+  "Loja de maquiagem em Presidente Prudente/SP. Compre bases, corretivos, batons, gloss, paletas, cílios, lash, nail e cosméticos, com retirada e entrega local.";
 const SOCIAL_IMAGE_URL = `${SITE_URL}/icon-512.png`;
 const GA_MEASUREMENT_ID = "G-60T57RTWD1";
 
@@ -76,6 +76,7 @@ export default function RootLayout({
     "@type": "Store",
     "@id": `${SITE_URL}/#store`,
     name: "Sra Make Prudente",
+    alternateName: "Sra Make",
     legalName: "Sra Make Prudente",
     url: SITE_URL,
     logo: `${SITE_URL}/icon-512.png`,
@@ -128,6 +129,7 @@ export default function RootLayout({
     "@id": `${SITE_URL}/#website`,
     url: SITE_URL,
     name: "Sra Make Prudente",
+    alternateName: "Sra Make",
     inLanguage: "pt-BR",
     publisher: { "@id": `${SITE_URL}/#store` },
   };
