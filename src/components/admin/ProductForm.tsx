@@ -93,6 +93,46 @@ function moneyOrNull(value: number | null) {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
+function parseCurrencyInput(value: string) {
+  const raw = value.replace(/R\$/gi, "").replace(/\s/g, "").trim();
+  if (!raw) return null;
+
+  const lastComma = raw.lastIndexOf(",");
+  const lastDot = raw.lastIndexOf(".");
+  let normalized = raw;
+
+  if (lastComma >= 0 && lastDot >= 0) {
+    if (lastComma > lastDot) {
+      normalized = raw.replace(/\./g, "").replace(",", ".");
+    } else {
+      normalized = raw.replace(/,/g, "");
+    }
+  } else if (lastComma >= 0) {
+    normalized = raw.replace(/\./g, "").replace(",", ".");
+  } else if ((raw.match(/\./g) ?? []).length > 1) {
+    const parts = raw.split(".");
+    const decimal = parts.pop() ?? "";
+    normalized = `${parts.join("")}.${decimal}`;
+  }
+
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function formatCurrencyInput(value: string | number | null | undefined) {
+  if (value === null || value === undefined || value === "") return "";
+  const parsed = typeof value === "number" ? value : parseCurrencyInput(String(value));
+  if (parsed === null || !Number.isFinite(parsed)) return "";
+  return parsed.toLocaleString("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+function sanitizeCurrencyTyping(value: string) {
+  return value.replace(/R\$/gi, "").replace(/[^\d.,]/g, "").slice(0, 18);
+}
+
 export function ProductForm({
   categories,
   initial,
@@ -130,9 +170,9 @@ export function ProductForm({
   const [brand, setBrand] = useState(initial?.brand ?? "");
   const [sku, setSku] = useState(initial?.sku ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
-  const [price, setPrice] = useState(initial?.price?.toString() ?? "");
-  const [promoPrice, setPromoPrice] = useState(initial?.promoPrice?.toString() ?? "");
-  const [costPrice, setCostPrice] = useState(initial?.costPrice?.toString() ?? "");
+  const [price, setPrice] = useState(formatCurrencyInput(initial?.price));
+  const [promoPrice, setPromoPrice] = useState(formatCurrencyInput(initial?.promoPrice));
+  const [costPrice, setCostPrice] = useState(formatCurrencyInput(initial?.costPrice));
   const [stockQty, setStockQty] = useState(initial?.stockQty?.toString() ?? "0");
   const [featured, setFeatured] = useState(initial?.featured ?? false);
   const [isNew, setIsNew] = useState(initial?.isNew ?? false);
@@ -198,9 +238,9 @@ export function ProductForm({
       setBrand(draft.brand);
       setSku(draft.sku);
       setDescription(draft.description);
-      setPrice(draft.price);
-      setPromoPrice(draft.promoPrice);
-      setCostPrice(draft.costPrice);
+      setPrice(formatCurrencyInput(draft.price));
+      setPromoPrice(formatCurrencyInput(draft.promoPrice));
+      setCostPrice(formatCurrencyInput(draft.costPrice));
       setStockQty(draft.stockQty);
       setFeatured(draft.featured);
       setIsNew(draft.isNew);
@@ -501,10 +541,11 @@ export function ProductForm({
   }
 
   async function saveCost(productId: string) {
+    const parsedCostPrice = costPrice.trim() ? parseCurrencyInput(costPrice) : null;
     const response = await fetch(`/api/admin/products/${productId}/cost`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ costPrice: costPrice ? Number(costPrice) : null }),
+      body: JSON.stringify({ costPrice: parsedCostPrice }),
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error ?? "Não foi possível salvar o custo do produto.");
@@ -519,14 +560,23 @@ export function ProductForm({
 
     try {
       if (!categoryId) throw new Error("Selecione a categoria principal do produto.");
+
+      const parsedPrice = parseCurrencyInput(price);
+      const parsedPromoPrice = promoPrice.trim() ? parseCurrencyInput(promoPrice) : null;
+      const parsedCostPrice = costPrice.trim() ? parseCurrencyInput(costPrice) : null;
+
+      if (parsedPrice === null || parsedPrice < 0) throw new Error("Informe um preço válido.");
+      if (promoPrice.trim() && (parsedPromoPrice === null || parsedPromoPrice < 0)) throw new Error("Informe um preço promocional válido.");
+      if (costPrice.trim() && (parsedCostPrice === null || parsedCostPrice < 0)) throw new Error("Informe um custo válido.");
+
       const payload = {
         name,
         brand,
         sku: sku || null,
         description: description || null,
-        price: Number(price),
-        promoPrice: promoPrice ? Number(promoPrice) : null,
-        costPrice: costPrice ? Number(costPrice) : null,
+        price: parsedPrice,
+        promoPrice: parsedPromoPrice,
+        costPrice: parsedCostPrice,
         stockQty: Number(stockQty),
         featured,
         isNew,
@@ -580,6 +630,9 @@ export function ProductForm({
           setExistingImages((current) => [...current, ...uploadedImages].sort((a, b) => a.order - b.order));
         }
         if (newImages.length > 0) setNewImages([]);
+        setPrice(formatCurrencyInput(parsedPrice));
+        setPromoPrice(formatCurrencyInput(parsedPromoPrice));
+        setCostPrice(formatCurrencyInput(parsedCostPrice));
         setDirty(false);
         setSuccess("Produto salvo com sucesso. Você pode continuar alterando o cadastro.");
         router.refresh();
@@ -696,13 +749,20 @@ export function ProductForm({
 
       <FormSection title="Preço e estoque" description="Valores comerciais e disponibilidade exibida no catálogo.">
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Preço (R$)"><input type="number" step="0.01" value={price} onChange={(event) => setPrice(event.target.value)} required className="input" /></Field>
-          <Field label="Preço promocional (opcional)"><input type="number" step="0.01" value={promoPrice} onChange={(event) => setPromoPrice(event.target.value)} className="input" /></Field>
+          <Field label="Preço">
+            <CurrencyInput value={price} onChange={setPrice} required />
+          </Field>
+          <Field label="Preço promocional (opcional)">
+            <CurrencyInput value={promoPrice} onChange={setPromoPrice} />
+          </Field>
           <div className="col-span-2">
-            <Field label="Custo do produto (opcional)"><input type="number" min="0" step="0.01" value={costPrice} onChange={(event) => setCostPrice(event.target.value)} placeholder="Usado somente nas análises de margem" className="input" /></Field>
+            <Field label="Custo do produto (opcional)">
+              <CurrencyInput value={costPrice} onChange={setCostPrice} placeholder="0,00" />
+            </Field>
             <p className="mt-1 text-[10px] leading-4 text-cinza">Não aparece no catálogo. Quando informado, permite calcular custo, lucro bruto e margem das vendas finalizadas.</p>
           </div>
         </div>
+        <p className="-mt-1 text-[10px] leading-4 text-cinza">Digite com ponto ou vírgula. Ao sair do campo, o valor é exibido no padrão brasileiro com duas casas decimais.</p>
         <Field label="Quantidade em estoque"><input type="number" value={stockQty} onChange={(event) => setStockQty(event.target.value)} className="input" /></Field>
         <p className="text-[11px] text-cinza">O rótulo (Disponível / Últimas unidades / Indisponível) é calculado automaticamente a partir dessa quantidade.</p>
       </FormSection>
@@ -865,6 +925,40 @@ export function ProductForm({
         }
       `}</style>
     </form>
+  );
+}
+
+function CurrencyInput({
+  value,
+  onChange,
+  required = false,
+  placeholder = "0,00",
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  required?: boolean;
+  placeholder?: string;
+}) {
+  return (
+    <div className="relative">
+      <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm font-semibold text-cinza">R$</span>
+      <input
+        type="text"
+        inputMode="decimal"
+        value={value}
+        onChange={(event) => onChange(sanitizeCurrencyTyping(event.target.value))}
+        onBlur={() => {
+          if (!value.trim()) return;
+          const parsed = parseCurrencyInput(value);
+          onChange(parsed === null ? "" : formatCurrencyInput(parsed));
+        }}
+        required={required}
+        placeholder={placeholder}
+        className="input tabular-nums"
+        style={{ paddingLeft: 42 }}
+        autoComplete="off"
+      />
+    </div>
   );
 }
 
