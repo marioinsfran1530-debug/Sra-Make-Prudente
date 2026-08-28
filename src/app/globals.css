@@ -40,6 +40,8 @@ input.input.tabular-nums:focus {
   box-shadow: 0 0 0 2px rgba(166, 21, 122, 0.08);
 }
 
+/* Mantém este bloco global para o CurrencyInput em mobile e desktop. */
+
 /* Ações compactas sobre o hero da home. */
 a[aria-label="Abrir carrinho"] {
   width: 2.25rem;
