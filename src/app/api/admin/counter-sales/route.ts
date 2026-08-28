@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/admin-auth";
 import { CounterSaleError, createCounterSale } from "@/lib/counter-sale";
 
 type Body = {
+  idempotencyKey?: string;
   items?: Array<{ productId?: string; variantId?: string | null; qty?: number }>;
   payments?: Array<{ method?: "PIX" | "DINHEIRO" | "DEBITO" | "CREDITO"; amount?: number }>;
   discount?: number;
@@ -24,6 +25,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const order = await createCounterSale({
+      idempotencyKey: typeof body.idempotencyKey === "string" ? body.idempotencyKey : "",
       items: (body.items ?? []).map((item) => ({
         productId: typeof item.productId === "string" ? item.productId : "",
         variantId: typeof item.variantId === "string" ? item.variantId : null,
