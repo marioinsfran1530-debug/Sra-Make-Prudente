@@ -19,6 +19,27 @@ body {
   color: var(--color-texto);
 }
 
+/* Campos monetários do cadastro de produto.
+   O CurrencyInput vive em um componente filho e precisa de estilo próprio
+   fora do escopo do styled-jsx usado pelo formulário. */
+input.input.tabular-nums {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid #e9d9e4;
+  border-radius: 12px;
+  background: #fff;
+  padding: 10px 12px 10px 42px;
+  font-size: 14px;
+  line-height: 1.25rem;
+  color: #23142a;
+}
+
+input.input.tabular-nums:focus {
+  border-color: var(--color-rosa-profundo);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(166, 21, 122, 0.08);
+}
+
 /* Ações compactas sobre o hero da home. */
 a[aria-label="Abrir carrinho"] {
   width: 2.25rem;
