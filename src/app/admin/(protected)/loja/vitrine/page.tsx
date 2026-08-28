@@ -64,7 +64,7 @@ export default async function AdminHomeMerchandisingPage() {
           </Link>
           <h1 className="font-serif text-xl font-bold text-texto">Organização da Home</h1>
           <p className="mt-1 text-xs leading-relaxed text-cinza">
-            A estrutura da Home continua a mesma. Aqui você apenas escolhe o que aparece e, em Destaques e Novidades, também define a ordem.
+            A estrutura da Home continua a mesma. Aqui você escolhe o que aparece e pode arrastar Ofertas, Destaques e Novidades para definir a ordem.
           </p>
         </div>
         <Link
@@ -78,6 +78,7 @@ export default async function AdminHomeMerchandisingPage() {
 
       <HomeProductMerchandisingManager
         products={items}
+        offerOrder={merchandising.homeOfferOrder}
         featuredOrder={merchandising.homeFeaturedOrder}
         newOrder={merchandising.homeNewOrder}
         hiddenOffers={merchandising.homeHiddenOffers}

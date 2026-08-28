@@ -6,6 +6,7 @@ export type HomeBrandSettings = {
 };
 
 export type HomeProductMerchandisingSettings = {
+  homeOfferOrder: string[];
   homeFeaturedOrder: string[];
   homeNewOrder: string[];
   homeHiddenOffers: string[];
@@ -113,6 +114,7 @@ export async function getHomeBrandSettings(): Promise<HomeBrandSettings> {
 export async function getHomeProductOrderSettings(): Promise<HomeProductMerchandisingSettings> {
   const rows = await prisma.$queryRaw<
     Array<{
+      homeOfferOrder: string[] | null;
       homeFeaturedOrder: string[] | null;
       homeNewOrder: string[] | null;
       homeHiddenOffers: string[] | null;
@@ -122,6 +124,7 @@ export async function getHomeProductOrderSettings(): Promise<HomeProductMerchand
     }>
   >`
     SELECT
+      "homeOfferOrder",
       "homeFeaturedOrder",
       "homeNewOrder",
       "homeHiddenOffers",
@@ -134,6 +137,7 @@ export async function getHomeProductOrderSettings(): Promise<HomeProductMerchand
   `;
 
   return {
+    homeOfferOrder: rows[0]?.homeOfferOrder ?? [],
     homeFeaturedOrder: rows[0]?.homeFeaturedOrder ?? [],
     homeNewOrder: rows[0]?.homeNewOrder ?? [],
     homeHiddenOffers: rows[0]?.homeHiddenOffers ?? [],

@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
-import { ArrowDown, ArrowUp, Eye, EyeOff, RotateCcw } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
+import { Eye, EyeOff, GripVertical, RotateCcw } from "lucide-react";
 import { AdminNotice } from "@/components/admin/AdminUx";
 import { money } from "@/lib/money";
 
@@ -25,22 +25,41 @@ type PopularPreview = HomeProduct & {
 };
 
 type Tab = "offers" | "featured" | "popular" | "new";
+type OrderableTab = Exclude<Tab, "popular">;
 type Notice = { tone: "success" | "error"; message: string } | null;
 
-function ordered<T extends { id: string; name: string }>(items: T[], ids: string[]) {
-  const index = new Map(ids.map((id, position) => [id, position] as const));
+function ordered<T extends { id: string }>(items: T[], ids: string[]) {
+  const configuredIndex = new Map(ids.map((id, position) => [id, position] as const));
+  const sourceIndex = new Map(items.map((item, position) => [item.id, position] as const));
+
   return [...items].sort((a, b) => {
-    const aIndex = index.get(a.id);
-    const bIndex = index.get(b.id);
+    const aIndex = configuredIndex.get(a.id);
+    const bIndex = configuredIndex.get(b.id);
     if (aIndex !== undefined && bIndex !== undefined) return aIndex - bIndex;
     if (aIndex !== undefined) return -1;
     if (bIndex !== undefined) return 1;
-    return a.name.localeCompare(b.name, "pt-BR");
+    return (sourceIndex.get(a.id) ?? 0) - (sourceIndex.get(b.id) ?? 0);
   });
+}
+
+function moveById<T extends { id: string }>(items: T[], sourceId: string, targetId: string) {
+  const from = items.findIndex((item) => item.id === sourceId);
+  const to = items.findIndex((item) => item.id === targetId);
+  if (from < 0 || to < 0 || from === to) return items;
+
+  const next = [...items];
+  const [moved] = next.splice(from, 1);
+  next.splice(to, 0, moved);
+  return next;
+}
+
+function sameOrder<T extends { id: string }>(a: T[], b: T[]) {
+  return a.length === b.length && a.every((item, index) => item.id === b[index]?.id);
 }
 
 export function HomeProductMerchandisingManager({
   products,
+  offerOrder,
   featuredOrder,
   newOrder,
   hiddenOffers,
@@ -53,6 +72,7 @@ export function HomeProductMerchandisingManager({
   popularitySignals,
 }: {
   products: HomeProduct[];
+  offerOrder: string[];
   featuredOrder: string[];
   newOrder: string[];
   hiddenOffers: string[];
@@ -78,6 +98,7 @@ export function HomeProductMerchandisingManager({
   );
 
   const [tab, setTab] = useState<Tab>("offers");
+  const [offerItems, setOfferItems] = useState(() => ordered(offerProducts, offerOrder));
   const [featuredItems, setFeaturedItems] = useState(() => ordered(featuredProducts, featuredOrder));
   const [newItems, setNewItems] = useState(() => ordered(newProducts, newOrder));
   const [hiddenOffersState, setHiddenOffersState] = useState(hiddenOffers);
@@ -86,6 +107,37 @@ export function HomeProductMerchandisingManager({
   const [hiddenNewState, setHiddenNewState] = useState(hiddenNew);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<Notice>(null);
+  const [dragging, setDragging] = useState<{ section: OrderableTab; id: string } | null>(null);
+
+  const offerItemsRef = useRef(offerItems);
+  const featuredItemsRef = useRef(featuredItems);
+  const newItemsRef = useRef(newItems);
+  const dragSnapshotRef = useRef<HomeProduct[] | null>(null);
+
+  function itemsFor(section: OrderableTab) {
+    if (section === "offers") return offerItemsRef.current;
+    if (section === "featured") return featuredItemsRef.current;
+    return newItemsRef.current;
+  }
+
+  function baseItemsFor(section: OrderableTab) {
+    if (section === "offers") return offerProducts;
+    if (section === "featured") return featuredProducts;
+    return newProducts;
+  }
+
+  function updateItems(section: OrderableTab, next: HomeProduct[]) {
+    if (section === "offers") {
+      offerItemsRef.current = next;
+      setOfferItems(next);
+    } else if (section === "featured") {
+      featuredItemsRef.current = next;
+      setFeaturedItems(next);
+    } else {
+      newItemsRef.current = next;
+      setNewItems(next);
+    }
+  }
 
   async function save(body: Record<string, unknown>, successMessage: string) {
     if (saving) return false;
@@ -112,48 +164,65 @@ export function HomeProductMerchandisingManager({
     }
   }
 
-  async function persistOrder(kind: "featured" | "new", items: HomeProduct[]) {
-    return save(
-      kind === "featured"
-        ? { featuredOrder: items.map((item) => item.id) }
-        : { newOrder: items.map((item) => item.id) },
-      "Posições da vitrine atualizadas."
-    );
+  function orderBody(section: OrderableTab, items: HomeProduct[]) {
+    const ids = items.map((item) => item.id);
+    if (section === "offers") return { offerOrder: ids };
+    if (section === "featured") return { featuredOrder: ids };
+    return { newOrder: ids };
   }
 
-  async function move(kind: "featured" | "new", index: number, direction: -1 | 1) {
-    const source = kind === "featured" ? featuredItems : newItems;
-    const target = index + direction;
-    if (target < 0 || target >= source.length || saving) return;
-
-    const next = [...source];
-    [next[index], next[target]] = [next[target], next[index]];
-    if (kind === "featured") setFeaturedItems(next);
-    else setNewItems(next);
-
-    const ok = await persistOrder(kind, next);
-    if (!ok) {
-      if (kind === "featured") setFeaturedItems(source);
-      else setNewItems(source);
-    }
+  function resetOrderBody(section: OrderableTab) {
+    if (section === "offers") return { offerOrder: [] };
+    if (section === "featured") return { featuredOrder: [] };
+    return { newOrder: [] };
   }
 
-  async function reset(kind: "featured" | "new") {
+  function beginProductDrag(section: OrderableTab, id: string) {
     if (saving) return;
-    const current = kind === "featured" ? featuredItems : newItems;
-    const base = kind === "featured" ? featuredProducts : newProducts;
-    const next = [...base].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
-    if (kind === "featured") setFeaturedItems(next);
-    else setNewItems(next);
+    if (!dragSnapshotRef.current) dragSnapshotRef.current = [...itemsFor(section)];
+    setDragging({ section, id });
+    setNotice(null);
+  }
 
-    const ok = await save(
-      kind === "featured" ? { featuredOrder: [] } : { newOrder: [] },
-      "Ordem automática restaurada."
-    );
-    if (!ok) {
-      if (kind === "featured") setFeaturedItems(current);
-      else setNewItems(current);
+  function dragProductOver(section: OrderableTab, targetId: string) {
+    if (!dragging || dragging.section !== section || dragging.id === targetId) return;
+    const next = moveById(itemsFor(section), dragging.id, targetId);
+    updateItems(section, next);
+  }
+
+  async function finishProductDrag(section: OrderableTab) {
+    const previous = dragSnapshotRef.current;
+    const next = itemsFor(section);
+    dragSnapshotRef.current = null;
+    setDragging(null);
+    if (!previous || sameOrder(previous, next)) return;
+
+    const ok = await save(orderBody(section, next), "Ordem da vitrine atualizada.");
+    if (!ok) updateItems(section, previous);
+  }
+
+  function handleProductTouchMove(event: React.TouchEvent) {
+    if (!dragging) return;
+    event.preventDefault();
+    const touch = event.touches[0];
+    const target = document
+      .elementFromPoint(touch.clientX, touch.clientY)
+      ?.closest<HTMLElement>("[data-product-drag-id]");
+    const targetId = target?.dataset.productDragId;
+    const targetSection = target?.dataset.productDragSection as OrderableTab | undefined;
+    if (targetId && targetSection === dragging.section) {
+      dragProductOver(dragging.section, targetId);
     }
+  }
+
+  async function reset(section: OrderableTab) {
+    if (saving) return;
+    const current = itemsFor(section);
+    const next = [...baseItemsFor(section)];
+    updateItems(section, next);
+
+    const ok = await save(resetOrderBody(section), "Ordem automática restaurada.");
+    if (!ok) updateItems(section, current);
   }
 
   function hiddenFor(section: Tab) {
@@ -195,7 +264,7 @@ export function HomeProductMerchandisingManager({
 
   const currentItems: Array<HomeProduct | PopularPreview> =
     tab === "offers"
-      ? offerProducts
+      ? offerItems
       : tab === "featured"
         ? featuredItems
         : tab === "popular"
@@ -203,6 +272,7 @@ export function HomeProductMerchandisingManager({
           : newItems;
   const currentHidden = new Set(hiddenFor(tab));
   const visibleCount = currentItems.filter((product) => !currentHidden.has(product.id)).length;
+  const orderableTab: OrderableTab | null = tab === "popular" ? null : tab;
 
   return (
     <section className="rounded-3xl border border-rosa/10 bg-white p-4 shadow-sm sm:p-5">
@@ -211,7 +281,7 @@ export function HomeProductMerchandisingManager({
           <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-rosa-profundo">Merchandising</p>
           <h2 className="mt-1 font-serif text-xl font-bold text-texto">Produtos da Home</h2>
           <p className="mt-1 max-w-2xl text-xs leading-relaxed text-cinza">
-            A Home não muda de estrutura. Ofertas continuam vindo do preço promocional; Destaques, Mais procurados e Novidades continuam usando as tags. Aqui você decide apenas o que aparece e, onde faz sentido, a posição.
+            A Home não muda de estrutura. Ofertas continuam vindo do preço promocional; Destaques, Mais procurados e Novidades continuam usando as tags. Aqui você escolhe o que aparece e arrasta as vitrines editoriais para definir a posição.
           </p>
         </div>
         <Link
@@ -251,25 +321,25 @@ export function HomeProductMerchandisingManager({
       <div className="mt-4 rounded-2xl border border-rosa/10 bg-creme/40 p-3 text-xs leading-relaxed text-cinza">
         {tab === "offers" && (
           <>
-            <strong className="text-texto">Ofertas continua automática:</strong> qualquer produto com preço promocional menor que o preço normal entra nesta vitrine. O ADM pode apenas mostrar ou ocultar o item daqui.
+            <strong className="text-texto">Ofertas continua automática:</strong> qualquer produto com preço promocional menor que o preço normal entra aqui. O ADM pode mostrar ou ocultar e arrastar para escolher a ordem.
           </>
         )}
         {tab === "featured" && (
           <>
-            <strong className="text-texto">Destaques mantém a tag Destaque:</strong> escolha quais itens ficam visíveis e use as setas para definir a posição.
+            <strong className="text-texto">Destaques mantém a tag Destaque:</strong> escolha quais itens ficam visíveis e segure no ícone para arrastar até a posição desejada.
           </>
         )}
         {tab === "popular" && (
           <>
             <strong className="text-texto">Mais procurados mantém a tag Mais vendido:</strong>{" "}
             {popularityEnoughData
-              ? `há dados suficientes para ordenar os itens marcados pelo comportamento real (${popularitySessions} sessões e ${popularitySignals} sinais).`
-              : `o tráfego ainda é baixo (${popularitySessions} sessões e ${popularitySignals} sinais), então a própria tag continua sendo a referência.`}
+              ? `há dados suficientes para ordenar os itens marcados pelo comportamento real (${popularitySessions} sessões e ${popularitySignals} sinais). Por isso esta aba não tem ordem manual.`
+              : `o tráfego ainda é baixo (${popularitySessions} sessões e ${popularitySignals} sinais), então a própria tag continua sendo a referência. A ordem ficará automática para evoluir com as clientes.`}
           </>
         )}
         {tab === "new" && (
           <>
-            <strong className="text-texto">Novidades mantém a tag Novidade:</strong> escolha quais itens ficam visíveis e use as setas para definir a posição.
+            <strong className="text-texto">Novidades mantém a tag Novidade:</strong> escolha quais itens ficam visíveis e segure no ícone para arrastar até a posição desejada.
           </>
         )}
       </div>
@@ -278,10 +348,10 @@ export function HomeProductMerchandisingManager({
         <p className="text-xs text-cinza">
           {visibleCount} de {currentItems.length} produto(s) aparecem nesta vitrine.
         </p>
-        {(tab === "featured" || tab === "new") && (
+        {orderableTab && (
           <button
             type="button"
-            onClick={() => reset(tab)}
+            onClick={() => void reset(orderableTab)}
             disabled={saving}
             className="inline-flex min-h-9 items-center gap-1 rounded-lg px-2 text-[11px] font-bold text-rosa-profundo disabled:opacity-50"
           >
@@ -312,10 +382,35 @@ export function HomeProductMerchandisingManager({
             return (
               <div
                 key={product.id}
-                className={`flex items-center gap-2 rounded-2xl border p-2.5 ${
+                data-product-drag-id={orderableTab ? product.id : undefined}
+                data-product-drag-section={orderableTab ?? undefined}
+                onDragEnter={() => {
+                  if (orderableTab) dragProductOver(orderableTab, product.id);
+                }}
+                onDragOver={(event) => {
+                  if (orderableTab) event.preventDefault();
+                }}
+                className={`flex items-center gap-2 rounded-2xl border p-2.5 transition ${
                   visible ? "border-rosa/10 bg-white" : "border-dashed border-cinza/20 bg-creme/50 opacity-75"
-                }`}
+                } ${dragging?.id === product.id ? "bg-creme/80 shadow-sm" : ""}`}
               >
+                {orderableTab && (
+                  <button
+                    type="button"
+                    draggable={!saving}
+                    onDragStart={() => beginProductDrag(orderableTab, product.id)}
+                    onDragEnd={() => void finishProductDrag(orderableTab)}
+                    onTouchStart={() => beginProductDrag(orderableTab, product.id)}
+                    onTouchMove={handleProductTouchMove}
+                    onTouchEnd={() => void finishProductDrag(orderableTab)}
+                    disabled={saving}
+                    className="flex h-9 w-9 shrink-0 cursor-grab touch-none items-center justify-center rounded-lg border border-rosa/15 text-cinza active:cursor-grabbing disabled:opacity-30"
+                    aria-label={`Arrastar ${product.name}`}
+                  >
+                    <GripVertical size={16} />
+                  </button>
+                )}
+
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-creme text-xs font-extrabold text-rosa-profundo">
                   {index + 1}
                 </span>
@@ -334,7 +429,7 @@ export function HomeProductMerchandisingManager({
 
                 <button
                   type="button"
-                  onClick={() => toggleVisibility(tab, product.id)}
+                  onClick={() => void toggleVisibility(tab, product.id)}
                   disabled={saving}
                   className={`inline-flex min-h-9 shrink-0 items-center gap-1 rounded-lg border px-2 text-[10px] font-bold disabled:opacity-50 ${
                     visible
@@ -345,29 +440,6 @@ export function HomeProductMerchandisingManager({
                   {visible ? <Eye size={13} /> : <EyeOff size={13} />}
                   {visible ? "Na Home" : "Oculto"}
                 </button>
-
-                {(tab === "featured" || tab === "new") && (
-                  <div className="flex shrink-0 gap-1">
-                    <button
-                      type="button"
-                      aria-label="Subir produto"
-                      disabled={saving || index === 0}
-                      onClick={() => move(tab, index, -1)}
-                      className="flex h-9 w-9 items-center justify-center rounded-lg border border-rosa/15 text-rosa-profundo disabled:opacity-25"
-                    >
-                      <ArrowUp size={15} />
-                    </button>
-                    <button
-                      type="button"
-                      aria-label="Descer produto"
-                      disabled={saving || index === currentItems.length - 1}
-                      onClick={() => move(tab, index, 1)}
-                      className="flex h-9 w-9 items-center justify-center rounded-lg border border-rosa/15 text-rosa-profundo disabled:opacity-25"
-                    >
-                      <ArrowDown size={15} />
-                    </button>
-                  </div>
-                )}
               </div>
             );
           })}

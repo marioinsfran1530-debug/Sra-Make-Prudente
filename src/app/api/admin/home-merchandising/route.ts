@@ -110,6 +110,7 @@ export async function PUT(request: NextRequest) {
 
     const brandOrder = cleanBrandList(body.brandOrder);
     const hiddenBrands = cleanBrandList(body.hiddenBrands);
+    const offerOrder = cleanIdList(body.offerOrder);
     const featuredOrder = cleanIdList(body.featuredOrder);
     const newOrder = cleanIdList(body.newOrder);
     const hiddenOffers = cleanIdList(body.hiddenOffers);
@@ -117,6 +118,12 @@ export async function PUT(request: NextRequest) {
     const hiddenPopular = cleanIdList(body.hiddenPopular);
     const hiddenNew = cleanIdList(body.hiddenNew);
 
+    if (offerOrder !== null && !(await validateProductIds(offerOrder))) {
+      return NextResponse.json(
+        { error: "A ordem de Ofertas contém produto inativo ou inexistente." },
+        { status: 400 }
+      );
+    }
     if (featuredOrder !== null && !(await validateTaggedProducts(featuredOrder, "featured"))) {
       return NextResponse.json(
         { error: "Destaques contém produto inativo, inexistente ou sem a tag Destaque." },
@@ -143,6 +150,7 @@ export async function PUT(request: NextRequest) {
     const hasStoreUpdate =
       brandOrder !== null ||
       hiddenBrands !== null ||
+      offerOrder !== null ||
       featuredOrder !== null ||
       newOrder !== null ||
       hiddenOffers !== null ||
@@ -167,6 +175,11 @@ export async function PUT(request: NextRequest) {
       if (hiddenBrands !== null) {
         await prisma.$executeRaw(
           Prisma.sql`UPDATE "StoreSettings" SET "homeHiddenBrands" = ${textArraySql(hiddenBrands)}, "updatedAt" = NOW() WHERE "id" = ${settings.id}`
+        );
+      }
+      if (offerOrder !== null) {
+        await prisma.$executeRaw(
+          Prisma.sql`UPDATE "StoreSettings" SET "homeOfferOrder" = ${textArraySql(offerOrder)}, "updatedAt" = NOW() WHERE "id" = ${settings.id}`
         );
       }
       if (featuredOrder !== null) {

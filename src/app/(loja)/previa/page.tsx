@@ -45,11 +45,14 @@ export default async function PreviewHomePage() {
     (product) => product.stock !== "INDISPONIVEL"
   );
 
-  const offers = excludeHiddenProducts(
-    sellableProducts.filter(
-      (product) => product.promoPrice !== null && product.promoPrice < product.price
+  const offers = orderProductsByConfiguredIds(
+    excludeHiddenProducts(
+      sellableProducts.filter(
+        (product) => product.promoPrice !== null && product.promoPrice < product.price
+      ),
+      merchandising.homeHiddenOffers
     ),
-    merchandising.homeHiddenOffers
+    merchandising.homeOfferOrder
   );
 
   const bestSellers = excludeHiddenProducts(
