@@ -56,7 +56,12 @@ function money(value: number) {
 }
 
 function parseMoney(value: string) {
-  const normalized = value.trim().replace(/\s/g, "").replace(/\./g, "").replace(",", ".");
+  let normalized = value.trim().replace(/\s/g, "");
+  if (normalized.includes(",") && normalized.includes(".")) {
+    normalized = normalized.replace(/\./g, "").replace(",", ".");
+  } else if (normalized.includes(",")) {
+    normalized = normalized.replace(",", ".");
+  }
   const parsed = Number(normalized);
   return Number.isFinite(parsed) ? parsed : 0;
 }
