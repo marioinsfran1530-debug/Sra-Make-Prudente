@@ -134,7 +134,11 @@ export default async function ProdutoPage({ params }: { params: ProductParams })
                 {product.isNew && <Badge tone="dourado">Novidade</Badge>}
                 {product.bestSeller && <Badge tone="navy">Mais vendido</Badge>}
               </div>
-              <ProductShareButton name={product.name} url={productUrl} />
+              <ProductShareButton
+                name={product.name}
+                url={productUrl}
+                imageUrl={product.images[0]?.url}
+              />
             </div>
             <p className="text-xs font-semibold uppercase tracking-wide text-cinza">{product.brand}</p>
             <h1 className="font-serif font-bold text-2xl lg:text-2xl mt-1 mb-2 text-texto">{product.name}</h1>
