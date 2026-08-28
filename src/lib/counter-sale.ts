@@ -22,6 +22,7 @@ type CreateCounterSaleInput = {
   customerPhone?: string;
   notes?: string;
   createdById: string;
+  idempotencyKey: string;
 };
 
 type StockRow = { id: string; stockQty: number };
@@ -33,6 +34,12 @@ function cents(value: number) {
 export async function createCounterSale(input: CreateCounterSaleInput) {
   if (input.items.length === 0) throw new CounterSaleError("Adicione pelo menos um produto.");
   if (input.items.length > 100) throw new CounterSaleError("A venda possui itens demais.");
+
+  const idempotencyKey = input.idempotencyKey.trim().slice(0, 160);
+  if (idempotencyKey.length < 8) {
+    throw new CounterSaleError("Identificador da venda inválido. Atualize a tela e tente novamente.");
+  }
+  const saleSessionId = `counter-sale:${idempotencyKey}`;
 
   const normalizedItems = input.items.map((item) => ({
     productId: item.productId.trim(),
@@ -52,6 +59,19 @@ export async function createCounterSale(input: CreateCounterSaleInput) {
   }
 
   return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw<Array<{ locked: number }>>`
+      SELECT 1::int AS locked
+      FROM (
+        SELECT pg_advisory_xact_lock(hashtext(${saleSessionId}))
+      ) AS advisory_lock
+    `;
+
+    const existingOrder = await tx.order.findFirst({
+      where: { sessionId: saleSessionId, origin: "loja_fisica" },
+      include: { items: true, payments: true },
+    });
+    if (existingOrder) return existingOrder;
+
     const productIds = Array.from(new Set(normalizedItems.map((item) => item.productId)));
     const products = await tx.product.findMany({
       where: { id: { in: productIds }, active: true },
@@ -202,6 +222,7 @@ export async function createCounterSale(input: CreateCounterSaleInput) {
         createdById: input.createdById,
         notes,
         origin: "loja_fisica",
+        sessionId: saleSessionId,
         status: "FINALIZADO",
         items: { create: orderItems },
         payments: { create: payments },
@@ -212,7 +233,7 @@ export async function createCounterSale(input: CreateCounterSaleInput) {
     await tx.analyticsEvent.create({
       data: {
         event: "order_finalized",
-        sessionId: `counter:${order.id}`,
+        sessionId: saleSessionId,
         value: total,
         context: `pedido:${order.number}`,
         origin: "loja_fisica",
