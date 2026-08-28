@@ -319,6 +319,8 @@ model StoreSettings {
   highlight3               String?
   homeBrandOrder           String[] @default([])
   homeHiddenBrands         String[] @default([])
+  homeFeaturedOrder        String[] @default([])
+  homeNewOrder             String[] @default([])
   deliveryEnabled          Boolean  @default(true)
   pickupEnabled            Boolean  @default(true)
   updatedAt                DateTime @updatedAt
