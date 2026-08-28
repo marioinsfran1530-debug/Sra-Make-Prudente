@@ -12,6 +12,7 @@ type IconPreset = {
 };
 
 const PRESETS: Record<string, IconPreset> = {
+  "32": { size: 32, logoRatio: 0.92 },
   "192": { size: 192, logoRatio: 0.92 },
   "512": { size: 512, logoRatio: 0.92 },
   "maskable-192": { size: 192, logoRatio: 0.72 },
