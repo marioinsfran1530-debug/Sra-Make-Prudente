@@ -113,7 +113,9 @@ export function CounterSaleForm({ products }: { products: Product[] }) {
       const stored = localStorage.getItem(FAVORITES_KEY);
       const parsed = stored ? JSON.parse(stored) : [];
       if (Array.isArray(parsed)) {
-        const valid = parsed.filter((id): id is string => typeof id === "string" && products.some((p) => p.id === id));
+        const valid = parsed.filter(
+          (id): id is string => typeof id === "string" && products.some((product) => product.id === id)
+        );
         setFavoriteIds(valid);
         if (valid.length > 0) setActiveTab("FAVORITOS");
       }
@@ -179,8 +181,22 @@ export function CounterSaleForm({ products }: { products: Product[] }) {
   const cashShort = paymentMethod === "DINHEIRO" && receivedValue + 0.0001 < total;
   const change = paymentMethod === "DINHEIRO" ? Math.max(0, receivedValue - total) : 0;
 
-  function focusSearch() {
-    requestAnimationFrame(() => searchRef.current?.focus());
+  const cartQtyByProduct = useMemo(() => {
+    const map = new Map<string, number>();
+    cart.forEach((item) => map.set(item.productId, (map.get(item.productId) ?? 0) + item.qty));
+    return map;
+  }, [cart]);
+
+  function focusSearch(select = false) {
+    requestAnimationFrame(() => {
+      searchRef.current?.focus();
+      if (select) searchRef.current?.select();
+    });
+  }
+
+  function clearSearch() {
+    setQuery("");
+    focusSearch();
   }
 
   function persistFavorites(next: string[]) {
@@ -200,11 +216,15 @@ export function CounterSaleForm({ products }: { products: Product[] }) {
     if (activeTab === "FAVORITOS" && next.length === 0) setActiveTab("TODOS");
   }
 
-  function addLine(product: Product, variant: Variant | null) {
+  function addLine(
+    product: Product,
+    variant: Variant | null,
+    options: { focusAfter?: boolean; selectSearch?: boolean } = {}
+  ) {
     const stockQty = variant ? variant.stockQty : product.stockQty;
     if (stockQty <= 0) {
       setError("Este item está sem estoque.");
-      focusSearch();
+      if (options.focusAfter) focusSearch(options.selectSearch);
       return;
     }
 
@@ -213,7 +233,7 @@ export function CounterSaleForm({ products }: { products: Product[] }) {
 
     if (existing && existing.qty >= stockQty) {
       setError("A quantidade já atingiu o estoque disponível.");
-      focusSearch();
+      if (options.focusAfter) focusSearch(options.selectSearch);
       return;
     }
 
@@ -221,7 +241,9 @@ export function CounterSaleForm({ products }: { products: Product[] }) {
     setCart((current) => {
       const currentLine = current.find((item) => item.key === key);
       if (currentLine) {
-        return current.map((item) => (item.key === key ? { ...item, qty: item.qty + 1 } : item));
+        return current.map((item) =>
+          item.key === key ? { ...item, qty: item.qty + 1 } : item
+        );
       }
       return [
         ...current,
@@ -239,10 +261,12 @@ export function CounterSaleForm({ products }: { products: Product[] }) {
         },
       ];
     });
+
+    // Mantém a pesquisa atual para permitir incluir o mesmo produto várias vezes
+    // sem ter que procurá-lo novamente.
     setError("");
-    setQuery("");
     setVariantPicker(null);
-    focusSearch();
+    if (options.focusAfter) focusSearch(options.selectSearch);
   }
 
   function chooseProduct(product: Product) {
@@ -266,7 +290,11 @@ export function CounterSaleForm({ products }: { products: Product[] }) {
     setLastAddition(null);
     setCart((current) =>
       current
-        .map((item) => (item.key === key ? { ...item, qty: Math.min(item.stockQty, Math.max(0, next)) } : item))
+        .map((item) =>
+          item.key === key
+            ? { ...item, qty: Math.min(item.stockQty, Math.max(0, next)) }
+            : item
+        )
         .filter((item) => item.qty > 0)
     );
   }
@@ -283,7 +311,6 @@ export function CounterSaleForm({ products }: { products: Product[] }) {
     });
     setLastAddition(null);
     setError("");
-    focusSearch();
   }
 
   function tryExactScan() {
@@ -301,7 +328,7 @@ export function CounterSaleForm({ products }: { products: Product[] }) {
     if (matches.length !== 1) return false;
     const match = matches[0];
     if (match.variant) {
-      addLine(match.product, match.variant);
+      addLine(match.product, match.variant, { focusAfter: true, selectSearch: true });
       return true;
     }
     if (match.product.variants.length > 0) {
@@ -309,7 +336,7 @@ export function CounterSaleForm({ products }: { products: Product[] }) {
       setError("");
       return true;
     }
-    addLine(match.product, null);
+    addLine(match.product, null, { focusAfter: true, selectSearch: true });
     return true;
   }
 
@@ -345,7 +372,11 @@ export function CounterSaleForm({ products }: { products: Product[] }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           idempotencyKey: saleToken,
-          items: cart.map((item) => ({ productId: item.productId, variantId: item.variantId, qty: item.qty })),
+          items: cart.map((item) => ({
+            productId: item.productId,
+            variantId: item.variantId,
+            qty: item.qty,
+          })),
           payments: [{ method: paymentMethod, amount: Number(total.toFixed(2)) }],
           discount: Number(discountValue.toFixed(2)),
           customerName,
@@ -383,18 +414,30 @@ export function CounterSaleForm({ products }: { products: Product[] }) {
             <span className="text-xs text-cinza">{itemCount} item(ns)</span>
           </div>
           <div className="flex items-center gap-2">
-            <button type="button" disabled={!lastAddition} onClick={undoLastAddition} className="rounded-lg border border-rosa/15 px-2 py-1.5 text-[10px] font-bold text-rosa-profundo disabled:opacity-35">
+            <button
+              type="button"
+              disabled={!lastAddition}
+              onClick={undoLastAddition}
+              className="rounded-lg border border-rosa/15 px-2 py-1.5 text-[10px] font-bold text-rosa-profundo disabled:opacity-35"
+            >
               ↶ Desfazer último
             </button>
             {mobile && (
-              <button type="button" onClick={() => setCartOpen(false)} aria-label="Fechar venda atual" className="flex h-9 w-9 items-center justify-center rounded-full border border-rosa/10 text-lg text-cinza">
+              <button
+                type="button"
+                onClick={() => setCartOpen(false)}
+                aria-label="Fechar venda atual"
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-rosa/10 text-lg text-cinza"
+              >
                 ×
               </button>
             )}
           </div>
         </div>
 
-        <div className={`${mobile ? "max-h-[34dvh]" : "max-h-[34vh] lg:max-h-[36vh]"} mt-3 divide-y divide-rosa/10 overflow-y-auto pr-1`}>
+        <div
+          className={`${mobile ? "max-h-[34dvh]" : "max-h-[34vh] lg:max-h-[36vh]"} mt-3 divide-y divide-rosa/10 overflow-y-auto pr-1`}
+        >
           {cart.length === 0 ? (
             <p className="py-6 text-center text-xs text-cinza">Nenhum produto adicionado.</p>
           ) : (
@@ -402,25 +445,61 @@ export function CounterSaleForm({ products }: { products: Product[] }) {
               <div key={item.key} className="flex gap-3 py-3">
                 <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-creme">
                   {item.imageUrl ? (
-                    <img src={item.imageUrl} alt="" className="h-full w-full object-contain p-1" loading="lazy" />
+                    <img
+                      src={item.imageUrl}
+                      alt=""
+                      className="h-full w-full object-contain p-1"
+                      loading="lazy"
+                    />
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center text-[9px] font-bold text-cinza">Sem foto</div>
+                    <div className="flex h-full w-full items-center justify-center text-[9px] font-bold text-cinza">
+                      Sem foto
+                    </div>
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex justify-between gap-2">
                     <div className="min-w-0">
                       <p className="line-clamp-2 text-xs font-bold text-texto">{item.name}</p>
-                      {item.variantName && <p className="mt-0.5 text-[10px] text-cinza">{item.variantName}</p>}
-                      <p className="mt-1 text-[10px] font-bold text-rosa-profundo">{money(item.unitPrice)}</p>
+                      {item.variantName && (
+                        <p className="mt-0.5 text-[10px] text-cinza">{item.variantName}</p>
+                      )}
+                      <p className="mt-1 text-[10px] font-bold text-rosa-profundo">
+                        {money(item.unitPrice)}
+                      </p>
                     </div>
-                    <p className="shrink-0 text-xs font-extrabold text-texto">{money(item.unitPrice * item.qty)}</p>
+                    <p className="shrink-0 text-xs font-extrabold text-texto">
+                      {money(item.unitPrice * item.qty)}
+                    </p>
                   </div>
                   <div className="mt-2 flex items-center gap-1.5">
-                    <button type="button" onClick={() => updateQty(item.key, item.qty - 1)} className="h-8 w-8 rounded-lg border border-rosa/15 font-bold">−</button>
-                    <input value={item.qty} onChange={(event) => updateQty(item.key, Number(event.target.value))} inputMode="numeric" className="h-8 w-12 rounded-lg border border-rosa/15 text-center text-xs font-bold" />
-                    <button type="button" onClick={() => updateQty(item.key, item.qty + 1)} className="h-8 w-8 rounded-lg border border-rosa/15 font-bold">+</button>
-                    <button type="button" onClick={() => updateQty(item.key, 0)} className="ml-auto px-1 text-[10px] font-bold text-red-600">Remover</button>
+                    <button
+                      type="button"
+                      onClick={() => updateQty(item.key, item.qty - 1)}
+                      className="h-8 w-8 rounded-lg border border-rosa/15 font-bold"
+                    >
+                      −
+                    </button>
+                    <input
+                      value={item.qty}
+                      onChange={(event) => updateQty(item.key, Number(event.target.value))}
+                      inputMode="numeric"
+                      className="h-8 w-12 rounded-lg border border-rosa/15 text-center text-xs font-bold"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => updateQty(item.key, item.qty + 1)}
+                      className="h-8 w-8 rounded-lg border border-rosa/15 font-bold"
+                    >
+                      +
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => updateQty(item.key, 0)}
+                      className="ml-auto px-1 text-[10px] font-bold text-red-600"
+                    >
+                      Remover
+                    </button>
                   </div>
                 </div>
               </div>
@@ -430,21 +509,52 @@ export function CounterSaleForm({ products }: { products: Product[] }) {
 
         <div className="mt-3 border-t border-rosa/10 pt-3">
           <label className="text-[10px] font-bold uppercase text-cinza">Desconto em R$</label>
-          <input value={discount} onChange={(event) => setDiscount(event.target.value)} inputMode="decimal" className="mt-1 w-full rounded-xl border border-rosa/15 px-3 py-2 text-sm" />
+          <input
+            value={discount}
+            onChange={(event) => setDiscount(event.target.value)}
+            inputMode="decimal"
+            className="mt-1 w-full rounded-xl border border-rosa/15 px-3 py-2 text-sm"
+          />
         </div>
 
         <div className="mt-3 rounded-xl bg-creme/60 p-3 text-sm">
-          <div className="flex justify-between"><span className="text-cinza">Subtotal</span><strong>{money(subtotal)}</strong></div>
-          {discountValue > 0 && <div className="mt-1 flex justify-between"><span className="text-cinza">Desconto</span><strong>- {money(discountValue)}</strong></div>}
-          <div className="mt-2 flex justify-between border-t border-rosa/10 pt-2 text-lg"><span className="font-bold">Total</span><strong className="text-rosa-profundo">{money(total)}</strong></div>
+          <div className="flex justify-between">
+            <span className="text-cinza">Subtotal</span>
+            <strong>{money(subtotal)}</strong>
+          </div>
+          {discountValue > 0 && (
+            <div className="mt-1 flex justify-between">
+              <span className="text-cinza">Desconto</span>
+              <strong>- {money(discountValue)}</strong>
+            </div>
+          )}
+          <div className="mt-2 flex justify-between border-t border-rosa/10 pt-2 text-lg">
+            <span className="font-bold">Total</span>
+            <strong className="text-rosa-profundo">{money(total)}</strong>
+          </div>
         </div>
 
         <div className="mt-3">
           <p className="text-[10px] font-bold uppercase text-cinza">Pagamento</p>
           <div className="mt-2 grid grid-cols-2 gap-2">
             {(["PIX", "DINHEIRO", "DEBITO", "CREDITO"] as PaymentMethod[]).map((method) => (
-              <button key={method} type="button" onClick={() => setPayment(method)} className={`rounded-xl border px-3 py-2.5 text-xs font-bold ${paymentMethod === method ? "border-rosa-profundo bg-rosa-profundo text-white" : "border-rosa/15 text-cinza"}`}>
-                {method === "DEBITO" ? "Débito" : method === "CREDITO" ? "Crédito" : method === "DINHEIRO" ? "Dinheiro" : "Pix"}
+              <button
+                key={method}
+                type="button"
+                onClick={() => setPayment(method)}
+                className={`rounded-xl border px-3 py-2.5 text-xs font-bold ${
+                  paymentMethod === method
+                    ? "border-rosa-profundo bg-rosa-profundo text-white"
+                    : "border-rosa/15 text-cinza"
+                }`}
+              >
+                {method === "DEBITO"
+                  ? "Débito"
+                  : method === "CREDITO"
+                    ? "Crédito"
+                    : method === "DINHEIRO"
+                      ? "Dinheiro"
+                      : "Pix"}
               </button>
             ))}
           </div>
@@ -453,39 +563,101 @@ export function CounterSaleForm({ products }: { products: Product[] }) {
         {paymentMethod === "DINHEIRO" && (
           <div className="mt-3 rounded-xl border border-rosa/15 p-3">
             <label className="text-[10px] font-bold uppercase text-cinza">Valor recebido</label>
-            <input value={cashReceived} onChange={(event) => setCashReceived(event.target.value)} inputMode="decimal" placeholder="0,00" className="mt-1 w-full rounded-xl border border-rosa/15 px-3 py-2.5 text-base font-bold" />
+            <input
+              value={cashReceived}
+              onChange={(event) => setCashReceived(event.target.value)}
+              inputMode="decimal"
+              placeholder="0,00"
+              className="mt-1 w-full rounded-xl border border-rosa/15 px-3 py-2.5 text-base font-bold"
+            />
             <div className="mt-2 flex flex-wrap gap-1.5">
-              <button type="button" onClick={() => setReceivedPreset(total)} className="rounded-lg bg-creme px-2 py-1.5 text-[10px] font-bold">Valor exato</button>
+              <button
+                type="button"
+                onClick={() => setReceivedPreset(total)}
+                className="rounded-lg bg-creme px-2 py-1.5 text-[10px] font-bold"
+              >
+                Valor exato
+              </button>
               {[5, 10, 20].map((extra) => (
-                <button key={extra} type="button" onClick={() => setReceivedPreset(total + extra)} className="rounded-lg bg-creme px-2 py-1.5 text-[10px] font-bold">+ R$ {extra}</button>
+                <button
+                  key={extra}
+                  type="button"
+                  onClick={() => setReceivedPreset(total + extra)}
+                  className="rounded-lg bg-creme px-2 py-1.5 text-[10px] font-bold"
+                >
+                  + R$ {extra}
+                </button>
               ))}
             </div>
-            <div className={`mt-3 rounded-lg px-3 py-2 ${cashShort ? "bg-red-50 text-red-700" : "bg-green-50 text-green-700"}`}>
+            <div
+              className={`mt-3 rounded-lg px-3 py-2 ${
+                cashShort ? "bg-red-50 text-red-700" : "bg-green-50 text-green-700"
+              }`}
+            >
               {cashShort ? (
                 <p className="text-xs font-bold">Faltam {money(Math.max(0, total - receivedValue))}</p>
               ) : (
-                <div className="flex items-center justify-between"><span className="text-xs font-bold">Troco</span><strong className="text-lg">{money(change)}</strong></div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold">Troco</span>
+                  <strong className="text-lg">{money(change)}</strong>
+                </div>
               )}
             </div>
           </div>
         )}
 
         <details className="mt-3 rounded-xl border border-rosa/10 p-3">
-          <summary className="cursor-pointer text-xs font-bold text-texto">Cliente e observações (opcional)</summary>
+          <summary className="cursor-pointer text-xs font-bold text-texto">
+            Cliente e observações (opcional)
+          </summary>
           <div className="mt-3 grid gap-2">
-            <input value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder="Nome do cliente" className="rounded-xl border border-rosa/15 px-3 py-2 text-xs" />
-            <input value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} placeholder="Telefone/WhatsApp" inputMode="tel" className="rounded-xl border border-rosa/15 px-3 py-2 text-xs" />
-            <textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Observações da venda" rows={2} className="rounded-xl border border-rosa/15 px-3 py-2 text-xs" />
+            <input
+              value={customerName}
+              onChange={(event) => setCustomerName(event.target.value)}
+              placeholder="Nome do cliente"
+              className="rounded-xl border border-rosa/15 px-3 py-2 text-xs"
+            />
+            <input
+              value={customerPhone}
+              onChange={(event) => setCustomerPhone(event.target.value)}
+              placeholder="Telefone/WhatsApp"
+              inputMode="tel"
+              className="rounded-xl border border-rosa/15 px-3 py-2 text-xs"
+            />
+            <textarea
+              value={notes}
+              onChange={(event) => setNotes(event.target.value)}
+              placeholder="Observações da venda"
+              rows={2}
+              className="rounded-xl border border-rosa/15 px-3 py-2 text-xs"
+            />
           </div>
         </details>
 
-        {error && <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{error}</p>}
+        {error && (
+          <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">
+            {error}
+          </p>
+        )}
 
-        <div className={mobile ? "sticky bottom-0 -mx-4 mt-4 border-t border-rosa/10 bg-white px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3" : ""}>
-          <button type="button" disabled={saving || cart.length === 0 || cashShort} onClick={finalize} className="w-full rounded-xl bg-rosa-profundo px-4 py-3.5 text-sm font-extrabold text-white disabled:opacity-50">
+        <div
+          className={
+            mobile
+              ? "sticky bottom-0 -mx-4 mt-4 border-t border-rosa/10 bg-white px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3"
+              : ""
+          }
+        >
+          <button
+            type="button"
+            disabled={saving || cart.length === 0 || cashShort}
+            onClick={finalize}
+            className="w-full rounded-xl bg-rosa-profundo px-4 py-3.5 text-sm font-extrabold text-white disabled:opacity-50"
+          >
             {saving ? "Finalizando..." : `Finalizar venda · ${money(total)}`}
           </button>
-          <p className="mt-2 text-center text-[10px] text-cinza">Estoque baixado e venda registrada ao finalizar.</p>
+          <p className="mt-2 text-center text-[10px] text-cinza">
+            Estoque baixado e venda registrada ao finalizar.
+          </p>
         </div>
       </div>
     );
@@ -498,7 +670,9 @@ export function CounterSaleForm({ products }: { products: Product[] }) {
           <div className="sticky top-0 z-20 rounded-t-2xl border-b border-rosa/10 bg-white/95 p-3 backdrop-blur sm:p-4">
             <label className="sr-only">Buscar produto, marca, SKU ou EAN</label>
             <div className="relative">
-              <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-cinza">⌕</span>
+              <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-cinza">
+                ⌕
+              </span>
               <input
                 ref={searchRef}
                 autoFocus
@@ -511,22 +685,53 @@ export function CounterSaleForm({ products }: { products: Product[] }) {
                   }
                 }}
                 placeholder="Buscar produto, marca, SKU ou EAN"
-                className="w-full rounded-xl border border-rosa/20 py-3 pl-9 pr-3 text-sm outline-none focus:border-rosa-profundo"
+                className="w-full rounded-xl border border-rosa/20 py-3 pl-9 pr-10 text-sm outline-none focus:border-rosa-profundo"
               />
+              {query && (
+                <button
+                  type="button"
+                  onClick={clearSearch}
+                  aria-label="Limpar busca"
+                  className="absolute inset-y-0 right-2 my-auto flex h-8 w-8 items-center justify-center rounded-full text-lg text-cinza hover:bg-creme"
+                >
+                  ×
+                </button>
+              )}
             </div>
-            <p className="mt-1 hidden text-[10px] text-cinza sm:block">EAN/SKU exato + Enter adiciona automaticamente.</p>
+            <p className="mt-1 hidden text-[10px] text-cinza sm:block">
+              EAN/SKU exato + Enter adiciona. A busca permanece para incluir novamente sem pesquisar de novo.
+            </p>
 
             <div className="mt-2 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {favoriteIds.length > 0 && (
-                <button type="button" onClick={() => setActiveTab("FAVORITOS")} className={`whitespace-nowrap rounded-full px-3 py-2 text-[11px] font-bold ${activeTab === "FAVORITOS" ? "bg-rosa-profundo text-white" : "bg-creme text-cinza"}`}>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("FAVORITOS")}
+                  className={`whitespace-nowrap rounded-full px-3 py-2 text-[11px] font-bold ${
+                    activeTab === "FAVORITOS" ? "bg-rosa-profundo text-white" : "bg-creme text-cinza"
+                  }`}
+                >
                   ★ Favoritos
                 </button>
               )}
-              <button type="button" onClick={() => setActiveTab("TODOS")} className={`whitespace-nowrap rounded-full px-3 py-2 text-[11px] font-bold ${activeTab === "TODOS" ? "bg-rosa-profundo text-white" : "bg-creme text-cinza"}`}>
+              <button
+                type="button"
+                onClick={() => setActiveTab("TODOS")}
+                className={`whitespace-nowrap rounded-full px-3 py-2 text-[11px] font-bold ${
+                  activeTab === "TODOS" ? "bg-rosa-profundo text-white" : "bg-creme text-cinza"
+                }`}
+              >
                 Todos
               </button>
               {categories.map((category) => (
-                <button key={category.id} type="button" onClick={() => setActiveTab(category.id)} className={`whitespace-nowrap rounded-full px-3 py-2 text-[11px] font-bold ${activeTab === category.id ? "bg-rosa-profundo text-white" : "bg-creme text-cinza"}`}>
+                <button
+                  key={category.id}
+                  type="button"
+                  onClick={() => setActiveTab(category.id)}
+                  className={`whitespace-nowrap rounded-full px-3 py-2 text-[11px] font-bold ${
+                    activeTab === category.id ? "bg-rosa-profundo text-white" : "bg-creme text-cinza"
+                  }`}
+                >
                   {category.name}
                 </button>
               ))}
@@ -536,7 +741,11 @@ export function CounterSaleForm({ products }: { products: Product[] }) {
           <div className="p-3 sm:p-4">
             <div className="mb-2 flex items-center justify-between gap-3">
               <p className="text-xs font-bold text-texto">
-                {activeTab === "FAVORITOS" ? "Favoritos" : activeTab === "TODOS" ? "Todos os produtos" : categories.find((category) => category.id === activeTab)?.name ?? "Produtos"}
+                {activeTab === "FAVORITOS"
+                  ? "Favoritos"
+                  : activeTab === "TODOS"
+                    ? "Todos os produtos"
+                    : categories.find((category) => category.id === activeTab)?.name ?? "Produtos"}
               </p>
               <span className="text-[10px] text-cinza">{filtered.length} encontrado(s)</span>
             </div>
@@ -545,31 +754,89 @@ export function CounterSaleForm({ products }: { products: Product[] }) {
               {visibleProducts.map((product) => {
                 const available = productAvailable(product);
                 const isFavorite = favoriteIds.includes(product.id);
+                const quantityInSale = cartQtyByProduct.get(product.id) ?? 0;
+
                 return (
-                  <article key={product.id} className={`relative overflow-hidden rounded-xl border bg-white ${available > 0 ? "border-rosa/10" : "border-gray-200 opacity-60"}`}>
-                    <button type="button" onClick={() => toggleFavorite(product.id)} aria-label={isFavorite ? "Remover dos favoritos" : "Adicionar aos favoritos"} className="absolute right-2 top-2 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white/95 text-base text-rosa-profundo shadow">
+                  <article
+                    key={product.id}
+                    className={`relative overflow-hidden rounded-xl border bg-white ${
+                      available > 0 ? "border-rosa/10" : "border-gray-200 opacity-60"
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      disabled={available <= 0}
+                      onClick={() => chooseProduct(product)}
+                      aria-label={`Selecionar ${product.name}`}
+                      className="absolute inset-0 z-0 disabled:cursor-not-allowed"
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() => toggleFavorite(product.id)}
+                      aria-label={isFavorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}
+                      className="absolute right-2 top-2 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-white/95 text-base text-rosa-profundo shadow"
+                    >
                       {isFavorite ? "★" : "☆"}
                     </button>
-                    <button type="button" disabled={available <= 0} onClick={() => chooseProduct(product)} className="w-full text-left disabled:cursor-not-allowed">
+
+                    <div className="pointer-events-none relative z-[1]">
                       <div className="aspect-[4/3] w-full bg-creme/70">
                         {product.imageUrl ? (
-                          <img src={product.imageUrl} alt={product.name} loading="lazy" className="h-full w-full object-contain p-2" />
+                          <img
+                            src={product.imageUrl}
+                            alt={product.name}
+                            loading="lazy"
+                            className="h-full w-full object-contain p-2"
+                          />
                         ) : (
-                          <div className="flex h-full items-center justify-center text-[10px] font-semibold text-cinza">Sem foto</div>
+                          <div className="flex h-full items-center justify-center text-[10px] font-semibold text-cinza">
+                            Sem foto
+                          </div>
                         )}
                       </div>
-                      <div className="p-2.5">
-                        <p className="line-clamp-2 min-h-9 text-xs font-bold leading-4 text-texto">{product.name}</p>
+                      <div className="p-2.5 pb-12">
+                        <p className="line-clamp-2 min-h-9 text-xs font-bold leading-4 text-texto">
+                          {product.name}
+                        </p>
                         <p className="mt-0.5 truncate text-[10px] text-cinza">{product.brand}</p>
                         <div className="mt-2 flex items-end justify-between gap-1">
-                          <span className="text-sm font-extrabold text-rosa-profundo">{money(productPrice(product))}</span>
-                          <span className={`text-[9px] font-bold ${available > 0 ? "text-green-700" : "text-red-600"}`}>{available > 0 ? `Est. ${available}` : "Sem estoque"}</span>
+                          <span className="text-sm font-extrabold text-rosa-profundo">
+                            {money(productPrice(product))}
+                          </span>
+                          <span
+                            className={`text-[9px] font-bold ${
+                              available > 0 ? "text-green-700" : "text-red-600"
+                            }`}
+                          >
+                            {available > 0 ? `Est. ${available}` : "Sem estoque"}
+                          </span>
                         </div>
                         {product.variants.length > 1 && available > 0 && (
-                          <p className="mt-1.5 text-[9px] font-bold text-rosa-profundo">Escolher entre {product.variants.length} opções</p>
+                          <p className="mt-1.5 text-[9px] font-bold text-rosa-profundo">
+                            Escolher entre {product.variants.length} opções
+                          </p>
                         )}
                       </div>
-                    </button>
+                    </div>
+
+                    {available > 0 && (
+                      <>
+                        {quantityInSale > 0 && (
+                          <span className="absolute bottom-3 left-2.5 z-20 rounded-full bg-rosa/10 px-2 py-1 text-[9px] font-extrabold text-rosa-profundo">
+                            {quantityInSale} na venda
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => chooseProduct(product)}
+                          aria-label={`Adicionar mais uma unidade de ${product.name}`}
+                          className="absolute bottom-2 right-2 z-20 flex h-9 w-9 items-center justify-center rounded-full bg-rosa-profundo text-xl font-bold leading-none text-white shadow-md active:scale-95"
+                        >
+                          +
+                        </button>
+                      </>
+                    )}
                   </article>
                 );
               })}
@@ -583,7 +850,11 @@ export function CounterSaleForm({ products }: { products: Product[] }) {
 
             {visibleCount < filtered.length && (
               <div className="mt-4 flex justify-center">
-                <button type="button" onClick={() => setVisibleCount((current) => current + PAGE_SIZE)} className="rounded-full border border-rosa-profundo/20 bg-white px-5 py-2.5 text-xs font-bold text-rosa-profundo">
+                <button
+                  type="button"
+                  onClick={() => setVisibleCount((current) => current + PAGE_SIZE)}
+                  className="rounded-full border border-rosa-profundo/20 bg-white px-5 py-2.5 text-xs font-bold text-rosa-profundo"
+                >
                   Carregar mais produtos
                 </button>
               </div>
@@ -598,16 +869,29 @@ export function CounterSaleForm({ products }: { products: Product[] }) {
 
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-rosa/15 bg-white/95 px-3 pb-[calc(0.65rem+env(safe-area-inset-bottom))] pt-2.5 shadow-[0_-8px_24px_rgba(35,20,42,0.08)] backdrop-blur lg:hidden">
         <div className="mx-auto flex max-w-lg items-center gap-3">
-          <button type="button" onClick={() => setCartOpen(true)} className="flex min-w-0 flex-1 items-center gap-3 text-left">
-            <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-creme text-lg">🛍️
-              {itemCount > 0 && <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-rosa-profundo px-1 text-[9px] font-bold text-white">{itemCount}</span>}
+          <button
+            type="button"
+            onClick={() => setCartOpen(true)}
+            className="flex min-w-0 flex-1 items-center gap-3 text-left"
+          >
+            <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-creme text-lg">
+              🛍️
+              {itemCount > 0 && (
+                <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-rosa-profundo px-1 text-[9px] font-bold text-white">
+                  {itemCount}
+                </span>
+              )}
             </div>
             <div className="min-w-0">
               <p className="text-[10px] text-cinza">{itemCount} item(ns)</p>
               <p className="truncate text-sm font-extrabold text-rosa-profundo">{money(total)}</p>
             </div>
           </button>
-          <button type="button" onClick={() => setCartOpen(true)} className="shrink-0 rounded-xl bg-rosa-profundo px-5 py-3 text-xs font-bold text-white">
+          <button
+            type="button"
+            onClick={() => setCartOpen(true)}
+            className="shrink-0 rounded-xl bg-rosa-profundo px-5 py-3 text-xs font-bold text-white"
+          >
             Ver venda
           </button>
         </div>
@@ -615,41 +899,87 @@ export function CounterSaleForm({ products }: { products: Product[] }) {
 
       {cartOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
-          <button type="button" aria-label="Fechar venda atual" onClick={() => setCartOpen(false)} className="absolute inset-0 bg-black/35" />
+          <button
+            type="button"
+            aria-label="Fechar venda atual"
+            onClick={() => setCartOpen(false)}
+            className="absolute inset-0 bg-black/35"
+          />
           <section className="absolute inset-x-0 bottom-0 flex max-h-[90dvh] flex-col rounded-t-3xl bg-white p-4 shadow-2xl">
             <div className="mx-auto mb-3 h-1 w-12 rounded-full bg-gray-300" />
-            <div className="min-h-0 overflow-y-auto">
-              {renderSalePanel(true)}
-            </div>
+            <div className="min-h-0 overflow-y-auto">{renderSalePanel(true)}</div>
           </section>
         </div>
       )}
 
       {variantPicker && (
         <div className="fixed inset-0 z-[60]">
-          <button type="button" aria-label="Fechar seleção de variação" onClick={() => { setVariantPicker(null); focusSearch(); }} className="absolute inset-0 bg-black/35" />
+          <button
+            type="button"
+            aria-label="Fechar seleção de variação"
+            onClick={() => setVariantPicker(null)}
+            className="absolute inset-0 bg-black/35"
+          />
           <section className="absolute inset-x-0 bottom-0 mx-auto max-h-[80dvh] max-w-lg overflow-y-auto rounded-t-3xl bg-white p-4 shadow-2xl sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:w-[min(92vw,520px)] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl">
             <div className="flex items-start gap-3">
               <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-creme">
-                {variantPicker.imageUrl ? <img src={variantPicker.imageUrl} alt={variantPicker.name} className="h-full w-full object-contain p-1.5" /> : <div className="flex h-full items-center justify-center text-[9px] text-cinza">Sem foto</div>}
+                {variantPicker.imageUrl ? (
+                  <img
+                    src={variantPicker.imageUrl}
+                    alt={variantPicker.name}
+                    className="h-full w-full object-contain p-1.5"
+                  />
+                ) : (
+                  <div className="flex h-full items-center justify-center text-[9px] text-cinza">
+                    Sem foto
+                  </div>
+                )}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-[10px] font-bold uppercase tracking-wide text-rosa-profundo">Escolha a opção</p>
+                <p className="text-[10px] font-bold uppercase tracking-wide text-rosa-profundo">
+                  Escolha a opção
+                </p>
                 <h3 className="mt-1 text-sm font-bold text-texto">{variantPicker.name}</h3>
                 <p className="mt-0.5 text-[10px] text-cinza">{variantPicker.brand}</p>
               </div>
-              <button type="button" onClick={() => { setVariantPicker(null); focusSearch(); }} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-rosa/10 text-lg text-cinza">×</button>
+              <button
+                type="button"
+                onClick={() => setVariantPicker(null)}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-rosa/10 text-lg text-cinza"
+              >
+                ×
+              </button>
             </div>
             <div className="mt-4 grid gap-2 sm:grid-cols-2">
-              {variantPicker.variants.map((variant) => (
-                <button key={variant.id} type="button" disabled={variant.stockQty <= 0} onClick={() => addLine(variantPicker, variant)} className="flex items-center justify-between gap-3 rounded-xl border border-rosa/15 px-3 py-3 text-left disabled:cursor-not-allowed disabled:bg-gray-50 disabled:opacity-50">
-                  <div className="min-w-0">
-                    <p className="truncate text-xs font-bold text-texto">{variant.name}</p>
-                    <p className="mt-0.5 text-[10px] text-cinza">Estoque {variant.stockQty}</p>
-                  </div>
-                  <strong className="shrink-0 text-xs text-rosa-profundo">{money(productPrice(variantPicker, variant))}</strong>
-                </button>
-              ))}
+              {variantPicker.variants.map((variant) => {
+                const lineKey = `${variantPicker.id}:${variant.id}`;
+                const currentQty = cart.find((item) => item.key === lineKey)?.qty ?? 0;
+                return (
+                  <button
+                    key={variant.id}
+                    type="button"
+                    disabled={variant.stockQty <= 0 || currentQty >= variant.stockQty}
+                    onClick={() => addLine(variantPicker, variant)}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-rosa/15 px-3 py-3 text-left disabled:cursor-not-allowed disabled:bg-gray-50 disabled:opacity-50"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-bold text-texto">{variant.name}</p>
+                      <p className="mt-0.5 text-[10px] text-cinza">
+                        Estoque {variant.stockQty}
+                        {currentQty > 0 ? ` · ${currentQty} na venda` : ""}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <strong className="text-xs text-rosa-profundo">
+                        {money(productPrice(variantPicker, variant))}
+                      </strong>
+                      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-rosa-profundo text-base font-bold text-white">
+                        +
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </section>
         </div>
