@@ -60,8 +60,13 @@ export default async function LojaInfoPage() {
     "@type": "Store",
     "@id": `${SITE_URL}/#store`,
     name: STORE_NAME,
+    alternateName: "Sra Make",
     url: SITE_URL,
     telephone: STORE_PHONE,
+    description:
+      "Loja de maquiagem e cosméticos em Presidente Prudente/SP, com produtos para maquiagem, lash, nail, skincare e acessórios de beleza.",
+    priceRange: "R$",
+    hasMap: mapsUrl,
     address: {
       "@type": "PostalAddress",
       streetAddress: "Avenida Brasil, 373 - Box 202",
@@ -69,6 +74,10 @@ export default async function LojaInfoPage() {
       addressRegion: "SP",
       postalCode: "19010-031",
       addressCountry: "BR",
+    },
+    areaServed: {
+      "@type": "City",
+      name: "Presidente Prudente",
     },
     openingHoursSpecification: [
       {
@@ -179,7 +188,7 @@ export default async function LojaInfoPage() {
         </p>
         <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
           {[
-            ["Maquiagem", "/categoria/make"],
+            ["Maquiagem", "/categoria/maquiagem"],
             ["Lash Design", "/categoria/lash"],
             ["Nail Design", "/categoria/nail"],
             ["Cosméticos", "/categoria/cosmeticos"],
