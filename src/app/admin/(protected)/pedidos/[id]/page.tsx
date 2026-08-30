@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { MessageCircle } from "lucide-react";
+import { MessageCircle, Star } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { money } from "@/lib/money";
 import { waLink } from "@/lib/whatsapp";
 import { OrderStatusControl } from "@/components/admin/OrderStatusControl";
+
+const GOOGLE_REVIEW_URL = "https://g.page/r/Cd60IkMVKKNtEBI/review";
 
 const STATUS_LABEL: Record<string, string> = {
   NOVO: "Novo",
@@ -46,6 +48,7 @@ export default async function AdminPedidoDetailPage({ params }: { params: Promis
 
   if (!order) notFound();
   const hasPhone = Boolean(order.customerPhone.trim());
+  const reviewMessage = `Maravilhosa, obrigada por escolher a Sra Make. 💗\n\nSe você saiu satisfeita, deixe sua experiência registrada e ajude outra pessoa a escolher com mais confiança:\n${GOOGLE_REVIEW_URL}`;
 
   return (
     <div className="max-w-lg">
@@ -66,7 +69,12 @@ export default async function AdminPedidoDetailPage({ params }: { params: Promis
         <p className="text-sm font-bold text-texto">{order.customerName}</p>
         {hasPhone ? <p className="mb-2 text-xs text-cinza">{order.customerPhone}</p> : <p className="mb-2 text-xs text-cinza">Sem telefone informado</p>}
         {hasPhone && (
-          <a href={waLink(`Oi ${order.customerName}! Atualização do seu pedido #${order.number} na Sra Make Prudente:\n\nStatus atual: ${STATUS_LABEL[order.status] ?? order.status}\n\nQualquer dúvida, estamos à disposição.`, order.customerPhone)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold text-white" style={{ backgroundColor: "#25D366" }}><MessageCircle size={13} /> Abrir WhatsApp</a>
+          <div className="flex flex-wrap gap-2">
+            <a href={waLink(`Oi ${order.customerName}! Atualização do seu pedido #${order.number} na Sra Make Prudente:\n\nStatus atual: ${STATUS_LABEL[order.status] ?? order.status}\n\nQualquer dúvida, estamos à disposição.`, order.customerPhone)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold text-white" style={{ backgroundColor: "#25D366" }}><MessageCircle size={13} /> Abrir WhatsApp</a>
+            {order.status === "FINALIZADO" && (
+              <a href={waLink(reviewMessage, order.customerPhone)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-800"><Star size={13} /> Pedir avaliação no Google</a>
+            )}
+          </div>
         )}
       </div>
 
