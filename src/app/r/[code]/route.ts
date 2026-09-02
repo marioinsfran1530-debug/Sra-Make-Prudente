@@ -21,6 +21,12 @@ function campaignContent(value: string | null) {
   return value === "q" ? "quadrado" : "status";
 }
 
+function campaignSource(value: string | null) {
+  if (value === "w") return "whatsapp";
+  if (value === "i") return "instagram";
+  return "social";
+}
+
 function campaignDate(value: string | null) {
   return /^\d{8}$/.test(value || "")
     ? value!
@@ -51,10 +57,10 @@ export async function GET(
 
   const kind = campaignKind(request.nextUrl.searchParams.get("k"));
   const content = campaignContent(request.nextUrl.searchParams.get("f"));
+  const source = campaignSource(request.nextUrl.searchParams.get("s"));
   const date = campaignDate(request.nextUrl.searchParams.get("d"));
   const campaign = `${kind}-${slug(product.name)}-${date}`;
 
-  // Métrica interna: não bloqueia o redirecionamento se houver falha de telemetria.
   try {
     await prisma.campaignLinkMetric.upsert({
       where: {
@@ -67,7 +73,7 @@ export async function GET(
       create: {
         code,
         productId: product.id,
-        utmSource: "whatsapp",
+        utmSource: source,
         utmMedium: "organic",
         utmCampaign: campaign,
         utmContent: content,
@@ -84,7 +90,7 @@ export async function GET(
   }
 
   const destination = new URL(`/produto/${product.id}`, request.url);
-  destination.searchParams.set("utm_source", "whatsapp");
+  destination.searchParams.set("utm_source", source);
   destination.searchParams.set("utm_medium", "organic");
   destination.searchParams.set("utm_campaign", campaign);
   destination.searchParams.set("utm_content", content);
