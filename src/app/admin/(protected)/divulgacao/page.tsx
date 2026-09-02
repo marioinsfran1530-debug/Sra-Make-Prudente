@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { PromotionCenterV2 } from "@/components/admin/PromotionCenterV2";
+import { PromotionCenterV3 } from "@/components/admin/PromotionCenterV3";
 
 const SITE_URL = "https://sramakeprudente.com.br";
 
@@ -15,42 +15,11 @@ export default async function AdminDivulgacaoPage() {
     }),
     prisma.storeSettings.findFirst(),
   ]);
-
   const rows = products.map((product) => {
-    const stockQty = product.variants.length
-      ? product.variants.filter((variant) => variant.active).reduce((total, variant) => total + variant.stockQty, 0)
-      : product.stockQty;
+    const stockQty = product.variants.length ? product.variants.filter((variant) => variant.active).reduce((total, variant) => total + variant.stockQty, 0) : product.stockQty;
     const images = product.images.map((image) => ({ id: image.id, url: image.url }));
-    return {
-      id: product.id,
-      name: product.name,
-      brand: product.brand,
-      price: Number(product.price),
-      promoPrice: product.promoPrice ? Number(product.promoPrice) : null,
-      stockQty,
-      active: product.active,
-      featured: product.featured,
-      isNew: product.isNew,
-      bestSeller: product.bestSeller,
-      createdAt: product.createdAt.toISOString(),
-      imageUrl: images[0]?.url ?? null,
-      images,
-      category: { name: product.category.name },
-    };
+    return { id: product.id, name: product.name, brand: product.brand, price: Number(product.price), promoPrice: product.promoPrice ? Number(product.promoPrice) : null, stockQty, active: product.active, featured: product.featured, isNew: product.isNew, bestSeller: product.bestSeller, createdAt: product.createdAt.toISOString(), imageUrl: images[0]?.url ?? null, images, category: { name: product.category.name } };
   });
-
-  const branding = {
-    storeName: settings?.storeName || "Sra Make Prudente",
-    logoUrl: settings?.logoUrl ?? null,
-  };
-
-  return (
-    <div>
-      <div className="mb-5">
-        <h1 className="font-serif text-xl font-bold text-texto">Central de Divulgação</h1>
-        <p className="mt-1 text-sm text-cinza">Direção criativa, arte, legenda e link em uma única campanha.</p>
-      </div>
-      <PromotionCenterV2 products={rows} branding={branding} siteUrl={SITE_URL} />
-    </div>
-  );
+  const branding = { storeName: settings?.storeName || "Sra Make Prudente", logoUrl: settings?.logoUrl ?? null };
+  return <div><div className="mb-5"><h1 className="font-serif text-xl font-bold text-texto">Central de Divulgação</h1><p className="mt-1 text-sm text-cinza">Direção criativa adaptativa para transformar produto, foto e copy em campanha.</p></div><PromotionCenterV3 products={rows} branding={branding} siteUrl={SITE_URL} /></div>;
 }
