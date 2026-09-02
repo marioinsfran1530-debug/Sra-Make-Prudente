@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { PromotionCenter } from "@/components/admin/PromotionCenter";
+import { PromotionCenterV2 } from "@/components/admin/PromotionCenterV2";
 
 const SITE_URL = "https://sramakeprudente.com.br";
 
@@ -9,9 +9,7 @@ export default async function AdminDivulgacaoPage() {
       include: {
         category: true,
         images: { orderBy: { order: "asc" } },
-        variants: {
-          select: { active: true, stockQty: true },
-        },
+        variants: { select: { active: true, stockQty: true } },
       },
       orderBy: [{ featured: "desc" }, { createdAt: "desc" }],
     }),
@@ -20,16 +18,9 @@ export default async function AdminDivulgacaoPage() {
 
   const rows = products.map((product) => {
     const stockQty = product.variants.length
-      ? product.variants
-          .filter((variant) => variant.active)
-          .reduce((total, variant) => total + variant.stockQty, 0)
+      ? product.variants.filter((variant) => variant.active).reduce((total, variant) => total + variant.stockQty, 0)
       : product.stockQty;
-
-    const images = product.images.map((image) => ({
-      id: image.id,
-      url: image.url,
-    }));
-
+    const images = product.images.map((image) => ({ id: image.id, url: image.url }));
     return {
       id: product.id,
       name: product.name,
@@ -56,15 +47,10 @@ export default async function AdminDivulgacaoPage() {
   return (
     <div>
       <div className="mb-5">
-        <h1 className="font-serif text-xl font-bold text-texto">
-          Central de Divulgação
-        </h1>
-        <p className="mt-1 text-sm text-cinza">
-          Escolha um produto, a melhor foto e compartilhe a campanha pronta.
-        </p>
+        <h1 className="font-serif text-xl font-bold text-texto">Central de Divulgação</h1>
+        <p className="mt-1 text-sm text-cinza">Direção criativa, arte, legenda e link em uma única campanha.</p>
       </div>
-
-      <PromotionCenter products={rows} branding={branding} siteUrl={SITE_URL} />
+      <PromotionCenterV2 products={rows} branding={branding} siteUrl={SITE_URL} />
     </div>
   );
 }
