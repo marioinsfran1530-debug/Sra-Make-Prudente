@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { PromotionCenterV3 } from "@/components/admin/PromotionCenterV3";
+import { PromotionCenterV4 } from "@/components/admin/PromotionCenterV4";
 
 const SITE_URL = "https://sramakeprudente.com.br";
 
@@ -21,5 +21,5 @@ export default async function AdminDivulgacaoPage() {
     return { id: product.id, name: product.name, brand: product.brand, price: Number(product.price), promoPrice: product.promoPrice ? Number(product.promoPrice) : null, stockQty, active: product.active, featured: product.featured, isNew: product.isNew, bestSeller: product.bestSeller, createdAt: product.createdAt.toISOString(), imageUrl: images[0]?.url ?? null, images, category: { name: product.category.name } };
   });
   const branding = { storeName: settings?.storeName || "Sra Make Prudente", logoUrl: settings?.logoUrl ?? null };
-  return <div><div className="mb-5"><h1 className="font-serif text-xl font-bold text-texto">Central de Divulgação</h1><p className="mt-1 text-sm text-cinza">Direção criativa adaptativa para transformar produto, foto e copy em campanha.</p></div><PromotionCenterV3 products={rows} branding={branding} siteUrl={SITE_URL} /></div>;
+  return <div><div className="mb-5"><h1 className="font-serif text-xl font-bold text-texto">Central de Divulgação</h1><p className="mt-1 text-sm text-cinza">Templates comerciais profissionais para divulgar produto, preço e oferta com clareza.</p></div><PromotionCenterV4 products={rows} branding={branding} siteUrl={SITE_URL} /></div>;
 }
