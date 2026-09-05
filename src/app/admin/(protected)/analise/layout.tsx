@@ -15,6 +15,24 @@ export default function AnalysisLayout({ children }: { children: React.ReactNode
           display: none;
         }
 
+        /* O painel de listas usa grid sem coluna explícita antes do xl.
+           Com títulos longos, a coluna implícita pode crescer além da viewport.
+           Mantemos uma coluna limitada ao container no mobile/tablet. */
+        .analysis-shell > .mx-auto > .mb-5.grid.gap-4 {
+          min-width: 0;
+          grid-template-columns: minmax(0, 1fr);
+        }
+
+        .analysis-shell > .mx-auto > .mb-5.grid.gap-4 > * {
+          min-width: 0;
+        }
+
+        @media (min-width: 1280px) {
+          .analysis-shell > .mx-auto > .mb-5.grid.gap-4 {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+        }
+
         @media (max-width: 639px) {
           .analysis-shell .py-3:has(> .mt-2.overflow-x-auto.pb-1) > .flex.items-start.justify-between {
             flex-direction: column;
