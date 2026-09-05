@@ -16,7 +16,7 @@ export function AnalysisSubnav() {
   const onOverview = pathname === "/admin/analise";
 
   return (
-    <div className="sticky top-0 z-20 -mx-6 mb-5 border-b border-rosa/10 bg-creme/95 px-6 py-3 backdrop-blur">
+    <div className="sticky top-0 z-20 -mx-4 mb-5 border-b border-rosa/10 bg-creme/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
       {!onOverview && (
         <div className="mb-2">
           <Link
@@ -28,8 +28,11 @@ export function AnalysisSubnav() {
         </div>
       )}
 
-      <nav aria-label="Áreas da análise" className="overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <div className="flex min-w-max items-center gap-2">
+      <nav
+        aria-label="Áreas da análise"
+        className="sm:overflow-x-auto sm:pb-0.5 sm:[scrollbar-width:none] sm:[&::-webkit-scrollbar]:hidden"
+      >
+        <div className="grid grid-cols-3 gap-2 sm:flex sm:min-w-max sm:items-center">
           {ITEMS.map((item) => {
             const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
 
@@ -38,7 +41,7 @@ export function AnalysisSubnav() {
                 key={item.href}
                 href={item.href}
                 aria-current={active ? "page" : undefined}
-                className={`rounded-full border px-3.5 py-2 text-xs font-bold transition ${
+                className={`flex min-w-0 items-center justify-center rounded-full border px-2 py-2 text-center text-[11px] font-bold leading-tight transition sm:px-3.5 sm:text-xs ${
                   active
                     ? "border-rosa-profundo bg-rosa-profundo text-white shadow-sm"
                     : "border-rosa/15 bg-white text-cinza hover:border-rosa/30 hover:text-texto"
