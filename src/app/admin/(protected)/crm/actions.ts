@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin-auth";
-import { normalizeCrmPhone } from "@/lib/crm-order-sync";
+import { normalizeCrmPhone, normalizeCrmSource } from "@/lib/crm-order-sync";
 
 function cleanPhone(value: FormDataEntryValue | null) {
   return normalizeCrmPhone(String(value ?? ""));
@@ -26,7 +26,7 @@ export async function createLeadAction(formData: FormData) {
 
   const name = String(formData.get("name") ?? "").trim();
   const phone = cleanPhone(formData.get("phone"));
-  const source = text(formData.get("source"));
+  const source = normalizeCrmSource(text(formData.get("source")), "outro");
   const productId = text(formData.get("productId"));
   const notes = text(formData.get("notes"));
   const estimatedRaw = String(formData.get("estimatedValue") ?? "").replace(",", ".").trim();
