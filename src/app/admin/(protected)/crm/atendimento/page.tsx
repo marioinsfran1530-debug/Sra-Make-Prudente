@@ -106,7 +106,7 @@ export default async function AtendimentoRapidoPage({
 
         <div className="rounded-2xl border border-rosa/15 bg-white p-4 shadow-sm">
           <p className="text-xs font-extrabold text-texto">2. Produto</p>
-          <p className="mt-2 text-xs leading-relaxed text-cinza">A busca agora acontece direto na tela e não abre a lista nativa do celular.</p>
+          <p className="mt-2 text-xs leading-relaxed text-cinza">A busca acontece direto na tela e não abre a lista nativa do celular.</p>
           <div className="mt-3 flex flex-wrap gap-2 text-[10px] font-bold text-cinza">
             <span className="rounded-full bg-creme px-2.5 py-1.5">{productOptions.length} produtos ativos</span>
             <span className="rounded-full bg-creme px-2.5 py-1.5">Busca por nome ou marca</span>
@@ -151,7 +151,7 @@ export default async function AtendimentoRapidoPage({
           </div>
         )}
 
-        <ProductPicker products={productOptions} />
+        <ProductPicker products={productOptions} required />
 
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <label className="text-xs font-bold text-texto">
