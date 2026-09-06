@@ -6,8 +6,33 @@ export function normalizeCrmPhone(value: string) {
   return digits;
 }
 
+export function normalizeCrmSource(value: string | null | undefined, fallback = "outro") {
+  const raw = String(value ?? "").trim().toLowerCase();
+  if (!raw) return fallback;
+
+  if (raw.includes("instagram") || raw === "ig") return "instagram";
+  if (raw.includes("facebook") || raw === "fb" || raw === "meta") return "facebook";
+  if (raw.includes("google")) return "google";
+  if (raw.includes("whatsapp") || raw.includes("wa.me")) return "whatsapp";
+  if (raw.includes("tiktok")) return "tiktok";
+  if (raw.includes("indic")) return "indicacao";
+  if (raw.includes("loja_fisica") || raw.includes("loja física") || raw === "loja") return "loja_fisica";
+  if (
+    raw.includes("catalog") ||
+    raw.includes("sramakeprudente") ||
+    raw.includes("vercel.app") ||
+    raw.includes("github.dev") ||
+    raw === "site"
+  ) return "catalogo";
+  if (raw === "manual") return "manual";
+  if (raw === "outro") return "outro";
+
+  return raw.slice(0, 100);
+}
+
 function sourceFromOrder(order: { origin: string | null; utmSource: string | null; channel: string }) {
-  return order.utmSource || order.origin || order.channel.toLowerCase();
+  const fallback = normalizeCrmSource(order.channel.toLowerCase(), "catalogo");
+  return normalizeCrmSource(order.utmSource || order.origin, fallback);
 }
 
 export async function syncOrderToCrm(orderId: string) {
