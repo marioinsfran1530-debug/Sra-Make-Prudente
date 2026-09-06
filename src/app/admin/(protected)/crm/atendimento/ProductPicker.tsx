@@ -25,16 +25,24 @@ function normalize(value: string) {
     .trim();
 }
 
-export default function ProductPicker({ products }: { products: ProductOption[] }) {
+export default function ProductPicker({
+  products,
+  required = false,
+  label = "Produto indicado",
+  emptyLabel = "Nenhum produto selecionado",
+}: {
+  products: ProductOption[];
+  required?: boolean;
+  label?: string;
+  emptyLabel?: string;
+}) {
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState("");
 
   const filtered = useMemo(() => {
     const term = normalize(query);
     const rows = term
-      ? products.filter((product) =>
-          normalize(`${product.name} ${product.brand}`).includes(term),
-        )
+      ? products.filter((product) => normalize(`${product.name} ${product.brand}`).includes(term))
       : products;
 
     return rows.slice(0, 12);
@@ -44,13 +52,13 @@ export default function ProductPicker({ products }: { products: ProductOption[] 
 
   return (
     <div>
-      <input type="hidden" name="productId" value={selectedId} required />
+      <input type="hidden" name="productId" value={selectedId} required={required} />
 
       <label htmlFor="crm-product-search" className="block text-xs font-bold text-texto">
-        Produto indicado
+        {label}
       </label>
 
-      <div className="mt-1 relative">
+      <div className="relative mt-1">
         <input
           id="crm-product-search"
           value={query}
@@ -71,7 +79,7 @@ export default function ProductPicker({ products }: { products: ProductOption[] 
         )}
       </div>
 
-      {selected && (
+      {selected ? (
         <div className="mt-2 flex items-start justify-between gap-3 rounded-xl border border-rosa-profundo/30 bg-rosa/5 px-3 py-3">
           <div className="min-w-0">
             <p className="text-xs font-extrabold text-texto">Selecionado</p>
@@ -86,6 +94,8 @@ export default function ProductPicker({ products }: { products: ProductOption[] 
             Trocar
           </button>
         </div>
+      ) : (
+        <p className="mt-2 text-[10px] text-cinza">{required ? "Selecione um produto para continuar." : emptyLabel}</p>
       )}
 
       <div className="mt-2 max-h-80 space-y-2 overflow-y-auto overscroll-contain pr-1">
@@ -97,9 +107,7 @@ export default function ProductPicker({ products }: { products: ProductOption[] 
               type="button"
               onClick={() => setSelectedId(product.id)}
               className={`w-full rounded-xl border px-3 py-3 text-left transition ${
-                active
-                  ? "border-rosa-profundo bg-rosa/5"
-                  : "border-rosa/10 bg-white active:bg-creme"
+                active ? "border-rosa-profundo bg-rosa/5" : "border-rosa/10 bg-white active:bg-creme"
               }`}
             >
               <div className="flex items-start justify-between gap-3">
