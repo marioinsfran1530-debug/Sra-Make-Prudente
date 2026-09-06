@@ -4,6 +4,7 @@ import { requireAdmin } from "@/lib/admin-auth";
 import { confirmOrder, cancelOrder, OrderError } from "@/lib/order-transactions";
 import { canTransitionOrder, isClosedOrderStatus, isValidOrderStatus } from "@/lib/order-rules";
 import { notifyOrderStatus } from "@/lib/order-push";
+import { syncCrmFromOrderStatus } from "@/lib/crm-order-sync";
 
 async function snapshotOrderCosts(orderId: string) {
   const items = await prisma.orderItem.findMany({
@@ -103,6 +104,12 @@ export async function PATCH(
           utmContent: order.utmContent,
         },
       });
+    }
+
+    try {
+      await syncCrmFromOrderStatus(id);
+    } catch (crmError) {
+      console.error("Falha ao sincronizar pedido com CRM:", crmError);
     }
 
     await notifyOrderStatus({
