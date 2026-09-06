@@ -121,15 +121,15 @@ export default async function AdminCrmPage({
         <div>
           <p className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-rosa-profundo">CRM Sra Make</p>
           <h1 className="font-serif text-2xl font-bold text-texto">Clientes e contatos</h1>
-          <p className="mt-1 max-w-2xl text-xs text-cinza">Todos os contatos ficam aqui, inclusive quem chamou no WhatsApp e ainda não realizou nenhuma compra.</p>
+          <p className="mt-1 max-w-2xl text-xs leading-relaxed text-cinza">Todos os contatos ficam aqui, inclusive quem chamou no WhatsApp e ainda não realizou nenhuma compra.</p>
         </div>
-        <div className="flex gap-2">
-          <Link href="/admin/crm/atendimento" className="rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-extrabold text-white">Atender no WhatsApp</Link>
-          <Link href="/admin/crm/novo" className="rounded-xl bg-rosa-profundo px-4 py-2.5 text-xs font-extrabold text-white">+ Novo contato</Link>
+        <div className="grid grid-cols-2 gap-2 sm:flex">
+          <Link href="/admin/crm/atendimento" className="rounded-xl bg-emerald-600 px-4 py-3 text-center text-xs font-extrabold text-white">Atender</Link>
+          <Link href="/admin/crm/novo" className="rounded-xl bg-rosa-profundo px-4 py-3 text-center text-xs font-extrabold text-white">+ Novo contato</Link>
         </div>
       </div>
 
-      <section className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+      <section className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-5">
         <Metric label="Contatos" value={String(rows.length)} />
         <Metric label="Prospects" value={String(prospects)} />
         <Metric label="Clientes VIP" value={String(vip)} />
@@ -141,12 +141,12 @@ export default async function AdminCrmPage({
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <form className="flex w-full max-w-md gap-2" action="/admin/crm">
             <input type="hidden" name="segment" value={segment} />
-            <input name="q" defaultValue={params?.q || ""} placeholder="Buscar cliente ou telefone" className="min-w-0 flex-1 rounded-xl border border-rosa/20 bg-creme/30 px-3 py-2.5 text-xs outline-none focus:border-rosa-profundo" />
-            <button className="rounded-xl border border-rosa/20 px-4 py-2.5 text-xs font-bold text-rosa-profundo">Buscar</button>
+            <input name="q" defaultValue={params?.q || ""} placeholder="Buscar cliente ou telefone" className="min-w-0 flex-1 rounded-xl border border-rosa/20 bg-creme/30 px-3 py-3 text-base outline-none focus:border-rosa-profundo sm:text-sm" />
+            <button className="rounded-xl border border-rosa/20 px-4 py-3 text-xs font-bold text-rosa-profundo">Buscar</button>
           </form>
           <div className="flex gap-1.5 overflow-x-auto pb-1">
             {segments.map(([key, label]) => (
-              <Link key={key} href={`/admin/crm?segment=${key}${params?.q ? `&q=${encodeURIComponent(params.q)}` : ""}`} className={`whitespace-nowrap rounded-full px-3 py-2 text-[11px] font-bold ${segment === key ? "bg-rosa-profundo text-white" : "bg-creme text-cinza hover:text-rosa-profundo"}`}>{label}</Link>
+              <Link key={key} href={`/admin/crm?segment=${key}${params?.q ? `&q=${encodeURIComponent(params.q)}` : ""}`} className={`whitespace-nowrap rounded-full px-3 py-2.5 text-[11px] font-bold ${segment === key ? "bg-rosa-profundo text-white" : "bg-creme text-cinza hover:text-rosa-profundo"}`}>{label}</Link>
             ))}
           </div>
         </div>
@@ -164,18 +164,18 @@ export default async function AdminCrmPage({
                     <span className={`rounded-full px-2 py-1 text-[9px] font-extrabold uppercase ${customer.status.tone}`}>{customer.status.label}</span>
                     {customer.followUps[0] && <span className="rounded-full bg-amber-50 px-2 py-1 text-[9px] font-bold text-amber-800">retorno {date(customer.followUps[0].dueAt)}</span>}
                   </div>
-                  <p className="mt-1 text-[11px] text-cinza">{formatPhone(customer.phone)} · {customer.lastOrderAt ? `última compra ${date(customer.lastOrderAt)}` : "ainda não comprou"} · origem {customer.source || "não informada"}</p>
-                  {customer.leads[0] && <p className="mt-1 truncate text-[10px] text-cinza">Em aberto: {customer.leads[0].stage.replaceAll("_", " ").toLowerCase()}{customer.leads[0].product?.name ? ` · ${customer.leads[0].product.name}` : ""}</p>}
-                  {!customer.leads[0] && customer.favorites.length > 0 && <p className="mt-1 truncate text-[10px] text-cinza">Mais comprados: {customer.favorites.join(" · ")}</p>}
+                  <p className="mt-1 text-[11px] leading-relaxed text-cinza">{formatPhone(customer.phone)} · {customer.lastOrderAt ? `última compra ${date(customer.lastOrderAt)}` : "ainda não comprou"} · origem {customer.source || "não informada"}</p>
+                  {customer.leads[0] && <p className="mt-1 line-clamp-2 text-[10px] leading-relaxed text-cinza">Em aberto: {customer.leads[0].stage.replaceAll("_", " ").toLowerCase()}{customer.leads[0].product?.name ? ` · ${customer.leads[0].product.name}` : ""}</p>}
+                  {!customer.leads[0] && customer.favorites.length > 0 && <p className="mt-1 line-clamp-2 text-[10px] leading-relaxed text-cinza">Mais comprados: {customer.favorites.join(" · ")}</p>}
                 </div>
                 <div className="grid grid-cols-3 gap-2 text-center sm:text-left">
                   <div><p className="text-[9px] uppercase text-cinza">Compras</p><p className="text-xs font-bold text-texto">{customer.completedCount}</p></div>
                   <div><p className="text-[9px] uppercase text-cinza">Total</p><p className="text-xs font-bold text-texto">{money(customer.totalSpent)}</p></div>
                   <div><p className="text-[9px] uppercase text-cinza">Ticket</p><p className="text-xs font-bold text-texto">{money(customer.averageTicket)}</p></div>
                 </div>
-                <div className="flex gap-2 sm:justify-end">
-                  <a href={whatsappUrl(customer.phone, `Olá, ${customer.name.split(" ")[0]}! Aqui é da Sra Make Prudente.`)} target="_blank" rel="noopener noreferrer" className="flex-1 rounded-xl bg-emerald-600 px-3 py-2 text-center text-[11px] font-extrabold text-white sm:flex-none">WhatsApp</a>
-                  <Link href={`/admin/crm/${encodeURIComponent(customer.phone)}`} className="flex-1 rounded-xl border border-rosa/20 px-3 py-2 text-center text-[11px] font-extrabold text-rosa-profundo sm:flex-none">Ver</Link>
+                <div className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
+                  <a href={whatsappUrl(customer.phone, `Olá, ${customer.name.split(" ")[0]}! Aqui é da Sra Make Prudente.`)} target="_blank" rel="noopener noreferrer" className="rounded-xl bg-emerald-600 px-3 py-3 text-center text-[11px] font-extrabold text-white">WhatsApp</a>
+                  <Link href={`/admin/crm/${encodeURIComponent(customer.phone)}`} className="rounded-xl border border-rosa/20 px-3 py-3 text-center text-[11px] font-extrabold text-rosa-profundo">Ver ficha</Link>
                 </div>
               </article>
             ))}
@@ -187,5 +187,5 @@ export default async function AdminCrmPage({
 }
 
 function Metric({ label, value, attention = false }: { label: string; value: string; attention?: boolean }) {
-  return <div className={`rounded-2xl border p-4 shadow-sm ${attention ? "border-amber-200 bg-amber-50" : "border-rosa/15 bg-white"}`}><p className="text-[9px] font-bold uppercase tracking-wide text-cinza">{label}</p><p className="mt-1 text-lg font-extrabold text-texto">{value}</p></div>;
+  return <div className={`rounded-2xl border p-3 shadow-sm sm:p-4 ${attention ? "border-amber-200 bg-amber-50" : "border-rosa/15 bg-white"}`}><p className="text-[8px] font-bold uppercase tracking-wide text-cinza sm:text-[9px]">{label}</p><p className="mt-1 text-base font-extrabold text-texto sm:text-lg">{value}</p></div>;
 }
