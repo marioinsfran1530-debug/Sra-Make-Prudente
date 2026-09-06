@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { moveLeadAction } from "../actions";
+import LeadStageForm from "./LeadStageForm";
 
 const stages = [
   ["NOVO", "Novo"],
@@ -20,6 +20,7 @@ type LeadRow = {
   estimatedValue: { toString(): string } | null;
   source: string | null;
   notes: string | null;
+  lostReason: string | null;
   updatedAt: Date;
   customerName: string;
   customerPhone: string;
@@ -33,7 +34,7 @@ function money(value: unknown) {
 
 export default async function FunilPage() {
   const leads = await prisma.$queryRaw<LeadRow[]>`
-    SELECT l."id", l."customerId", l."stage"::text AS "stage", l."estimatedValue", l."source", l."notes", l."updatedAt",
+    SELECT l."id", l."customerId", l."stage"::text AS "stage", l."estimatedValue", l."source", l."notes", l."lostReason", l."updatedAt",
            c."name" AS "customerName", c."phone" AS "customerPhone", p."name" AS "productName"
     FROM "CrmLead" l
     JOIN "Customer" c ON c."id" = l."customerId"
@@ -78,15 +79,10 @@ export default async function FunilPage() {
                         <span className="shrink-0 text-[11px] font-extrabold text-rosa-profundo">{money(lead.estimatedValue)}</span>
                       </div>
                       {lead.notes && <p className="mt-2 line-clamp-2 text-[10px] leading-relaxed text-cinza">{lead.notes}</p>}
+                      {lead.lostReason && <p className="mt-2 rounded-lg bg-zinc-50 px-2.5 py-2 text-[10px] font-bold text-zinc-600">Perda: {lead.lostReason}</p>}
                       <div className="mt-3 space-y-2">
                         <Link href={`/admin/crm/${encodeURIComponent(lead.customerPhone)}`} className="block rounded-lg bg-creme px-2 py-2.5 text-center text-[10px] font-extrabold text-texto">Abrir cliente</Link>
-                        <form action={moveLeadAction} className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
-                          <input type="hidden" name="id" value={lead.id} />
-                          <select name="stage" defaultValue={lead.stage} className="min-w-0 rounded-lg border border-rosa/15 bg-white px-2 py-2.5 text-base font-bold text-cinza sm:text-xs">
-                            {stages.map(([stage, stageLabel]) => <option key={stage} value={stage}>{stageLabel}</option>)}
-                          </select>
-                          <button className="rounded-lg bg-rosa-profundo px-3 py-2.5 text-[10px] font-extrabold text-white">Mover</button>
-                        </form>
+                        <LeadStageForm id={lead.id} initialStage={lead.stage} initialLostReason={lead.lostReason} />
                       </div>
                     </article>
                   ))}
