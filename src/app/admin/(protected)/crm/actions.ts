@@ -5,9 +5,10 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin-auth";
+import { normalizeCrmPhone } from "@/lib/crm-order-sync";
 
 function cleanPhone(value: FormDataEntryValue | null) {
-  return String(value ?? "").replace(/\D/g, "");
+  return normalizeCrmPhone(String(value ?? ""));
 }
 
 function text(value: FormDataEntryValue | null) {
