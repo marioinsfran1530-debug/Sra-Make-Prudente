@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin-auth";
 import { whatsappUrl } from "@/lib/crm";
 import { normalizeCrmPhone, normalizeCrmSource } from "@/lib/crm-order-sync";
+import { crmDateAtHourInDays } from "@/lib/crm-time";
 
 function cleanPhone(value: FormDataEntryValue | null) {
   return normalizeCrmPhone(String(value ?? ""));
@@ -94,8 +95,7 @@ export async function sendProductWhatsAppAction(formData: FormData) {
       });
 
   if (followUpDays > 0) {
-    const dueAt = new Date(Date.now() + followUpDays * 24 * 60 * 60 * 1000);
-    dueAt.setHours(10, 0, 0, 0);
+    const dueAt = crmDateAtHourInDays(followUpDays, 10);
     const existingFollowUp = await prisma.crmFollowUp.findFirst({
       where: { customerId: customer.id, leadId: lead.id, status: "PENDENTE" },
       orderBy: { dueAt: "asc" },

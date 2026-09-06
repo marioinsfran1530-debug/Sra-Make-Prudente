@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin-auth";
 import { normalizeCrmPhone, normalizeCrmSource } from "@/lib/crm-order-sync";
+import { crmLocalDateTimeToUtc } from "@/lib/crm-time";
 
 function cleanPhone(value: FormDataEntryValue | null) {
   return normalizeCrmPhone(String(value ?? ""));
@@ -34,6 +35,11 @@ export async function createLeadAction(formData: FormData) {
 
   if (!name || phone.length < 10) throw new Error("Nome e WhatsApp válido são obrigatórios.");
   if (estimatedValue !== null && (!Number.isFinite(estimatedValue) || estimatedValue < 0)) throw new Error("Valor estimado inválido.");
+
+  if (productId) {
+    const product = await prisma.product.findFirst({ where: { id: productId, active: true }, select: { id: true } });
+    if (!product) throw new Error("Produto de interesse inválido ou inativo.");
+  }
 
   const existing = await prisma.$queryRaw<Array<{ id: string }>>`
     SELECT "id" FROM "Customer" WHERE "phone" = ${phone} LIMIT 1
@@ -106,20 +112,36 @@ export async function moveLeadAction(formData: FormData) {
 
 export async function createFollowUpAction(formData: FormData) {
   await assertEditor();
-  const customerId = String(formData.get("customerId") ?? "");
+  const customerId = String(formData.get("customerId") ?? "").trim();
   const leadId = text(formData.get("leadId"));
   const reason = String(formData.get("reason") ?? "").trim();
   const dueAtRaw = String(formData.get("dueAt") ?? "").trim();
+
   if (!customerId || !reason || !dueAtRaw) throw new Error("Cliente, motivo e data são obrigatórios.");
+  const dueAt = crmLocalDateTimeToUtc(dueAtRaw);
+  if (!dueAt) throw new Error("Data inválida.");
 
-  const dueAt = new Date(dueAtRaw);
-  if (Number.isNaN(dueAt.getTime())) throw new Error("Data inválida.");
+  const customer = await prisma.customer.findUnique({ where: { id: customerId }, select: { id: true } });
+  if (!customer) throw new Error("Cliente não encontrado.");
 
-  const id = `fu_${randomUUID()}`;
-  await prisma.$executeRaw`
-    INSERT INTO "CrmFollowUp" ("id", "customerId", "leadId", "dueAt", "reason", "status", "createdAt", "updatedAt")
-    VALUES (${id}, ${customerId}, ${leadId}, ${dueAt}, ${reason}, 'PENDENTE'::"crm_follow_up_status", NOW(), NOW())
-  `;
+  if (leadId) {
+    const lead = await prisma.crmLead.findFirst({
+      where: { id: leadId, customerId, stage: { notIn: ["VENDIDO", "PERDIDO"] } },
+      select: { id: true },
+    });
+    if (!lead) throw new Error("A oportunidade selecionada não pertence a esta cliente ou já foi encerrada.");
+  }
+
+  await prisma.crmFollowUp.create({
+    data: {
+      id: `fu_${randomUUID()}`,
+      customerId,
+      leadId,
+      dueAt,
+      reason,
+      status: "PENDENTE",
+    },
+  });
 
   revalidatePath("/admin/crm");
   revalidatePath("/admin/crm/follow-ups");

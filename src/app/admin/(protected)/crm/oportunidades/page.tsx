@@ -1,10 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { whatsappUrl } from "@/lib/crm";
-
-function dateTime(value: Date) {
-  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(value);
-}
+import { crmTodayBounds, formatCrmDateTime } from "@/lib/crm-time";
 
 function money(value: unknown) {
   if (value == null) return "—";
@@ -13,10 +10,7 @@ function money(value: unknown) {
 
 export default async function OportunidadesPage() {
   const now = new Date();
-  const startToday = new Date(now);
-  startToday.setHours(0, 0, 0, 0);
-  const endToday = new Date(now);
-  endToday.setHours(23, 59, 59, 999);
+  const { start: startToday, end: endToday } = crmTodayBounds(now);
   const staleDate = new Date(now.getTime() - 48 * 60 * 60 * 1000);
   const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
 
@@ -92,7 +86,7 @@ export default async function OportunidadesPage() {
             ? `Olá, ${item.customer.name.split(" ")[0]}! Aqui é da Sra Make Prudente. Passando para saber se posso te ajudar com ${item.lead.product.name}.`
             : `Olá, ${item.customer.name.split(" ")[0]}! Aqui é da Sra Make Prudente. Passando para dar continuidade ao nosso atendimento.`;
           return (
-            <OpportunityRow key={item.id} name={item.customer.name} detail={`${item.reason} · ${dateTime(item.dueAt)}`} phone={item.customer.phone} customerId={item.customer.id} leadId={item.leadId} whatsapp={whatsappUrl(item.customer.phone, message)} badge={item.dueAt < startToday ? "Atrasado" : "Hoje"} />
+            <OpportunityRow key={item.id} name={item.customer.name} detail={`${item.reason} · ${formatCrmDateTime(item.dueAt)}`} phone={item.customer.phone} customerId={item.customer.id} leadId={item.leadId} whatsapp={whatsappUrl(item.customer.phone, message)} badge={item.dueAt < startToday ? "Atrasado" : "Hoje"} />
           );
         })}
       </OpportunitySection>
@@ -105,7 +99,7 @@ export default async function OportunidadesPage() {
 
       <OpportunitySection title="3. Atendimento parado há mais de 48h" subtitle="Contatos abertos que podem estar sendo esquecidos." empty="Nenhum atendimento parado.">
         {staleLeads.map((lead) => (
-          <OpportunityRow key={lead.id} name={lead.customer.name} detail={`${lead.product?.name || "Interesse não definido"} · sem atualização desde ${dateTime(lead.updatedAt)}`} phone={lead.customer.phone} customerId={lead.customer.id} leadId={lead.id} whatsapp={whatsappUrl(lead.customer.phone, `Olá, ${lead.customer.name.split(" ")[0]}! Aqui é da Sra Make Prudente. Ficou alguma dúvida sobre o produto que vimos?`)} badge="Retomar" />
+          <OpportunityRow key={lead.id} name={lead.customer.name} detail={`${lead.product?.name || "Interesse não definido"} · sem atualização desde ${formatCrmDateTime(lead.updatedAt)}`} phone={lead.customer.phone} customerId={lead.customer.id} leadId={lead.id} whatsapp={whatsappUrl(lead.customer.phone, `Olá, ${lead.customer.name.split(" ")[0]}! Aqui é da Sra Make Prudente. Ficou alguma dúvida sobre o produto que vimos?`)} badge="Retomar" />
         ))}
       </OpportunitySection>
 
@@ -114,7 +108,7 @@ export default async function OportunidadesPage() {
           const last = customer.orders[0];
           const favorite = last?.items[0]?.name || "sua última compra";
           return (
-            <OpportunityRow key={customer.id} name={customer.name} detail={`Última compra ${last ? dateTime(last.createdAt) : "—"} · ${last ? money(last.total) : "—"} · ${favorite}`} phone={customer.phone} customerId={customer.id} whatsapp={whatsappUrl(customer.phone, `Olá, ${customer.name.split(" ")[0]}! Aqui é da Sra Make Prudente. Faz um tempinho desde sua última compra e queria saber se precisa repor algum produto.`)} badge="Reativar" />
+            <OpportunityRow key={customer.id} name={customer.name} detail={`Última compra ${last ? formatCrmDateTime(last.createdAt) : "—"} · ${last ? money(last.total) : "—"} · ${favorite}`} phone={customer.phone} customerId={customer.id} whatsapp={whatsappUrl(customer.phone, `Olá, ${customer.name.split(" ")[0]}! Aqui é da Sra Make Prudente. Faz um tempinho desde sua última compra e queria saber se precisa repor algum produto.`)} badge="Reativar" />
           );
         })}
       </OpportunitySection>
