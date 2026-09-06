@@ -5,10 +5,10 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin-auth";
 import { whatsappUrl } from "@/lib/crm";
+import { normalizeCrmPhone, normalizeCrmSource } from "@/lib/crm-order-sync";
 
 function cleanPhone(value: FormDataEntryValue | null) {
-  const digits = String(value ?? "").replace(/\D/g, "");
-  return digits.startsWith("55") && digits.length >= 12 ? digits.slice(2) : digits;
+  return normalizeCrmPhone(String(value ?? ""));
 }
 
 function text(value: FormDataEntryValue | null) {
@@ -22,7 +22,7 @@ export async function sendProductWhatsAppAction(formData: FormData) {
 
   const selectedCustomerId = text(formData.get("customerId"));
   const productId = String(formData.get("productId") ?? "").trim();
-  const source = text(formData.get("source")) || "whatsapp";
+  const source = normalizeCrmSource(text(formData.get("source")), "whatsapp");
   const notes = text(formData.get("notes"));
   const followUpDays = Math.max(0, Math.min(30, Number(formData.get("followUpDays") ?? 1) || 0));
 
