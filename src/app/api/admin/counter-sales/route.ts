@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { CounterSaleError, createCounterSale } from "@/lib/counter-sale";
+import { syncOrderToCrm } from "@/lib/crm-order-sync";
 
 type Body = {
   idempotencyKey?: string;
@@ -41,6 +42,12 @@ export async function POST(request: NextRequest) {
       notes: typeof body.notes === "string" ? body.notes : "",
       createdById: session.id,
     });
+
+    try {
+      await syncOrderToCrm(order.id);
+    } catch (crmError) {
+      console.error("Falha ao sincronizar venda de balcão com CRM:", crmError);
+    }
 
     return NextResponse.json({
       order: {
