@@ -29,7 +29,7 @@ export default async function AdminCrmCustomerPage({ params }: { params: Promise
         orderBy: { updatedAt: "desc" },
         include: { product: { select: { name: true } }, followUps: { orderBy: { dueAt: "desc" }, take: 3 } },
       },
-      followUps: { orderBy: { dueAt: "desc" }, take: 20 },
+      followUps: { orderBy: { dueAt: "desc" }, take: 50 },
     },
   });
   if (!customer) notFound();
@@ -45,9 +45,23 @@ export default async function AdminCrmCustomerPage({ params }: { params: Promise
   }
   const favorites = Array.from(productQty.entries()).sort((a, b) => b[1] - a[1]).slice(0, 5);
   const openLeads = customer.leads.filter((lead) => !["VENDIDO", "PERDIDO"].includes(lead.stage));
-  const pendingFollowUps = customer.followUps.filter((item) => item.status === "PENDENTE");
+  const pendingFollowUps = customer.followUps
+    .filter((item) => item.status === "PENDENTE")
+    .sort((a, b) => a.dueAt.getTime() - b.dueAt.getTime());
   const firstName = customer.name.split(" ")[0];
   const followupUrl = whatsappUrl(customer.phone, `Olá, ${firstName}! Aqui é da Sra Make Prudente. Passando para dar continuidade ao nosso atendimento.`);
+  const nextFollowUp = pendingFollowUps[0] || null;
+  const nextLead = openLeads[0] || null;
+
+  const nextAction = nextFollowUp
+    ? { title: "Retorno agendado", detail: `${nextFollowUp.reason} · ${dateTime(nextFollowUp.dueAt)}`, tone: "border-amber-200 bg-amber-50" }
+    : nextLead
+      ? { title: "Oportunidade aberta", detail: `${nextLead.product?.name || "Interesse sem produto definido"} · ${stageLabel(nextLead.stage)}`, tone: "border-sky-200 bg-sky-50" }
+      : daysSinceLastOrder !== null && daysSinceLastOrder >= 60
+        ? { title: "Reativar cliente", detail: `Está há ${daysSinceLastOrder} dias sem comprar.`, tone: "border-orange-200 bg-orange-50" }
+        : completed.length === 0
+          ? { title: "Primeira oportunidade", detail: "Ainda não comprou. Registre o interesse e indique um produto.", tone: "border-rosa/20 bg-rosa/5" }
+          : { title: "Sem ação pendente", detail: "Não há follow-up ou oportunidade aberta para este contato.", tone: "border-rosa/15 bg-white" };
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
@@ -59,17 +73,31 @@ export default async function AdminCrmCustomerPage({ params }: { params: Promise
             <span className={`rounded-full px-2.5 py-1 text-[9px] font-extrabold uppercase ${completed.length ? "bg-emerald-50 text-emerald-700" : "bg-sky-50 text-sky-700"}`}>{completed.length ? "Cliente" : "Prospect"}</span>
             {customer.marketingConsent && <span className="rounded-full bg-rosa/15 px-2.5 py-1 text-[9px] font-extrabold uppercase text-rosa-profundo">Aceita novidades</span>}
           </div>
-          <p className="mt-1 text-xs text-cinza">{formatPhone(customer.phone)} · contato criado em {dateTime(customer.createdAt)} · origem {customer.source || "não informada"}</p>
+          <p className="mt-1 text-xs leading-relaxed text-cinza">{formatPhone(customer.phone)} · contato criado em {dateTime(customer.createdAt)} · origem {customer.source || "não informada"}</p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Link href={`/admin/crm/atendimento?customerId=${encodeURIComponent(customer.id)}`} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-extrabold text-white">Indicar produto</Link>
-          <a href={followupUrl} target="_blank" rel="noopener noreferrer" className="rounded-xl border border-emerald-600 px-4 py-2.5 text-xs font-extrabold text-emerald-700">WhatsApp</a>
-          <Link href={`/admin/crm/follow-ups/novo?customerId=${encodeURIComponent(customer.id)}`} className="rounded-xl border border-rosa/20 px-4 py-2.5 text-xs font-extrabold text-rosa-profundo">Agendar retorno</Link>
-          <Link href="/admin/vendas/nova" className="rounded-xl bg-rosa-profundo px-4 py-2.5 text-xs font-extrabold text-white">Nova venda</Link>
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+          <Link href={`/admin/crm/atendimento?customerId=${encodeURIComponent(customer.id)}`} className="rounded-xl bg-emerald-600 px-4 py-3 text-center text-xs font-extrabold text-white">Indicar produto</Link>
+          <a href={followupUrl} target="_blank" rel="noopener noreferrer" className="rounded-xl border border-emerald-600 px-4 py-3 text-center text-xs font-extrabold text-emerald-700">WhatsApp</a>
+          <Link href={`/admin/crm/follow-ups/novo?customerId=${encodeURIComponent(customer.id)}`} className="rounded-xl border border-rosa/20 px-4 py-3 text-center text-xs font-extrabold text-rosa-profundo">Agendar retorno</Link>
+          <Link href="/admin/vendas/nova" className="rounded-xl bg-rosa-profundo px-4 py-3 text-center text-xs font-extrabold text-white">Nova venda</Link>
         </div>
       </div>
 
-      <section className="grid grid-cols-2 gap-3 lg:grid-cols-6">
+      <section className={`rounded-2xl border p-4 shadow-sm ${nextAction.tone}`}>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-[9px] font-extrabold uppercase tracking-[0.16em] text-cinza">Próxima ação</p>
+            <p className="mt-1 text-sm font-extrabold text-texto">{nextAction.title}</p>
+            <p className="mt-1 text-xs leading-relaxed text-cinza">{nextAction.detail}</p>
+          </div>
+          <div className="grid grid-cols-2 gap-2 sm:flex">
+            <a href={followupUrl} target="_blank" rel="noopener noreferrer" className="rounded-xl bg-emerald-600 px-4 py-3 text-center text-[11px] font-extrabold text-white">WhatsApp</a>
+            <Link href={`/admin/crm/follow-ups/novo?customerId=${encodeURIComponent(customer.id)}${nextLead ? `&leadId=${encodeURIComponent(nextLead.id)}` : ""}`} className="rounded-xl border border-rosa/20 bg-white px-4 py-3 text-center text-[11px] font-extrabold text-rosa-profundo">Agendar</Link>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid grid-cols-3 gap-2 sm:grid-cols-2 sm:gap-3 lg:grid-cols-6">
         <Metric label="Compras" value={String(completed.length)} />
         <Metric label="Total comprado" value={money(totalSpent)} />
         <Metric label="Ticket médio" value={money(averageTicket)} />
@@ -143,7 +171,7 @@ export default async function AdminCrmCustomerPage({ params }: { params: Promise
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
-  return <div className="rounded-2xl border border-rosa/15 bg-white p-4 shadow-sm"><p className="text-[9px] font-bold uppercase tracking-wide text-cinza">{label}</p><p className="mt-1 text-base font-extrabold text-texto">{value}</p></div>;
+  return <div className="rounded-2xl border border-rosa/15 bg-white p-3 shadow-sm sm:p-4"><p className="text-[8px] font-bold uppercase tracking-wide text-cinza sm:text-[9px]">{label}</p><p className="mt-1 text-sm font-extrabold text-texto sm:text-base">{value}</p></div>;
 }
 
 function Row({ label, value }: { label: string; value: string }) {

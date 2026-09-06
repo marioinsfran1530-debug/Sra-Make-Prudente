@@ -79,18 +79,28 @@ export async function moveLeadAction(formData: FormData) {
   await assertEditor();
   const id = String(formData.get("id") ?? "");
   const stage = String(formData.get("stage") ?? "");
+  const lostReason = text(formData.get("lostReason"));
+
   if (!id || !validStages.has(stage)) throw new Error("Etapa inválida.");
+  if (stage === "PERDIDO" && !lostReason) throw new Error("Informe o motivo da perda.");
 
   const closed = stage === "VENDIDO" || stage === "PERDIDO";
   await prisma.$executeRawUnsafe(
-    `UPDATE "CrmLead" SET "stage" = $1::"crm_lead_stage", "closedAt" = CASE WHEN $2 THEN NOW() ELSE NULL END, "updatedAt" = NOW() WHERE "id" = $3`,
+    `UPDATE "CrmLead"
+     SET "stage" = $1::"crm_lead_stage",
+         "closedAt" = CASE WHEN $2 THEN NOW() ELSE NULL END,
+         "lostReason" = CASE WHEN $1 = 'PERDIDO' THEN $3 ELSE NULL END,
+         "updatedAt" = NOW()
+     WHERE "id" = $4`,
     stage,
     closed,
+    lostReason,
     id,
   );
 
   revalidatePath("/admin/crm");
   revalidatePath("/admin/crm/funil");
+  revalidatePath("/admin/crm/oportunidades");
 }
 
 export async function createFollowUpAction(formData: FormData) {
@@ -112,6 +122,7 @@ export async function createFollowUpAction(formData: FormData) {
 
   revalidatePath("/admin/crm");
   revalidatePath("/admin/crm/follow-ups");
+  revalidatePath("/admin/crm/oportunidades");
 }
 
 export async function completeFollowUpAction(formData: FormData) {
@@ -127,4 +138,5 @@ export async function completeFollowUpAction(formData: FormData) {
 
   revalidatePath("/admin/crm");
   revalidatePath("/admin/crm/follow-ups");
+  revalidatePath("/admin/crm/oportunidades");
 }

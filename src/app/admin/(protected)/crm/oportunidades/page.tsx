@@ -69,13 +69,16 @@ export default async function OportunidadesPage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
-      <div>
-        <p className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-rosa-profundo">CRM Sra Make</p>
-        <h1 className="font-serif text-2xl font-bold text-texto">Oportunidades de hoje</h1>
-        <p className="mt-1 text-xs text-cinza">Fila prática de quem merece atenção agora, sem disparo automático e sem API oficial do WhatsApp.</p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-rosa-profundo">CRM Sra Make</p>
+          <h1 className="font-serif text-2xl font-bold text-texto">Oportunidades de hoje</h1>
+          <p className="mt-1 text-xs leading-relaxed text-cinza">Fila prática de quem merece atenção agora, sem disparo automático e sem API oficial do WhatsApp.</p>
+        </div>
+        <Link href="/admin/crm/atendimento" className="rounded-xl bg-emerald-600 px-4 py-3 text-center text-xs font-extrabold text-white">Novo atendimento</Link>
       </div>
 
-      <section className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+      <section className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-5">
         <Metric label="Ações sugeridas" value={String(totalActions)} />
         <Metric label="Follow-ups" value={String(followUps.length)} />
         <Metric label="Atrasados" value={String(overdue)} attention={overdue > 0} />
@@ -120,7 +123,7 @@ export default async function OportunidadesPage() {
 }
 
 function Metric({ label, value, attention = false }: { label: string; value: string; attention?: boolean }) {
-  return <div className={`rounded-2xl border p-4 shadow-sm ${attention ? "border-amber-200 bg-amber-50" : "border-rosa/15 bg-white"}`}><p className="text-[9px] font-bold uppercase tracking-wide text-cinza">{label}</p><p className="mt-1 text-lg font-extrabold text-texto">{value}</p></div>;
+  return <div className={`rounded-2xl border p-3 shadow-sm sm:p-4 ${attention ? "border-amber-200 bg-amber-50" : "border-rosa/15 bg-white"}`}><p className="text-[8px] font-bold uppercase tracking-wide text-cinza sm:text-[9px]">{label}</p><p className="mt-1 text-lg font-extrabold text-texto">{value}</p></div>;
 }
 
 function OpportunitySection({ title, subtitle, empty, children }: { title: string; subtitle: string; empty: string; children: React.ReactNode }) {
@@ -128,7 +131,7 @@ function OpportunitySection({ title, subtitle, empty, children }: { title: strin
   const hasRows = rows.some(Boolean);
   return (
     <section className="overflow-hidden rounded-2xl border border-rosa/15 bg-white shadow-sm">
-      <div className="border-b border-rosa/10 px-4 py-3"><h2 className="text-sm font-extrabold text-texto">{title}</h2><p className="mt-1 text-[10px] text-cinza">{subtitle}</p></div>
+      <div className="border-b border-rosa/10 px-4 py-3"><h2 className="text-sm font-extrabold text-texto">{title}</h2><p className="mt-1 text-[10px] leading-relaxed text-cinza">{subtitle}</p></div>
       {hasRows ? <div className="divide-y divide-rosa/10">{children}</div> : <p className="px-4 py-8 text-center text-xs text-cinza">{empty}</p>}
     </section>
   );
@@ -137,8 +140,17 @@ function OpportunitySection({ title, subtitle, empty, children }: { title: strin
 function OpportunityRow({ name, detail, phone, customerId, leadId, whatsapp, badge }: { name: string; detail: string; phone: string; customerId: string; leadId?: string | null; whatsapp: string; badge: string }) {
   return (
     <article className="grid gap-3 px-4 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-      <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><Link href={`/admin/crm/${encodeURIComponent(phone)}`} className="text-sm font-extrabold text-texto hover:text-rosa-profundo">{name}</Link><span className="rounded-full bg-creme px-2 py-1 text-[9px] font-extrabold uppercase text-rosa-profundo">{badge}</span></div><p className="mt-1 text-[10px] leading-relaxed text-cinza">{detail}</p></div>
-      <div className="flex gap-2"><a href={whatsapp} target="_blank" rel="noopener noreferrer" className="rounded-xl bg-emerald-600 px-3 py-2 text-[10px] font-extrabold text-white">WhatsApp</a><Link href={`/admin/crm/follow-ups/novo?customerId=${encodeURIComponent(customerId)}${leadId ? `&leadId=${encodeURIComponent(leadId)}` : ""}`} className="rounded-xl border border-rosa/20 px-3 py-2 text-[10px] font-extrabold text-rosa-profundo">Agendar</Link></div>
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <Link href={`/admin/crm/${encodeURIComponent(phone)}`} className="text-sm font-extrabold text-texto hover:text-rosa-profundo">{name}</Link>
+          <span className="rounded-full bg-creme px-2 py-1 text-[9px] font-extrabold uppercase text-rosa-profundo">{badge}</span>
+        </div>
+        <p className="mt-1 text-[11px] leading-relaxed text-cinza">{detail}</p>
+      </div>
+      <div className="grid grid-cols-2 gap-2 sm:flex">
+        <a href={whatsapp} target="_blank" rel="noopener noreferrer" className="rounded-xl bg-emerald-600 px-4 py-3 text-center text-[11px] font-extrabold text-white">WhatsApp</a>
+        <Link href={`/admin/crm/follow-ups/novo?customerId=${encodeURIComponent(customerId)}${leadId ? `&leadId=${encodeURIComponent(leadId)}` : ""}`} className="rounded-xl border border-rosa/20 px-4 py-3 text-center text-[11px] font-extrabold text-rosa-profundo">Agendar</Link>
+      </div>
     </article>
   );
 }
