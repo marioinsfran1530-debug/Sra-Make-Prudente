@@ -52,6 +52,18 @@ function timeZoneOffsetMs(date: Date, timeZone = CRM_TIME_ZONE) {
   return renderedAsUtc - date.getTime();
 }
 
+function wallClockToUtc(year: number, month: number, day: number, hour: number, minute: number) {
+  const wallClockUtc = Date.UTC(year, month - 1, day, hour, minute, 0);
+  let candidate = new Date(wallClockUtc);
+  let offset = timeZoneOffsetMs(candidate);
+  candidate = new Date(wallClockUtc - offset);
+
+  const correctedOffset = timeZoneOffsetMs(candidate);
+  if (correctedOffset !== offset) candidate = new Date(wallClockUtc - correctedOffset);
+
+  return candidate;
+}
+
 export function crmLocalDateTimeToUtc(value: string) {
   const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value.trim());
   if (!match) return null;
@@ -71,38 +83,38 @@ export function crmLocalDateTimeToUtc(value: string) {
     minute < 0 || minute > 59
   ) return null;
 
-  const wallClockUtc = Date.UTC(year, month - 1, day, hour, minute, 0);
-  let candidate = new Date(wallClockUtc);
-  let offset = timeZoneOffsetMs(candidate);
-  candidate = new Date(wallClockUtc - offset);
+  const candidate = wallClockToUtc(year, month, day, hour, minute);
+  if (Number.isNaN(candidate.getTime())) return null;
 
-  const correctedOffset = timeZoneOffsetMs(candidate);
-  if (correctedOffset !== offset) {
-    candidate = new Date(wallClockUtc - correctedOffset);
-  }
+  const rendered = partsInTimeZone(candidate);
+  if (
+    rendered.year !== year ||
+    rendered.month !== month ||
+    rendered.day !== day ||
+    rendered.hour !== hour ||
+    rendered.minute !== minute
+  ) return null;
 
-  return Number.isNaN(candidate.getTime()) ? null : candidate;
+  return candidate;
 }
 
 export function crmDateAtHourInDays(days: number, hour = 10, now = new Date()) {
   const current = partsInTimeZone(now);
   const calendarTarget = new Date(Date.UTC(current.year, current.month - 1, current.day + days));
-  const wallClockUtc = Date.UTC(
+
+  return wallClockToUtc(
     calendarTarget.getUTCFullYear(),
-    calendarTarget.getUTCMonth(),
+    calendarTarget.getUTCMonth() + 1,
     calendarTarget.getUTCDate(),
     hour,
-    0,
     0
   );
+}
 
-  let candidate = new Date(wallClockUtc);
-  let offset = timeZoneOffsetMs(candidate);
-  candidate = new Date(wallClockUtc - offset);
-  const correctedOffset = timeZoneOffsetMs(candidate);
-  if (correctedOffset !== offset) candidate = new Date(wallClockUtc - correctedOffset);
-
-  return candidate;
+export function crmTodayBounds(now = new Date()) {
+  const start = crmDateAtHourInDays(0, 0, now);
+  const nextStart = crmDateAtHourInDays(1, 0, now);
+  return { start, end: new Date(nextStart.getTime() - 1) };
 }
 
 export function formatCrmDateTime(value: Date) {
