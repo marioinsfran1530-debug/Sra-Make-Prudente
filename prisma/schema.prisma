@@ -68,6 +68,7 @@ model Product {
   images         ProductImage[]
   variants       ProductVariant[]
   campaignLinks  CampaignLinkMetric[]
+  crmLeads       CrmLead[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -148,6 +149,88 @@ model AiSuggestionMetric {
   @@index([model, promptVersion, createdAt])
 }
 
+// ---------- CRM ----------
+
+enum crm_lead_stage {
+  NOVO
+  ATENDIMENTO
+  PRODUTO_INDICADO
+  AGUARDANDO_PAGAMENTO
+  VENDIDO
+  PERDIDO
+  POS_VENDA
+  RECOMPRA
+}
+
+enum crm_follow_up_status {
+  PENDENTE
+  CONCLUIDO
+  CANCELADO
+}
+
+model Customer {
+  id               String        @id @default(cuid())
+  name             String
+  phone            String        @unique
+  marketingConsent Boolean       @default(false)
+  source           String?
+  notes            String?
+  lastContactAt    DateTime?
+  orders           Order[]
+  leads            CrmLead[]
+  followUps        CrmFollowUp[]
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  @@index([lastContactAt])
+}
+
+model CrmLead {
+  id             String         @id @default(cuid())
+  customerId     String
+  customer       Customer       @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  stage          crm_lead_stage @default(NOVO)
+  productId      String?
+  product        Product?       @relation(fields: [productId], references: [id], onDelete: SetNull)
+  estimatedValue Decimal?       @db.Decimal(10, 2)
+  source         String?
+  notes          String?
+  lostReason     String?
+  assignedToId   String?
+  assignedTo     AdminProfile?  @relation("CrmLeadAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  lastContactAt  DateTime?
+  closedAt       DateTime?
+  followUps      CrmFollowUp[]
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([customerId, stage])
+  @@index([stage, updatedAt])
+  @@index([productId])
+  @@index([assignedToId])
+}
+
+model CrmFollowUp {
+  id          String               @id @default(cuid())
+  customerId  String
+  customer    Customer             @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  leadId      String?
+  lead        CrmLead?             @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  dueAt       DateTime
+  reason      String
+  status      crm_follow_up_status @default(PENDENTE)
+  createdById String?
+  createdBy   AdminProfile?        @relation("CrmFollowUpCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  completedAt DateTime?
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  @@index([status, dueAt])
+  @@index([customerId, dueAt])
+  @@index([leadId])
+  @@index([createdById])
+}
+
 // ---------- Pedidos / vendas ----------
 
 enum payment_method {
@@ -187,6 +270,8 @@ model Order {
   number        Int    @unique @default(autoincrement())
   customerName  String
   customerPhone String
+  customerId    String?
+  customer      Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
   subtotal      Decimal @db.Decimal(10, 2)
   discount      Decimal @default(0) @db.Decimal(10, 2)
   deliveryFee   Decimal @default(0) @db.Decimal(10, 2)
@@ -214,6 +299,7 @@ model Order {
 
   @@index([channel, createdAt])
   @@index([createdById, createdAt])
+  @@index([customerId, createdAt])
 }
 
 model OrderPayment {
@@ -282,14 +368,16 @@ enum admin_role {
 }
 
 model AdminProfile {
-  id        String     @id
-  email     String     @unique
-  name      String?
-  role      admin_role @default(EDITOR)
-  active    Boolean    @default(true)
-  orders    Order[]
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  id                  String        @id
+  email               String        @unique
+  name                String?
+  role                admin_role    @default(EDITOR)
+  active              Boolean       @default(true)
+  orders              Order[]
+  crmLeadsAssigned    CrmLead[]     @relation("CrmLeadAssignee")
+  crmFollowUpsCreated CrmFollowUp[] @relation("CrmFollowUpCreator")
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
 }
 
 model StoreSettings {
