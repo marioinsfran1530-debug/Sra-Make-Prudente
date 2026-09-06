@@ -40,8 +40,13 @@ export default function FollowUpTargetPicker({
 
   const filteredCustomers = useMemo(() => {
     const term = normalize(query);
+    const phoneTerm = query.replace(/\D/g, "");
     const rows = term
-      ? customers.filter((customer) => normalize(`${customer.name} ${customer.phone}`).includes(term.replace(/\D/g, "") || term) || normalize(customer.name).includes(term))
+      ? customers.filter((customer) => {
+          const matchesName = normalize(customer.name).includes(term);
+          const matchesPhone = phoneTerm.length > 0 && customer.phone.replace(/\D/g, "").includes(phoneTerm);
+          return matchesName || matchesPhone;
+        })
       : customers;
     return rows.slice(0, 10);
   }, [customers, query]);
