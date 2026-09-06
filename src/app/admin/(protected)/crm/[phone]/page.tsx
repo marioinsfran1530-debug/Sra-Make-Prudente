@@ -11,9 +11,8 @@ function dateTime(value: Date) {
   return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(value);
 }
 
-export default async function AdminCrmCustomerPage({ params }: { params: Promise<{ phone: string }> }) {
-  const { phone } = await params;
-  const key = decodeURIComponent(phone);
+export default async function AdminCrmCustomerPage({ params }: { params: { phone: string } }) {
+  const key = decodeURIComponent(params.phone);
 
   const orders = await prisma.order.findMany({
     orderBy: { createdAt: "desc" },
@@ -94,9 +93,7 @@ export default async function AdminCrmCustomerPage({ params }: { params: Promise
               <div className="mt-3 space-y-2">
                 {customer.favoriteProducts.map((item, index) => (
                   <div key={item.name} className="flex items-center justify-between rounded-xl bg-creme/60 px-3 py-2.5">
-                    <div className="min-w-0">
-                      <p className="truncate text-xs font-bold text-texto">{index + 1}. {item.name}</p>
-                    </div>
+                    <div className="min-w-0"><p className="truncate text-xs font-bold text-texto">{index + 1}. {item.name}</p></div>
                     <span className="ml-3 shrink-0 text-[10px] font-bold text-cinza">{item.qty} un.</span>
                   </div>
                 ))}
