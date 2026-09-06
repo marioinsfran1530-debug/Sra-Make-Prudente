@@ -78,13 +78,14 @@ export default async function FunilPage() {
                         <span className="shrink-0 text-[10px] font-extrabold text-rosa-profundo">{money(lead.estimatedValue)}</span>
                       </div>
                       {lead.notes && <p className="mt-2 line-clamp-2 text-[10px] leading-relaxed text-cinza">{lead.notes}</p>}
-                      <div className="mt-3 flex gap-1.5">
-                        <Link href={`/admin/crm/${encodeURIComponent(lead.customerPhone)}`} className="flex-1 rounded-lg bg-creme px-2 py-2 text-center text-[9px] font-extrabold text-texto">Cliente</Link>
-                        <form action={moveLeadAction} className="flex-1">
+                      <div className="mt-3 space-y-1.5">
+                        <Link href={`/admin/crm/${encodeURIComponent(lead.customerPhone)}`} className="block rounded-lg bg-creme px-2 py-2 text-center text-[9px] font-extrabold text-texto">Abrir cliente</Link>
+                        <form action={moveLeadAction} className="flex gap-1.5">
                           <input type="hidden" name="id" value={lead.id} />
-                          <select name="stage" defaultValue={lead.stage} onChange={(e) => e.currentTarget.form?.requestSubmit()} className="w-full rounded-lg border border-rosa/15 bg-white px-1.5 py-2 text-[9px] font-bold text-cinza">
+                          <select name="stage" defaultValue={lead.stage} className="min-w-0 flex-1 rounded-lg border border-rosa/15 bg-white px-1.5 py-2 text-[9px] font-bold text-cinza">
                             {stages.map(([stage, stageLabel]) => <option key={stage} value={stage}>{stageLabel}</option>)}
                           </select>
+                          <button className="rounded-lg bg-rosa-profundo px-2.5 py-2 text-[9px] font-extrabold text-white">Mover</button>
                         </form>
                       </div>
                     </article>
