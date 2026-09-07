@@ -2,7 +2,17 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Store, Truck, Send, ArrowLeft, Bell } from "lucide-react";
+import {
+  Store,
+  Truck,
+  Send,
+  ArrowLeft,
+  Bell,
+  CheckCircle2,
+  MessageCircle,
+  Copy,
+  ShoppingBag,
+} from "lucide-react";
 import { useCart } from "@/components/CartProvider";
 import { money } from "@/lib/money";
 import { waLink, buildOrderMessage } from "@/lib/whatsapp";
@@ -17,6 +27,14 @@ const PAYMENT_OPTIONS: { value: string; label: string }[] = [
   { value: "CARTAO", label: "Cartão" },
   { value: "CONFIRMAR_WHATSAPP", label: "Confirmar pelo WhatsApp" },
 ];
+
+type CheckoutSuccess = {
+  orderNumber: number;
+  total: number;
+  duplicate: boolean;
+  message: string;
+  whatsappUrl: string;
+};
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -34,26 +52,8 @@ export default function CheckoutPage() {
   const [wantsNotifications, setWantsNotifications] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  if (items.length === 0 && step === "form") {
-    return (
-      <main className="max-w-xl mx-auto px-6 py-20 pb-28 text-center">
-        <p className="font-serif font-bold text-xl text-texto">
-          Seu carrinho está vazio
-        </p>
-        <p className="text-sm text-cinza mt-2">
-          Adicione produtos antes de continuar.
-        </p>
-        <button
-          onClick={() => router.push("/categoria")}
-          className="mt-5 text-sm font-bold px-6 py-3 rounded-full text-white"
-          style={{ backgroundColor: "#E4127B" }}
-        >
-          Ver catálogo
-        </button>
-      </main>
-    );
-  }
+  const [success, setSuccess] = useState<CheckoutSuccess | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const canReview =
     name.trim() &&
@@ -97,7 +97,7 @@ export default function CheckoutPage() {
         setError(
           typeof data.error === "string"
             ? data.error
-            : "Não foi possível enviar o pedido. Tente novamente."
+            : "Não foi possível registrar o pedido. Tente novamente."
         );
         setSubmitting(false);
         return;
@@ -117,7 +117,7 @@ export default function CheckoutPage() {
         notes,
       });
 
-      clear();
+      const whatsappUrl = waLink(message);
 
       trackEvent("order_created", {
         orderNumber: data.orderNumber,
@@ -125,19 +125,134 @@ export default function CheckoutPage() {
         duplicate: data.duplicate === true,
       });
 
-      trackEvent("whatsapp_click", {
-        context: "checkout",
+      clear();
+      setSubmitting(false);
+      setSuccess({
         orderNumber: data.orderNumber,
+        total: data.total,
+        duplicate: data.duplicate === true,
+        message,
+        whatsappUrl,
       });
-
-      window.open(waLink(message), "_blank");
-      router.push("/");
     } catch {
       setError(
         "Não foi possível confirmar o pedido agora. Verifique sua conexão e tente novamente. Se o pedido já tiver sido recebido, o sistema evitará criar outro igual."
       );
       setSubmitting(false);
     }
+  }
+
+  function handleWhatsAppClick() {
+    if (!success) return;
+
+    trackEvent("whatsapp_click", {
+      context: "checkout_success",
+      orderNumber: success.orderNumber,
+    });
+  }
+
+  async function handleCopyMessage() {
+    if (!success) return;
+
+    try {
+      await navigator.clipboard.writeText(success.message);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      window.prompt("Copie a mensagem do pedido:", success.message);
+    }
+  }
+
+  if (success) {
+    return (
+      <main className="mx-auto max-w-xl px-4 py-8 pb-28 sm:py-12">
+        <div className="rounded-3xl border border-rosa/15 bg-white p-5 text-center shadow-sm sm:p-7">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-green-50 text-green-600">
+            <CheckCircle2 size={30} />
+          </div>
+
+          <p className="mt-4 text-[10px] font-bold uppercase tracking-[0.16em] text-rosa-profundo">
+            Pedido registrado
+          </p>
+          <h1 className="mt-1 font-serif text-2xl font-bold text-texto">
+            Pedido #{success.orderNumber} recebido
+          </h1>
+          <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-cinza">
+            Seu pedido já está salvo no sistema da Sra Make. Agora abra o WhatsApp e envie a mensagem pronta para confirmar o atendimento com a loja.
+          </p>
+
+          <div className="mt-5 flex items-center justify-between rounded-2xl bg-creme/60 px-4 py-3 text-left">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wide text-cinza">
+                Total do pedido
+              </p>
+              <p className="text-xs text-texto">
+                {success.duplicate
+                  ? "Pedido já registrado com segurança"
+                  : "Registro concluído com sucesso"}
+              </p>
+            </div>
+            <strong className="text-lg text-rosa-profundo">
+              {money(success.total)}
+            </strong>
+          </div>
+
+          <a
+            href={success.whatsappUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={handleWhatsAppClick}
+            className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl px-5 py-3.5 text-sm font-bold text-white shadow-sm"
+            style={{ backgroundColor: "#25D366" }}
+          >
+            <MessageCircle size={18} />
+            Abrir WhatsApp para confirmar
+          </a>
+
+          <button
+            type="button"
+            onClick={handleCopyMessage}
+            className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl border border-rosa/20 px-5 py-3 text-xs font-bold text-texto"
+          >
+            <Copy size={15} />
+            {copied ? "Mensagem copiada" : "Copiar mensagem do pedido"}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => router.push("/")}
+            className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl px-5 py-3 text-xs font-bold text-rosa-profundo"
+          >
+            <ShoppingBag size={15} />
+            Continuar comprando
+          </button>
+
+          <p className="mt-4 text-[10px] leading-relaxed text-cinza">
+            Se o WhatsApp não abrir, toque novamente ou copie a mensagem. Seu pedido já foi registrado e não precisa ser feito outra vez.
+          </p>
+        </div>
+      </main>
+    );
+  }
+
+  if (items.length === 0 && step === "form") {
+    return (
+      <main className="max-w-xl mx-auto px-6 py-20 pb-28 text-center">
+        <p className="font-serif font-bold text-xl text-texto">
+          Seu carrinho está vazio
+        </p>
+        <p className="text-sm text-cinza mt-2">
+          Adicione produtos antes de continuar.
+        </p>
+        <button
+          onClick={() => router.push("/categoria")}
+          className="mt-5 text-sm font-bold px-6 py-3 rounded-full text-white"
+          style={{ backgroundColor: "#E4127B" }}
+        >
+          Ver catálogo
+        </button>
+      </main>
+    );
   }
 
   if (step === "form") {
@@ -283,7 +398,7 @@ export default function CheckoutPage() {
           Confira seu pedido
         </h1>
         <p className="text-xs text-cinza mt-1">
-          Verifique tudo antes de enviar pelo WhatsApp.
+          Primeiro registramos o pedido no sistema. Depois você abre o WhatsApp para confirmar o atendimento com a loja.
         </p>
       </div>
 
@@ -353,8 +468,8 @@ export default function CheckoutPage() {
               </span>
             </div>
 
-            <p className="text-[11px] text-cinza mt-4">
-              O pedido será enviado para a Sra Make pelo WhatsApp para confirmação.
+            <p className="text-[11px] leading-relaxed text-cinza mt-4">
+              O pedido será registrado primeiro no sistema da Sra Make. Depois você poderá abrir o WhatsApp com a mensagem pronta para confirmar com a loja.
             </p>
 
             <label className="mt-4 flex items-start gap-3 rounded-xl border border-rosa/15 bg-creme/40 p-3 cursor-pointer">
@@ -381,10 +496,10 @@ export default function CheckoutPage() {
               onClick={handleSendOrder}
               disabled={submitting}
               className="w-full mt-4 py-3.5 rounded-xl font-bold text-sm text-white flex items-center justify-center gap-2 disabled:opacity-60 shadow-sm"
-              style={{ backgroundColor: "#25D366" }}
+              style={{ backgroundColor: "#E4127B" }}
             >
               <Send size={16} />
-              {submitting ? "Enviando..." : "Enviar pelo WhatsApp"}
+              {submitting ? "Registrando pedido..." : "Confirmar pedido"}
             </button>
 
             <button
