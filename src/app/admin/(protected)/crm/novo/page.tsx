@@ -22,9 +22,9 @@ export default async function NovoLeadPage() {
   return (
     <div className="mx-auto max-w-2xl">
       <div className="mb-5">
-        <Link href="/admin/crm" className="text-[11px] font-bold text-rosa-profundo">← CRM</Link>
+        <Link href="/admin/crm/central" className="text-[11px] font-bold text-rosa-profundo">← Central de atendimento</Link>
         <h1 className="mt-2 font-serif text-2xl font-bold text-texto">Novo contato comercial</h1>
-        <p className="mt-1 text-xs leading-relaxed text-cinza">Cadastre quem chamou no WhatsApp, mesmo que ainda não tenha comprado.</p>
+        <p className="mt-1 text-xs leading-relaxed text-cinza">Cadastre quem chamou no WhatsApp, mesmo que ainda não tenha comprado. Se veio de anúncio, registre a campanha para acompanhar até a venda.</p>
       </div>
 
       <form action={createLeadAction} className="space-y-4 rounded-2xl border border-rosa/15 bg-white p-4 shadow-sm sm:p-5">
@@ -36,17 +36,29 @@ export default async function NovoLeadPage() {
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="text-xs font-bold text-texto">
             Origem
-            <select name="source" defaultValue="WHATSAPP" className="mt-1 w-full rounded-xl border border-rosa/20 bg-white px-3 py-3 text-base font-normal outline-none sm:text-sm">
-              <option value="WHATSAPP">WhatsApp</option>
-              <option value="INSTAGRAM">Instagram</option>
-              <option value="GOOGLE">Google</option>
-              <option value="CATALOGO">Catálogo</option>
-              <option value="INDICACAO">Indicação</option>
-              <option value="LOJA_FISICA">Loja física</option>
-              <option value="OUTRO">Outro</option>
+            <select name="source" defaultValue="whatsapp" className="mt-1 w-full rounded-xl border border-rosa/20 bg-white px-3 py-3 text-base font-normal outline-none sm:text-sm">
+              <option value="whatsapp">WhatsApp</option>
+              <option value="instagram">Instagram</option>
+              <option value="facebook">Facebook</option>
+              <option value="google">Google</option>
+              <option value="catalogo">Catálogo</option>
+              <option value="tiktok">TikTok</option>
+              <option value="indicacao">Indicação</option>
+              <option value="loja_fisica">Loja física</option>
+              <option value="outro">Outro</option>
             </select>
           </label>
           <Field label="Valor estimado" name="estimatedValue" inputMode="decimal" placeholder="0,00" />
+        </div>
+
+        <div className="rounded-2xl border border-blue-100 bg-blue-50/40 p-3 sm:p-4">
+          <p className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-blue-700">Atribuição de campanha · opcional</p>
+          <p className="mt-1 text-[10px] leading-relaxed text-cinza">Use quando o contato veio de anúncio. O código pode ser o identificador colocado na mensagem inicial, como SM2401.</p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-3">
+            <Field label="Campanha" name="campaign" placeholder="Kit Cílios Setembro" />
+            <Field label="Criativo" name="campaignContent" placeholder="Vídeo 01" />
+            <Field label="Código" name="campaignCode" placeholder="SM2401" />
+          </div>
         </div>
 
         <ProductPicker
@@ -61,7 +73,7 @@ export default async function NovoLeadPage() {
         </label>
 
         <div className="grid gap-2 pt-2 sm:flex sm:justify-end">
-          <Link href="/admin/crm" className="order-2 rounded-xl border border-rosa/20 px-4 py-3 text-center text-xs font-bold text-cinza sm:order-1">Cancelar</Link>
+          <Link href="/admin/crm/central" className="order-2 rounded-xl border border-rosa/20 px-4 py-3 text-center text-xs font-bold text-cinza sm:order-1">Cancelar</Link>
           <button type="submit" className="order-1 rounded-xl bg-rosa-profundo px-5 py-3 text-xs font-extrabold text-white sm:order-2">Criar oportunidade</button>
         </div>
       </form>

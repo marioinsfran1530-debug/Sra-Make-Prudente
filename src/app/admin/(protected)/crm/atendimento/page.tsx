@@ -65,10 +65,14 @@ export default async function AtendimentoRapidoPage({
 
   return (
     <div className="mx-auto max-w-5xl space-y-4 sm:space-y-5">
-      <div>
-        <p className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-rosa-profundo">CRM Sra Make</p>
-        <h1 className="font-serif text-2xl font-bold text-texto">Atendimento rápido</h1>
-        <p className="mt-1 text-xs leading-relaxed text-cinza">Registre a indicação antes de abrir o WhatsApp. Assim o contato entra no funil mesmo que a cliente ainda não compre.</p>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <Link href="/admin/crm/central" className="text-[11px] font-bold text-rosa-profundo">← Central de atendimento</Link>
+          <p className="mt-2 text-[10px] font-extrabold uppercase tracking-[0.2em] text-rosa-profundo">CRM Sra Make</p>
+          <h1 className="font-serif text-2xl font-bold text-texto">Novo atendimento</h1>
+          <p className="mt-1 text-xs leading-relaxed text-cinza">Registre a indicação antes de abrir o WhatsApp. Assim o contato entra na timeline e no funil mesmo que a cliente ainda não compre.</p>
+        </div>
+        <Link href="/admin/crm/novo" className="text-xs font-extrabold text-rosa-profundo">Cadastro completo →</Link>
       </div>
 
       <section className="grid gap-3 lg:grid-cols-2">
@@ -118,7 +122,7 @@ export default async function AtendimentoRapidoPage({
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <div>
             <h2 className="text-sm font-extrabold text-texto">3. Registrar e abrir WhatsApp</h2>
-            <p className="mt-1 text-[10px] text-cinza">A indicação ficará salva como oportunidade em “Produto indicado”.</p>
+            <p className="mt-1 text-[10px] text-cinza">A indicação ficará salva como oportunidade em “Produto indicado” e entrará na timeline.</p>
           </div>
           {selectedCustomer && (
             <span className="rounded-full bg-creme px-3 py-1.5 text-[10px] font-extrabold text-rosa-profundo">Cliente: {selectedCustomer.name}</span>
@@ -159,11 +163,12 @@ export default async function AtendimentoRapidoPage({
             <select name="source" defaultValue="whatsapp" className="mt-1 w-full rounded-xl border border-rosa/20 bg-white px-3 py-3 text-base font-normal outline-none sm:text-sm">
               <option value="whatsapp">WhatsApp</option>
               <option value="instagram">Instagram</option>
+              <option value="facebook">Facebook</option>
               <option value="google">Google</option>
               <option value="catalogo">Catálogo</option>
+              <option value="tiktok">TikTok</option>
               <option value="indicacao">Indicação</option>
               <option value="loja_fisica">Loja física</option>
-              <option value="facebook">Facebook</option>
               <option value="outro">Outro</option>
             </select>
           </label>
@@ -180,6 +185,16 @@ export default async function AtendimentoRapidoPage({
           </label>
         </div>
 
+        <details className="mt-4 rounded-2xl border border-blue-100 bg-blue-50/40 p-3">
+          <summary className="cursor-pointer text-[10px] font-extrabold uppercase tracking-[0.12em] text-blue-700">Veio de campanha/anúncio?</summary>
+          <p className="mt-2 text-[10px] leading-relaxed text-cinza">Preencha quando houver atribuição. Exemplo: campanha “Kit Cílios Setembro”, criativo “Vídeo 01” e código “SM2401”.</p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-3">
+            <label className="text-xs font-bold text-texto">Campanha<input name="campaign" maxLength={120} placeholder="Kit Cílios Setembro" className="mt-1 w-full rounded-xl border border-blue-100 bg-white px-3 py-3 text-base font-normal outline-none sm:text-sm" /></label>
+            <label className="text-xs font-bold text-texto">Criativo<input name="campaignContent" maxLength={120} placeholder="Vídeo 01" className="mt-1 w-full rounded-xl border border-blue-100 bg-white px-3 py-3 text-base font-normal outline-none sm:text-sm" /></label>
+            <label className="text-xs font-bold text-texto">Código<input name="campaignCode" maxLength={80} placeholder="SM2401" className="mt-1 w-full rounded-xl border border-blue-100 bg-white px-3 py-3 text-base font-normal outline-none sm:text-sm" /></label>
+          </div>
+        </details>
+
         <label className="mt-4 block text-xs font-bold text-texto">
           Observação
           <textarea
@@ -192,7 +207,7 @@ export default async function AtendimentoRapidoPage({
         </label>
 
         <div className="mt-5 grid gap-2 sm:flex sm:justify-end">
-          <Link href="/admin/crm/oportunidades" className="order-2 rounded-xl border border-rosa/20 px-4 py-3 text-center text-xs font-bold text-cinza sm:order-1">Cancelar</Link>
+          <Link href="/admin/crm/central" className="order-2 rounded-xl border border-rosa/20 px-4 py-3 text-center text-xs font-bold text-cinza sm:order-1">Cancelar</Link>
           <button className="order-1 rounded-xl bg-emerald-600 px-5 py-3 text-xs font-extrabold text-white sm:order-2">Registrar e abrir WhatsApp</button>
         </div>
       </form>
