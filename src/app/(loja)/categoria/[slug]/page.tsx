@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
@@ -138,6 +139,49 @@ export default async function CategoriaPage({ params }: { params: CategoryParams
           brands={brands}
         />
       </Suspense>
+
+      {category.slug === "lash" && (
+        <section className="mx-4 mb-8 rounded-2xl bg-creme p-5 text-sm leading-6 text-texto">
+          <h2 className="font-serif text-lg font-bold">Onde comprar produtos para Lash em Presidente Prudente</h2>
+          <p className="mt-2">
+            Na Sra Make você encontra produtos para aplicação e manutenção de cílios, incluindo
+            cílios tufinho, cílios postiços, colas, pinças, removedores, kits e acessórios. O
+            estoque pode variar, por isso consulte os itens disponíveis no catálogo antes da
+            retirada ou entrega local.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Link
+              href="/categoria/lash/cilios-tufinho"
+              className="rounded-full border border-[#E9D9E4] bg-white px-4 py-2 font-semibold text-rosa-profundo"
+            >
+              Ver cílios tufinho
+            </Link>
+            <Link
+              href="/loja"
+              className="rounded-full border border-[#E9D9E4] bg-white px-4 py-2 font-semibold text-rosa-profundo"
+            >
+              Ver loja em Presidente Prudente
+            </Link>
+          </div>
+        </section>
+      )}
+
+      {category.slug === "cosmeticos" && (
+        <section className="mx-4 mb-8 rounded-2xl bg-creme p-5 text-sm leading-6 text-texto">
+          <h2 className="font-serif text-lg font-bold">Loja de cosméticos em Presidente Prudente</h2>
+          <p className="mt-2">
+            A Sra Make reúne cosméticos, skincare, cuidados pessoais e produtos de beleza em
+            Presidente Prudente. Consulte o catálogo para conferir disponibilidade, retirada na
+            loja e opções de entrega local.
+          </p>
+          <Link
+            href="/loja"
+            className="mt-4 inline-block rounded-full border border-[#E9D9E4] bg-white px-4 py-2 font-semibold text-rosa-profundo"
+          >
+            Conhecer a Sra Make Prudente
+          </Link>
+        </section>
+      )}
     </main>
   );
 }
