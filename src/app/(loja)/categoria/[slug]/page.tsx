@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
@@ -138,6 +139,59 @@ export default async function CategoriaPage({ params }: { params: CategoryParams
           brands={brands}
         />
       </Suspense>
+
+      {category.slug === "lash" && (
+        <section className="mx-4 mb-8 rounded-2xl bg-creme p-5 text-sm leading-6 text-texto">
+          <h2 className="font-serif text-lg font-bold">
+            Onde comprar produtos para Lash em Presidente Prudente
+          </h2>
+          <p className="mt-2">
+            Na Sra Make Prudente você encontra cílios tufinho, colas, pinças, removedores,
+            kits e acessórios para aplicação de cílios. Consulte a disponibilidade no catálogo
+            e veja as opções para retirada ou entrega local.
+          </p>
+          <h2 className="mt-5 font-serif text-lg font-bold">
+            Cílios tufinho em Presidente Prudente
+          </h2>
+          <p className="mt-2">
+            Reunimos os modelos de cílios tufinho em uma página específica para facilitar a
+            escolha por tamanho, modelo e disponibilidade.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Link
+              href="/categoria/lash/cilios-tufinho"
+              className="rounded-full border border-[#E9D9E4] bg-white px-4 py-2 font-semibold text-rosa-profundo"
+            >
+              Ver cílios tufinho
+            </Link>
+            <Link
+              href="/loja"
+              className="rounded-full border border-[#E9D9E4] bg-white px-4 py-2 font-semibold text-rosa-profundo"
+            >
+              Ver loja em Presidente Prudente
+            </Link>
+          </div>
+        </section>
+      )}
+
+      {category.slug === "cosmeticos" && (
+        <section className="mx-4 mb-8 rounded-2xl bg-creme p-5 text-sm leading-6 text-texto">
+          <h2 className="font-serif text-lg font-bold">
+            Loja de cosméticos em Presidente Prudente
+          </h2>
+          <p className="mt-2">
+            A Sra Make reúne cosméticos, skincare e itens de cuidados pessoais para quem
+            procura comprar em Presidente Prudente. Consulte preços e disponibilidade no
+            catálogo antes de visitar a loja ou solicitar atendimento.
+          </p>
+          <Link
+            href="/loja"
+            className="mt-4 inline-block rounded-full border border-[#E9D9E4] bg-white px-4 py-2 font-semibold text-rosa-profundo"
+          >
+            Conhecer a loja em Presidente Prudente
+          </Link>
+        </section>
+      )}
     </main>
   );
 }
