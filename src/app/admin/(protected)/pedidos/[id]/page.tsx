@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { MessageCircle, Star } from "lucide-react";
@@ -47,6 +48,25 @@ export default async function AdminPedidoDetailPage({ params }: { params: Promis
   });
 
   if (!order) notFound();
+
+  const productIds = [...new Set(order.items.map((item) => item.productId))];
+  const products = productIds.length
+    ? await prisma.product.findMany({
+        where: { id: { in: productIds } },
+        select: {
+          id: true,
+          brand: true,
+          sku: true,
+          images: {
+            orderBy: { order: "asc" },
+            take: 1,
+            select: { url: true, alt: true },
+          },
+        },
+      })
+    : [];
+  const productById = new Map(products.map((product) => [product.id, product]));
+
   const hasPhone = Boolean(order.customerPhone.trim());
   const reviewMessage = `Maravilhosa, obrigada por escolher a Sra Make. 💗\n\nSe você saiu satisfeita, deixe sua experiência registrada e ajude outra pessoa a escolher com mais confiança:\n${GOOGLE_REVIEW_URL}`;
 
@@ -79,14 +99,75 @@ export default async function AdminPedidoDetailPage({ params }: { params: Promis
       </div>
 
       <div className="mb-4 rounded-2xl bg-white p-4" style={{ boxShadow: "0 2px 10px rgba(35,20,42,0.06)" }}>
-        <p className="mb-2 text-xs font-bold text-texto">Produtos</p>
-        {order.items.map((item) => (
-          <div key={item.id} className="mb-1 flex justify-between gap-3 text-sm">
-            <span className="min-w-0 text-texto">{item.name}{item.variantName ? ` (${item.variantName})` : ""} × {item.qty}</span>
-            <span className="shrink-0 font-bold text-rosa-profundo">{money(Number(item.subtotal))}</span>
+        <p className="mb-1 text-xs font-bold text-texto">Produtos</p>
+        <p className="mb-2 text-[10px] text-cinza">Identificação visual para separar o pedido com mais segurança.</p>
+
+        <div className="divide-y divide-rosa/10">
+          {order.items.map((item) => {
+            const product = productById.get(item.productId);
+            const image = product?.images[0];
+            const brand = item.brand?.trim() || product?.brand?.trim();
+            const sku = item.sku?.trim() || product?.sku?.trim();
+
+            return (
+              <div key={item.id} className="flex gap-3 py-3 first:pt-1">
+                <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-rosa/10 bg-creme">
+                  {image ? (
+                    <Image
+                      src={image.url}
+                      alt={image.alt || item.name}
+                      width={64}
+                      height={64}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center px-1 text-center text-[9px] font-semibold text-cinza">
+                      Sem foto
+                    </div>
+                  )}
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="min-w-0 font-bold leading-snug text-texto">{item.name}</p>
+                    <span className="shrink-0 text-sm font-bold text-rosa-profundo">{money(Number(item.subtotal))}</span>
+                  </div>
+
+                  {brand && <p className="mt-0.5 text-[11px] font-semibold text-cinza">{brand}</p>}
+                  {item.variantName && (
+                    <p className="mt-1 text-xs font-bold text-texto">Opção: {item.variantName}</p>
+                  )}
+
+                  <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-cinza">
+                    <span>{item.qty} un. × {money(Number(item.unitPrice))}</span>
+                    {sku && <span>SKU: {sku}</span>}
+                  </div>
+
+                  {product && (
+                    <Link
+                      href={`/produto/${item.productId}`}
+                      target="_blank"
+                      className="mt-1 inline-flex text-[10px] font-bold text-rosa-profundo hover:underline"
+                    >
+                      Ver produto →
+                    </Link>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {order.notes && (
+          <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
+            <p className="text-[10px] font-extrabold uppercase tracking-wide text-amber-800">
+              Atenção · observação da cliente
+            </p>
+            <p className="mt-1 text-sm font-bold leading-relaxed text-amber-950">{order.notes}</p>
           </div>
-        ))}
-        <div className="mt-2 flex flex-col gap-1 border-t border-rosa/10 pt-2 text-sm">
+        )}
+
+        <div className="mt-3 flex flex-col gap-1 border-t border-rosa/10 pt-3 text-sm">
           <Row label="Subtotal" value={money(Number(order.subtotal))} />
           {Number(order.discount) > 0 && <Row label="Desconto" value={`- ${money(Number(order.discount))}`} />}
           {Number(order.deliveryFee) > 0 && <Row label="Entrega" value={money(Number(order.deliveryFee))} />}
@@ -102,7 +183,6 @@ export default async function AdminPedidoDetailPage({ params }: { params: Promis
           <Row key={payment.id} label="Pagamento" value={`${PAYMENT_LABEL[payment.method] ?? payment.method} · ${money(Number(payment.amount))}`} />
         )) : <Row label="Pagamento" value={PAYMENT_LABEL[order.payment] ?? order.payment} />}
         {order.createdBy && <Row label="Registrado por" value={order.createdBy.name || order.createdBy.email} />}
-        {order.notes && <Row label="Observação" value={order.notes} />}
         {order.utmSource && <Row label="Origem (UTM)" value={order.utmSource} />}
       </div>
 
