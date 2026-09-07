@@ -48,6 +48,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "monthly",
       priority: 0.5,
     },
+    {
+      url: `${SITE_URL}/categoria/lash/cilios-tufinho`,
+      ...(catalogLastModified ? { lastModified: catalogLastModified } : {}),
+      changeFrequency: "daily",
+      priority: 0.8,
+    },
   ];
 
   const categoryRoutes: MetadataRoute.Sitemap = categories.map((category) => ({
