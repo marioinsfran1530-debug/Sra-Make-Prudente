@@ -14,7 +14,7 @@ export async function generateMetadata({ params }: { params: PageParams }): Prom
   const { slug } = await params;
   if (slug !== "lash") return {};
 
-  const title = "Cílios Tufinho em Presidente Prudente | Sra Make";
+  const title = "Cílios Tufinho em Presidente Prudente";
   const description =
     "Cílios tufinho em Presidente Prudente em diferentes modelos e tamanhos. Consulte preços, disponibilidade, retirada e entrega na Sra Make Prudente.";
   const canonical = `${SITE_URL}/categoria/lash/cilios-tufinho`;
@@ -23,8 +23,8 @@ export async function generateMetadata({ params }: { params: PageParams }): Prom
     title,
     description,
     alternates: { canonical },
-    openGraph: { title, description, url: canonical, type: "website" },
-    twitter: { card: "summary", title, description },
+    openGraph: { title: `${title} | Sra Make`, description, url: canonical, type: "website" },
+    twitter: { card: "summary", title: `${title} | Sra Make`, description },
   };
 }
 
