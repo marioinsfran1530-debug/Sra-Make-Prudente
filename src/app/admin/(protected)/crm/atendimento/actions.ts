@@ -7,6 +7,7 @@ import { requireAdmin } from "@/lib/admin-auth";
 import { whatsappUrl } from "@/lib/crm";
 import { normalizeCrmPhone, normalizeCrmSource } from "@/lib/crm-order-sync";
 import { crmDateAtHourInDays } from "@/lib/crm-time";
+import { logCrmInteraction } from "@/lib/crm-activity";
 
 function cleanPhone(value: FormDataEntryValue | null) {
   return normalizeCrmPhone(String(value ?? ""));
@@ -18,20 +19,23 @@ function text(value: FormDataEntryValue | null) {
 }
 
 export async function sendProductWhatsAppAction(formData: FormData) {
-  const { error } = await requireAdmin("EDITOR");
-  if (error) throw new Error(error);
+  const { session, error } = await requireAdmin("EDITOR");
+  if (error || !session) throw new Error(error || "Não autenticado.");
 
   const selectedCustomerId = text(formData.get("customerId"));
   const productId = String(formData.get("productId") ?? "").trim();
   const source = normalizeCrmSource(text(formData.get("source")), "whatsapp");
   const notes = text(formData.get("notes"));
+  const campaign = text(formData.get("campaign"));
+  const campaignContent = text(formData.get("campaignContent"));
+  const campaignCode = text(formData.get("campaignCode"));
   const followUpDays = Math.max(0, Math.min(30, Number(formData.get("followUpDays") ?? 1) || 0));
 
   if (!productId) throw new Error("Selecione um produto.");
 
   const product = await prisma.product.findFirst({
     where: { id: productId, active: true },
-    select: { id: true, name: true, price: true, promoPrice: true, stockQty: true },
+    select: { id: true, name: true, brand: true, price: true, promoPrice: true, stockQty: true },
   });
   if (!product) throw new Error("Produto não encontrado ou inativo.");
 
@@ -47,7 +51,7 @@ export async function sendProductWhatsAppAction(formData: FormData) {
     customer = await prisma.customer.upsert({
       where: { phone },
       create: { name, phone, source, lastContactAt: new Date() },
-      update: { name, source, lastContactAt: new Date() },
+      update: { name, source: undefined, lastContactAt: new Date() },
     });
   } else {
     await prisma.customer.update({
@@ -94,6 +98,26 @@ export async function sendProductWhatsAppAction(formData: FormData) {
         },
       });
 
+  await prisma.$executeRaw`
+    UPDATE "CrmLead"
+    SET "campaign" = COALESCE(${campaign}, "campaign"),
+        "campaignContent" = COALESCE(${campaignContent}, "campaignContent"),
+        "campaignCode" = COALESCE(${campaignCode}, "campaignCode")
+    WHERE "id" = ${lead.id}
+  `;
+
+  await logCrmInteraction({
+    customerId: customer.id,
+    leadId: lead.id,
+    productId: product.id,
+    createdById: session.id,
+    kind: "PRODUCT_INDICATED",
+    channel: "whatsapp",
+    direction: "OUTBOUND_PREPARED",
+    body: `${product.name} · mensagem preparada para abertura no WhatsApp.`,
+    metadata: { source, campaign, campaignContent, campaignCode, price: Number(effectivePrice) },
+  });
+
   if (followUpDays > 0) {
     const dueAt = crmDateAtHourInDays(followUpDays, 10);
     const existingFollowUp = await prisma.crmFollowUp.findFirst({
@@ -108,7 +132,17 @@ export async function sendProductWhatsAppAction(formData: FormData) {
           leadId: lead.id,
           dueAt,
           reason: `Retornar sobre ${product.name}`,
+          createdById: session.id,
         },
+      });
+      await logCrmInteraction({
+        customerId: customer.id,
+        leadId: lead.id,
+        productId: product.id,
+        createdById: session.id,
+        kind: "FOLLOW_UP_CREATED",
+        body: `Retornar sobre ${product.name}`,
+        metadata: { dueAt: dueAt.toISOString() },
       });
     }
   }
