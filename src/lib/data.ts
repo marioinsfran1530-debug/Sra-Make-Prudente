@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { cache } from "react";
 import { productStockStatus, type StockStatus } from "@/lib/stock";
+import { productSlug } from "@/lib/product-url";
 
 // Camada de leitura pública. Regra do plano (seção 3): o Prisma não passa
 // pelas policies de RLS do Supabase, então TODO filtro de "ativo" precisa
@@ -210,6 +211,20 @@ export const getProductById = cache(async (id: string) => {
   });
 
   return product ? mapProduct(product) : null;
+});
+
+export const getProductByIdentifier = cache(async (identifier: string) => {
+  const productById = await getProductById(identifier);
+  if (productById) return productById;
+
+  const candidates = await prisma.product.findMany({
+    where: { active: true },
+    select: { id: true, name: true, brand: true },
+  });
+  const candidate = candidates.find((product) => productSlug(product) === identifier);
+  if (!candidate) return null;
+
+  return getProductById(candidate.id);
 });
 
 export const getStoreSettings = cache(async () => {

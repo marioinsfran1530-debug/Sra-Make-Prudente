@@ -7,6 +7,7 @@ import { ProductImage } from "@/components/ProductImage";
 import { Badge, StockLabel } from "@/components/Badges";
 import { useCart } from "@/components/CartProvider";
 import { money } from "@/lib/money";
+import { productPath } from "@/lib/product-url";
 import type { PublicProduct } from "@/lib/data";
 
 export function ProductCard({ product }: { product: PublicProduct }) {
@@ -46,7 +47,7 @@ export function ProductCard({ product }: { product: PublicProduct }) {
 
   return (
     <Link
-      href={`/produto/${product.id}`}
+      href={productPath(product)}
       className="rounded-2xl overflow-hidden bg-white flex flex-col h-full min-h-[340px] transition hover:-translate-y-0.5 hover:shadow-lg"
       style={{ boxShadow: "0 2px 14px rgba(35,20,42,0.08)" }}
     >

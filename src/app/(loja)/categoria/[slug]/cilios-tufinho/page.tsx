@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getCategoryBySlug, getProducts } from "@/lib/data";
+import { productPath } from "@/lib/product-url";
 import { ProductCard } from "@/components/ProductCard";
 
 export const revalidate = 60;
@@ -57,7 +58,7 @@ export default async function CiliosTufinhoPage({ params }: { params: PageParams
       "@type": "ListItem",
       position: index + 1,
       name: product.name,
-      url: `${SITE_URL}/produto/${product.id}`,
+      url: `${SITE_URL}${productPath(product)}`,
     })),
   };
 
