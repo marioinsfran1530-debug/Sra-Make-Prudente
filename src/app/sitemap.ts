@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { prisma } from "@/lib/prisma";
+import { productPath } from "@/lib/product-url";
 
 const SITE_URL = "https://www.sramakeprudente.com.br";
 
@@ -11,7 +12,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }),
     prisma.product.findMany({
       where: { active: true },
-      select: { id: true, updatedAt: true },
+      select: { name: true, brand: true, updatedAt: true },
     }),
     prisma.storeSettings.findFirst({ select: { updatedAt: true } }),
   ]);
@@ -64,7 +65,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }));
 
   const productRoutes: MetadataRoute.Sitemap = products.map((product) => ({
-    url: `${SITE_URL}/produto/${product.id}`,
+    url: `${SITE_URL}${productPath(product)}`,
     lastModified: product.updatedAt,
     changeFrequency: "weekly",
     priority: 0.6,
