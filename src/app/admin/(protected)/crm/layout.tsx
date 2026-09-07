@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-type CrmSection = "hoje" | "clientes" | "atender" | "funil" | "tarefas";
+type CrmSection = "hoje" | "clientes" | "atender" | "funil" | "tarefas" | "etiquetas";
 
 function currentSection(pathname: string): CrmSection {
   if (pathname.startsWith("/admin/crm/oportunidades")) return "hoje";
-  if (pathname.startsWith("/admin/crm/atendimento")) return "atender";
+  if (pathname.startsWith("/admin/crm/central") || pathname.startsWith("/admin/crm/atendimento")) return "atender";
   if (pathname.startsWith("/admin/crm/funil")) return "funil";
   if (pathname.startsWith("/admin/crm/follow-ups")) return "tarefas";
+  if (pathname.startsWith("/admin/crm/etiquetas")) return "etiquetas";
   return "clientes";
 }
 
@@ -21,10 +22,11 @@ export default function CrmLayout({ children }: { children: React.ReactNode }) {
     <div className="pb-24 sm:pb-0">
       <nav className="mx-auto mb-4 hidden max-w-6xl gap-2 overflow-x-auto rounded-2xl border border-rosa/15 bg-white p-2 shadow-sm sm:flex" aria-label="CRM">
         <DesktopNav href="/admin/crm/oportunidades" label="Hoje" active={active === "hoje"} />
-        <DesktopNav href="/admin/crm/atendimento" label="Atender" active={active === "atender"} accent="green" />
+        <DesktopNav href="/admin/crm/central" label="Atender" active={active === "atender"} accent="green" />
         <DesktopNav href="/admin/crm" label="Clientes" active={active === "clientes"} />
         <DesktopNav href="/admin/crm/funil" label="Funil" active={active === "funil"} />
         <DesktopNav href="/admin/crm/follow-ups" label="Follow-ups" active={active === "tarefas"} />
+        <DesktopNav href="/admin/crm/etiquetas" label="Etiquetas" active={active === "etiquetas"} />
         <Link href="/admin/crm/follow-ups/novo" className="whitespace-nowrap rounded-xl px-3 py-2 text-[11px] font-bold text-rosa-profundo hover:bg-creme">Agendar retorno</Link>
         <Link href="/admin/crm/novo" className="whitespace-nowrap rounded-xl border border-rosa-profundo px-3 py-2 text-[11px] font-extrabold text-rosa-profundo">+ Novo contato</Link>
       </nav>
@@ -38,8 +40,8 @@ export default function CrmLayout({ children }: { children: React.ReactNode }) {
       >
         <div className="mx-auto grid max-w-lg grid-cols-5 items-end gap-1">
           <MobileNav href="/admin/crm/oportunidades" label="Hoje" active={active === "hoje"} />
-          <MobileNav href="/admin/crm" label="Clientes" active={active === "clientes"} />
-          <MobileNav href="/admin/crm/atendimento" label="Atender" active={active === "atender"} accent="green" elevated />
+          <MobileNav href="/admin/crm" label="Clientes" active={active === "clientes" || active === "etiquetas"} />
+          <MobileNav href="/admin/crm/central" label="Atender" active={active === "atender"} accent="green" elevated />
           <MobileNav href="/admin/crm/funil" label="Funil" active={active === "funil"} />
           <MobileNav href="/admin/crm/follow-ups" label="Tarefas" active={active === "tarefas"} />
         </div>
