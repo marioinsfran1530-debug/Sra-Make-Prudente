@@ -17,10 +17,10 @@ const CATEGORY_SEO: Record<string, CategorySeoContent> = {
   lash: {
     title: "Produtos para Lash e Cílios em Presidente Prudente",
     description:
-      "Produtos para lash e cílios em Presidente Prudente. Encontre cílios tufinho, cílios postiços, colas, pinças, kits e acessórios na Sra Make Prudente.",
+      "Produtos para lash e cílios em Presidente Prudente. Encontre cílios tufinho, cílios postiços, colas, pinças, kits, removedores e acessórios na Sra Make Prudente.",
     intro:
-      "Produtos para lash, extensão e aplicação de cílios em Presidente Prudente. Consulte cílios, colas, pinças, kits e acessórios para uso profissional ou pessoal.",
-    about: ["cílios tufinho e postiços", "colas para cílios", "pinças e aplicadores", "kits e acessórios para lash"],
+      "Encontre produtos para lash em Presidente Prudente para extensão e aplicação de cílios. Consulte cílios tufinho, colas, pinças, kits, removedores e acessórios para uso profissional ou pessoal.",
+    about: ["cílios tufinho e postiços", "colas para cílios", "pinças e aplicadores", "kits, removedores e acessórios para lash"],
   },
   nail: {
     title: "Produtos para Nail Designer em Presidente Prudente",
@@ -47,12 +47,12 @@ const CATEGORY_SEO: Record<string, CategorySeoContent> = {
     about: ["pinças e acessórios", "itens para preparação", "produtos para definição", "acabamento de sobrancelhas"],
   },
   cosmeticos: {
-    title: "Cosméticos em Presidente Prudente",
+    title: "Loja de Cosméticos em Presidente Prudente",
     description:
-      "Compre cosméticos em Presidente Prudente na Sra Make Prudente. Encontre cuidados pessoais, skincare e produtos de beleza para sua rotina.",
+      "Loja de cosméticos em Presidente Prudente com skincare, cuidados pessoais e produtos de beleza. Consulte preços, disponibilidade, retirada e entrega na Sra Make Prudente.",
     intro:
-      "Encontre cosméticos em Presidente Prudente para complementar sua rotina de beleza e autocuidado, com opções de skincare e cuidados pessoais.",
-    about: ["skincare", "cuidados pessoais", "produtos de beleza", "itens para rotina de autocuidado"],
+      "A Sra Make é uma loja de cosméticos em Presidente Prudente com opções para skincare, cuidados pessoais e beleza. Consulte produtos, preços e disponibilidade para retirada ou entrega local.",
+    about: ["loja de cosméticos", "skincare", "cuidados pessoais", "produtos de beleza"],
   },
   acessorios: {
     title: "Acessórios de Beleza em Presidente Prudente",
