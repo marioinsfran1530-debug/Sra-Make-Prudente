@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { logCrmInteraction } from "@/lib/crm-activity";
 
 export function normalizeCrmPhone(value: string) {
   const digits = value.replace(/\D/g, "");
@@ -40,6 +41,7 @@ export async function syncOrderToCrm(orderId: string) {
     where: { id: orderId },
     select: {
       id: true,
+      number: true,
       customerId: true,
       customerName: true,
       customerPhone: true,
@@ -48,6 +50,8 @@ export async function syncOrderToCrm(orderId: string) {
       channel: true,
       origin: true,
       utmSource: true,
+      utmCampaign: true,
+      utmContent: true,
       createdAt: true,
       items: { select: { productId: true } },
     },
@@ -68,10 +72,15 @@ export async function syncOrderToCrm(orderId: string) {
     },
     update: {
       name: order.customerName,
-      source,
-      lastContactAt: order.createdAt,
+      lastContactAt: new Date(),
     },
   });
+
+  await prisma.$executeRaw`
+    UPDATE "Customer"
+    SET "source" = COALESCE("source", ${source}), "updatedAt" = NOW()
+    WHERE "id" = ${customer.id}
+  `;
 
   if (order.customerId !== customer.id) {
     await prisma.order.update({ where: { id: order.id }, data: { customerId: customer.id } });
@@ -81,14 +90,19 @@ export async function syncOrderToCrm(orderId: string) {
   const openStages = ["NOVO", "ATENDIMENTO", "PRODUTO_INDICADO", "AGUARDANDO_PAGAMENTO", "RECOMPRA"] as const;
   const finalStage = order.status === "FINALIZADO" ? "VENDIDO" : order.status === "CANCELADO" ? "PERDIDO" : "AGUARDANDO_PAGAMENTO";
 
-  let lead = await prisma.crmLead.findFirst({
-    where: {
-      customerId: customer.id,
-      stage: { in: [...openStages] },
-      ...(productIds.length ? { OR: [{ productId: { in: productIds } }, { productId: null }] } : {}),
-    },
-    orderBy: { updatedAt: "desc" },
-  });
+  let lead = productIds.length
+    ? await prisma.crmLead.findFirst({
+        where: { customerId: customer.id, stage: { in: [...openStages] }, productId: { in: productIds } },
+        orderBy: { updatedAt: "desc" },
+      })
+    : null;
+
+  if (!lead) {
+    lead = await prisma.crmLead.findFirst({
+      where: { customerId: customer.id, stage: { in: [...openStages] }, productId: null },
+      orderBy: { updatedAt: "desc" },
+    });
+  }
 
   if (!lead) {
     lead = await prisma.crmLead.create({
@@ -118,10 +132,48 @@ export async function syncOrderToCrm(orderId: string) {
     });
   }
 
+  if (order.utmCampaign || order.utmContent) {
+    await prisma.$executeRaw`
+      UPDATE "CrmLead"
+      SET "campaign" = COALESCE("campaign", ${order.utmCampaign}),
+          "campaignContent" = COALESCE("campaignContent", ${order.utmContent}),
+          "updatedAt" = NOW()
+      WHERE "id" = ${lead.id}
+    `;
+  }
+
   if (finalStage === "VENDIDO") {
     await prisma.crmFollowUp.updateMany({
       where: { customerId: customer.id, leadId: lead.id, status: "PENDENTE" },
       data: { status: "CONCLUIDO", completedAt: new Date() },
+    });
+  }
+
+  const body = `Pedido #${order.number} · ${order.status} · ${Number(order.total).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}`;
+  const alreadyLogged = await prisma.$queryRaw<Array<{ id: string }>>`
+    SELECT "id" FROM "CrmInteraction"
+    WHERE "orderId" = ${order.id} AND "body" = ${body}
+    LIMIT 1
+  `;
+
+  if (!alreadyLogged[0]) {
+    const anyOrderEvent = await prisma.$queryRaw<Array<{ id: string }>>`
+      SELECT "id" FROM "CrmInteraction" WHERE "orderId" = ${order.id} LIMIT 1
+    `;
+    const kind = finalStage === "VENDIDO"
+      ? "ORDER_FINALIZED"
+      : anyOrderEvent[0]
+        ? "ORDER_STATUS_CHANGED"
+        : "ORDER_CREATED";
+    await logCrmInteraction({
+      customerId: customer.id,
+      leadId: lead.id,
+      productId: lead.productId,
+      orderId: order.id,
+      kind,
+      channel: order.channel.toLowerCase(),
+      body,
+      metadata: { source, utmCampaign: order.utmCampaign, utmContent: order.utmContent },
     });
   }
 
