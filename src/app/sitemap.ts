@@ -43,6 +43,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.8,
     },
     {
+      url: `${SITE_URL}/categoria/lash/cilios-tufinho`,
+      ...(catalogLastModified ? { lastModified: catalogLastModified } : {}),
+      changeFrequency: "daily",
+      priority: 0.8,
+    },
+    {
       url: `${SITE_URL}/loja`,
       ...(settings?.updatedAt ? { lastModified: settings.updatedAt } : {}),
       changeFrequency: "monthly",
