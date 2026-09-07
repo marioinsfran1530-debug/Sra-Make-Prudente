@@ -9,6 +9,7 @@ import {
   addCustomerTagAction,
   moveLeadAction,
   removeCustomerTagAction,
+  updateLeadDetailsAction,
 } from "../../actions";
 
 export const dynamic = "force-dynamic";
@@ -56,13 +57,6 @@ function tagTone(color: string | null) {
   return map[color || ""] || "bg-creme text-rosa-profundo";
 }
 
-type LeadCampaignRow = {
-  id: string;
-  campaign: string | null;
-  campaignContent: string | null;
-  campaignCode: string | null;
-};
-
 export default async function CustomerWorkspacePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
@@ -79,29 +73,23 @@ export default async function CustomerWorkspacePage({ params }: { params: Promis
   });
   if (!customer) notFound();
 
-  const [customerTags, allTags, timeline, campaignRows] = await Promise.all([
+  const [customerTags, allTags, timeline] = await Promise.all([
     listCustomerTags(customer.id),
     listCrmTags(),
     listCustomerTimeline(customer.id, 120),
-    prisma.$queryRaw<LeadCampaignRow[]>`
-      SELECT "id", "campaign", "campaignContent", "campaignCode"
-      FROM "CrmLead"
-      WHERE "customerId" = ${customer.id}
-    `,
   ]);
 
-  const campaignMap = new Map(campaignRows.map((row) => [row.id, row]));
   const attachedTagIds = new Set(customerTags.map((tag) => tag.id));
   const availableTags = allTags.filter((tag) => !attachedTagIds.has(tag.id));
   const completed = customer.orders.filter((order) => order.status === "FINALIZADO");
   const totalSpent = completed.reduce((sum, order) => sum + Number(order.total), 0);
   const averageTicket = completed.length ? totalSpent / completed.length : 0;
   const openLeads = customer.leads.filter((lead) => !["VENDIDO", "PERDIDO"].includes(lead.stage));
-  const activeLead = openLeads[0] || null;
+  const currentLead = openLeads[0] || customer.leads.find((lead) => lead.stage === "VENDIDO") || null;
   const pendingFollowUps = customer.followUps.filter((item) => item.status === "PENDENTE").sort((a, b) => a.dueAt.getTime() - b.dueAt.getTime());
   const firstName = customer.name.split(" ")[0];
   const whatsapp = whatsappUrl(customer.phone, `Olá, ${firstName}! Aqui é da Sra Make Prudente. Passando para dar continuidade ao nosso atendimento.`);
-  const activeCampaign = activeLead ? campaignMap.get(activeLead.id) : null;
+  const followUpLeadId = currentLead && currentLead.stage !== "VENDIDO" ? currentLead.id : null;
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
@@ -127,7 +115,7 @@ export default async function CustomerWorkspacePage({ params }: { params: Promis
         <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
           <a href={whatsapp} target="_blank" rel="noopener noreferrer" className="rounded-xl bg-emerald-600 px-4 py-3 text-center text-xs font-extrabold text-white">WhatsApp</a>
           <Link href={`/admin/crm/atendimento?customerId=${encodeURIComponent(customer.id)}`} className="rounded-xl border border-emerald-600 px-4 py-3 text-center text-xs font-extrabold text-emerald-700">Indicar produto</Link>
-          <Link href={`/admin/crm/follow-ups/novo?customerId=${encodeURIComponent(customer.id)}${activeLead ? `&leadId=${encodeURIComponent(activeLead.id)}` : ""}`} className="rounded-xl border border-rosa/20 px-4 py-3 text-center text-xs font-extrabold text-rosa-profundo">Agendar retorno</Link>
+          <Link href={`/admin/crm/follow-ups/novo?customerId=${encodeURIComponent(customer.id)}${followUpLeadId ? `&leadId=${encodeURIComponent(followUpLeadId)}` : ""}`} className="rounded-xl border border-rosa/20 px-4 py-3 text-center text-xs font-extrabold text-rosa-profundo">Agendar retorno</Link>
           <Link href="/admin/vendas/nova" className="rounded-xl bg-rosa-profundo px-4 py-3 text-center text-xs font-extrabold text-white">Criar pedido</Link>
         </div>
       </div>
@@ -136,7 +124,7 @@ export default async function CustomerWorkspacePage({ params }: { params: Promis
         <Metric label="Compras" value={String(completed.length)} />
         <Metric label="Total comprado" value={money(totalSpent)} />
         <Metric label="Ticket médio" value={money(averageTicket)} />
-        <Metric label="Oportunidades" value={String(openLeads.length)} />
+        <Metric label="Oportunidades abertas" value={String(openLeads.length)} />
         <Metric label="Próximo retorno" value={pendingFollowUps[0] ? formatCrmDateTime(pendingFollowUps[0].dueAt) : "—"} />
       </section>
 
@@ -146,21 +134,40 @@ export default async function CustomerWorkspacePage({ params }: { params: Promis
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-[9px] font-extrabold uppercase tracking-[0.16em] text-cinza">Oportunidade atual</p>
-                <h2 className="mt-1 text-sm font-extrabold text-texto">{activeLead?.product?.name || "Interesse ainda não definido"}</h2>
+                <h2 className="mt-1 text-sm font-extrabold text-texto">{currentLead?.product?.name || "Interesse ainda não definido"}</h2>
               </div>
-              {activeLead && <span className="rounded-full bg-creme px-2.5 py-1.5 text-[9px] font-extrabold text-rosa-profundo">{stageLabels[activeLead.stage] || activeLead.stage}</span>}
+              {currentLead && <span className="rounded-full bg-creme px-2.5 py-1.5 text-[9px] font-extrabold text-rosa-profundo">{stageLabels[currentLead.stage] || currentLead.stage}</span>}
             </div>
 
-            {activeLead ? (
+            {currentLead ? (
               <>
                 <dl className="mt-4 space-y-2.5 text-xs">
-                  <Row label="Valor estimado" value={activeLead.estimatedValue != null ? money(activeLead.estimatedValue) : "—"} />
-                  <Row label="Origem" value={activeLead.source || customer.source || "—"} />
-                  <Row label="Campanha" value={activeCampaign?.campaign || "—"} />
-                  <Row label="Criativo/conteúdo" value={activeCampaign?.campaignContent || "—"} />
-                  <Row label="Código" value={activeCampaign?.campaignCode || "—"} />
+                  <Row label="Valor estimado" value={currentLead.estimatedValue != null ? money(currentLead.estimatedValue) : "—"} />
+                  <Row label="Origem" value={currentLead.source || customer.source || "—"} />
+                  <Row label="Campanha" value={currentLead.campaign || "—"} />
+                  <Row label="Criativo/conteúdo" value={currentLead.campaignContent || "—"} />
+                  <Row label="Código" value={currentLead.campaignCode || "—"} />
                 </dl>
-                {activeLead.notes && <p className="mt-3 rounded-xl bg-creme/60 p-3 text-[11px] leading-relaxed text-cinza">{activeLead.notes}</p>}
+                {currentLead.notes && <p className="mt-3 rounded-xl bg-creme/60 p-3 text-[11px] leading-relaxed text-cinza">{currentLead.notes}</p>}
+
+                <details className="mt-4 rounded-xl border border-rosa/10 bg-creme/20 p-3">
+                  <summary className="cursor-pointer text-[10px] font-extrabold text-rosa-profundo">Editar contexto comercial</summary>
+                  <form action={updateLeadDetailsAction} className="mt-3 space-y-3">
+                    <input type="hidden" name="id" value={currentLead.id} />
+                    {currentLead.productId && <input type="hidden" name="productId" value={currentLead.productId} />}
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <label className="text-[10px] font-bold text-texto">Origem<select name="source" defaultValue={currentLead.source || customer.source || "outro"} className="mt-1 w-full rounded-xl border border-rosa/15 bg-white px-3 py-2.5 text-xs"><option value="whatsapp">WhatsApp</option><option value="instagram">Instagram</option><option value="facebook">Facebook</option><option value="google">Google</option><option value="catalogo">Catálogo</option><option value="tiktok">TikTok</option><option value="indicacao">Indicação</option><option value="loja_fisica">Loja física</option><option value="outro">Outro</option></select></label>
+                      <label className="text-[10px] font-bold text-texto">Valor estimado<input name="estimatedValue" inputMode="decimal" defaultValue={currentLead.estimatedValue != null ? String(currentLead.estimatedValue) : ""} className="mt-1 w-full rounded-xl border border-rosa/15 bg-white px-3 py-2.5 text-xs" /></label>
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-3">
+                      <label className="text-[10px] font-bold text-texto">Campanha<input name="campaign" defaultValue={currentLead.campaign || ""} className="mt-1 w-full rounded-xl border border-rosa/15 bg-white px-3 py-2.5 text-xs" /></label>
+                      <label className="text-[10px] font-bold text-texto">Criativo<input name="campaignContent" defaultValue={currentLead.campaignContent || ""} className="mt-1 w-full rounded-xl border border-rosa/15 bg-white px-3 py-2.5 text-xs" /></label>
+                      <label className="text-[10px] font-bold text-texto">Código<input name="campaignCode" defaultValue={currentLead.campaignCode || ""} className="mt-1 w-full rounded-xl border border-rosa/15 bg-white px-3 py-2.5 text-xs" /></label>
+                    </div>
+                    <label className="block text-[10px] font-bold text-texto">Observação<textarea name="notes" rows={2} defaultValue={currentLead.notes || ""} className="mt-1 w-full rounded-xl border border-rosa/15 bg-white px-3 py-2.5 text-xs" /></label>
+                    <button className="w-full rounded-xl bg-rosa-profundo px-4 py-2.5 text-[10px] font-extrabold text-white">Salvar contexto</button>
+                  </form>
+                </details>
 
                 <div className="mt-4 border-t border-rosa/10 pt-4">
                   <p className="text-[10px] font-extrabold uppercase tracking-wide text-cinza">Mover etapa</p>
@@ -174,23 +181,25 @@ export default async function CustomerWorkspacePage({ params }: { params: Promis
                       ["RECOMPRA", "Recompra"],
                     ].map(([stage, label]) => (
                       <form key={stage} action={moveLeadAction}>
-                        <input type="hidden" name="id" value={activeLead.id} />
+                        <input type="hidden" name="id" value={currentLead.id} />
                         <input type="hidden" name="stage" value={stage} />
-                        <button disabled={activeLead.stage === stage} className={`w-full rounded-xl border px-2 py-2.5 text-[10px] font-extrabold ${activeLead.stage === stage ? "border-rosa-profundo bg-rosa-profundo text-white" : "border-rosa/15 text-rosa-profundo"}`}>{label}</button>
+                        <button disabled={currentLead.stage === stage} className={`w-full rounded-xl border px-2 py-2.5 text-[10px] font-extrabold ${currentLead.stage === stage ? "border-rosa-profundo bg-rosa-profundo text-white" : "border-rosa/15 text-rosa-profundo"}`}>{label}</button>
                       </form>
                     ))}
                   </div>
-                  <form action={moveLeadAction} className="mt-2 flex gap-2">
-                    <input type="hidden" name="id" value={activeLead.id} />
-                    <input type="hidden" name="stage" value="PERDIDO" />
-                    <input name="lostReason" required placeholder="Motivo da perda" className="min-w-0 flex-1 rounded-xl border border-zinc-200 px-3 py-2.5 text-xs outline-none" />
-                    <button className="rounded-xl border border-zinc-300 px-3 py-2.5 text-[10px] font-extrabold text-zinc-700">Perdido</button>
-                  </form>
+                  {!['VENDIDO', 'POS_VENDA', 'RECOMPRA'].includes(currentLead.stage) && (
+                    <form action={moveLeadAction} className="mt-2 flex gap-2">
+                      <input type="hidden" name="id" value={currentLead.id} />
+                      <input type="hidden" name="stage" value="PERDIDO" />
+                      <input name="lostReason" required placeholder="Motivo da perda" className="min-w-0 flex-1 rounded-xl border border-zinc-200 px-3 py-2.5 text-xs outline-none" />
+                      <button className="rounded-xl border border-zinc-300 px-3 py-2.5 text-[10px] font-extrabold text-zinc-700">Perdido</button>
+                    </form>
+                  )}
                 </div>
               </>
             ) : (
               <div className="mt-4 rounded-xl bg-creme/50 p-4 text-xs text-cinza">
-                Não há oportunidade aberta. Use <strong>Indicar produto</strong> para iniciar uma nova negociação.
+                Não há oportunidade atual. Use <strong>Indicar produto</strong> para iniciar uma nova negociação.
               </div>
             )}
           </div>
@@ -216,7 +225,7 @@ export default async function CustomerWorkspacePage({ params }: { params: Promis
             <h2 className="text-sm font-extrabold text-texto">Adicionar anotação</h2>
             <form action={addCustomerNoteAction} className="mt-3 space-y-2">
               <input type="hidden" name="customerId" value={customer.id} />
-              {activeLead && <input type="hidden" name="leadId" value={activeLead.id} />}
+              {currentLead && <input type="hidden" name="leadId" value={currentLead.id} />}
               <textarea name="body" required rows={3} maxLength={1200} placeholder="Ex.: prefere acabamento matte, pediu para chamar depois do pagamento..." className="w-full resize-y rounded-xl border border-rosa/20 px-3 py-3 text-base outline-none focus:border-rosa-profundo sm:text-sm" />
               <button className="w-full rounded-xl border border-rosa-profundo px-4 py-3 text-xs font-extrabold text-rosa-profundo">Salvar na timeline</button>
             </form>
