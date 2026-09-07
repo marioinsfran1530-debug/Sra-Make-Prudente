@@ -1,7 +1,8 @@
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import type { Metadata } from "next";
 import { MessageCircle } from "lucide-react";
-import { getProductById } from "@/lib/data";
+import { getProductByIdentifier } from "@/lib/data";
+import { productPath, productSlug } from "@/lib/product-url";
 import { ProductGallery } from "@/components/ProductGallery";
 import { ProductShareButton } from "@/components/ProductShareButton";
 import { Badge, StockLabel } from "@/components/Badges";
@@ -23,13 +24,13 @@ function jsonLd(data: Record<string, unknown>) {
 
 export async function generateMetadata({ params }: { params: ProductParams }): Promise<Metadata> {
   const { id } = await params;
-  const product = await getProductById(id);
+  const product = await getProductByIdentifier(id);
   if (!product) return {};
 
   const description =
     product.description?.trim() ||
     `${product.name} da ${product.brand} na Sra Make Prudente em Presidente Prudente/SP. Consulte disponibilidade e compre pelo catálogo.`;
-  const canonical = `${SITE_URL}/produto/${product.id}`;
+  const canonical = `${SITE_URL}${productPath(product)}`;
   const mainImage = product.images[0]?.url;
   const title = `${product.name} — ${product.brand}`;
 
@@ -55,10 +56,15 @@ export async function generateMetadata({ params }: { params: ProductParams }): P
 
 export default async function ProdutoPage({ params }: { params: ProductParams }) {
   const { id } = await params;
-  const product = await getProductById(id);
+  const product = await getProductByIdentifier(id);
   if (!product) notFound();
 
-  const productUrl = `${SITE_URL}/produto/${product.id}`;
+  const friendlyPath = productPath(product);
+  if (id !== productSlug(product)) {
+    permanentRedirect(friendlyPath);
+  }
+
+  const productUrl = `${SITE_URL}${friendlyPath}`;
   const categoryUrl = `${SITE_URL}/categoria/${product.category.slug}`;
   const currentPrice = product.promoPrice ?? product.price;
   const availability = product.stock === "INDISPONIVEL" ? "https://schema.org/OutOfStock" : "https://schema.org/InStock";
