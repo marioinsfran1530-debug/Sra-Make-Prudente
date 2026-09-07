@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { productPath } from "@/lib/product-url";
 
 function slug(value: string) {
   return value
@@ -48,7 +49,7 @@ export async function GET(
       id: { endsWith: code },
       active: true,
     },
-    select: { id: true, name: true },
+    select: { id: true, name: true, brand: true },
   });
 
   if (!product) {
@@ -89,7 +90,7 @@ export async function GET(
     console.error("Falha ao registrar clique de divulgação", error);
   }
 
-  const destination = new URL(`/produto/${product.id}`, request.url);
+  const destination = new URL(productPath(product), request.url);
   destination.searchParams.set("utm_source", source);
   destination.searchParams.set("utm_medium", "organic");
   destination.searchParams.set("utm_campaign", campaign);
