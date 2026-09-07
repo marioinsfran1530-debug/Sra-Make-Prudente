@@ -47,30 +47,31 @@ model Subcategory {
 // ---------- Produtos ----------
 
 model Product {
-  id          String   @id @default(cuid())
-  name        String
-  brand       String
-  sku         String?
-  description String?
-  price       Decimal  @db.Decimal(10, 2)
-  promoPrice  Decimal? @db.Decimal(10, 2)
-  costPrice   Decimal? @db.Decimal(10, 2)
-  stockQty    Int      @default(0)
-  featured    Boolean  @default(false)
-  isNew       Boolean  @default(false)
-  bestSeller  Boolean  @default(false)
-  active      Boolean  @default(true)
-  categoryId    String
-  category      Category     @relation(fields: [categoryId], references: [id])
-  subcategoryId String?
-  subcategory   Subcategory? @relation(fields: [subcategoryId], references: [id])
-  categories     ProductCategory[]
-  images         ProductImage[]
-  variants       ProductVariant[]
-  campaignLinks  CampaignLinkMetric[]
-  crmLeads       CrmLead[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id              String   @id @default(cuid())
+  name            String
+  brand           String
+  sku             String?
+  description     String?
+  price           Decimal  @db.Decimal(10, 2)
+  promoPrice      Decimal? @db.Decimal(10, 2)
+  costPrice       Decimal? @db.Decimal(10, 2)
+  stockQty        Int      @default(0)
+  featured        Boolean  @default(false)
+  isNew           Boolean  @default(false)
+  bestSeller      Boolean  @default(false)
+  active          Boolean  @default(true)
+  categoryId      String
+  category        Category     @relation(fields: [categoryId], references: [id])
+  subcategoryId   String?
+  subcategory     Subcategory? @relation(fields: [subcategoryId], references: [id])
+  categories      ProductCategory[]
+  images          ProductImage[]
+  variants        ProductVariant[]
+  campaignLinks   CampaignLinkMetric[]
+  crmLeads        CrmLead[]
+  crmInteractions CrmInteraction[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
 
 model ProductCategory {
@@ -169,45 +170,53 @@ enum crm_follow_up_status {
 }
 
 model Customer {
-  id               String        @id @default(cuid())
+  id               String           @id @default(cuid())
   name             String
-  phone            String        @unique
-  marketingConsent Boolean       @default(false)
+  phone            String           @unique
+  marketingConsent Boolean          @default(false)
   source           String?
   notes            String?
   lastContactAt    DateTime?
   orders           Order[]
   leads            CrmLead[]
   followUps        CrmFollowUp[]
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
+  tags             CustomerTag[]
+  interactions     CrmInteraction[]
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
 
   @@index([lastContactAt])
 }
 
 model CrmLead {
-  id             String         @id @default(cuid())
-  customerId     String
-  customer       Customer       @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  stage          crm_lead_stage @default(NOVO)
-  productId      String?
-  product        Product?       @relation(fields: [productId], references: [id], onDelete: SetNull)
-  estimatedValue Decimal?       @db.Decimal(10, 2)
-  source         String?
-  notes          String?
-  lostReason     String?
-  assignedToId   String?
-  assignedTo     AdminProfile?  @relation("CrmLeadAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
-  lastContactAt  DateTime?
-  closedAt       DateTime?
-  followUps      CrmFollowUp[]
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  id              String         @id @default(cuid())
+  customerId      String
+  customer        Customer       @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  stage           crm_lead_stage @default(NOVO)
+  productId       String?
+  product         Product?       @relation(fields: [productId], references: [id], onDelete: SetNull)
+  estimatedValue  Decimal?       @db.Decimal(10, 2)
+  source          String?
+  campaign        String?
+  campaignContent String?
+  campaignCode    String?
+  notes           String?
+  lostReason      String?
+  assignedToId    String?
+  assignedTo      AdminProfile?  @relation("CrmLeadAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  lastContactAt   DateTime?
+  closedAt        DateTime?
+  followUps       CrmFollowUp[]
+  interactions    CrmInteraction[]
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
   @@index([customerId, stage])
   @@index([stage, updatedAt])
   @@index([productId])
   @@index([assignedToId])
+  @@index([campaign])
+  @@index([campaignCode])
 }
 
 model CrmFollowUp {
@@ -229,6 +238,52 @@ model CrmFollowUp {
   @@index([customerId, dueAt])
   @@index([leadId])
   @@index([createdById])
+}
+
+model CrmTag {
+  id        String        @id @default(cuid())
+  name      String
+  slug      String        @unique
+  color     String?
+  active    Boolean       @default(true)
+  customers CustomerTag[]
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+}
+
+model CustomerTag {
+  customerId String
+  tagId      String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  tag        CrmTag   @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@id([customerId, tagId])
+  @@index([tagId])
+}
+
+model CrmInteraction {
+  id          String        @id @default(cuid())
+  customerId  String
+  customer    Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  leadId      String?
+  lead        CrmLead?      @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  productId   String?
+  product     Product?      @relation(fields: [productId], references: [id], onDelete: SetNull)
+  orderId     String?
+  order       Order?        @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  createdById String?
+  createdBy   AdminProfile? @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  kind        String
+  channel     String?
+  direction   String?
+  body        String?
+  metadata    Json?
+  createdAt   DateTime      @default(now())
+
+  @@index([customerId, createdAt])
+  @@index([leadId, createdAt])
+  @@index([kind, createdAt])
 }
 
 // ---------- Pedidos / vendas ----------
@@ -266,36 +321,37 @@ enum order_status {
 }
 
 model Order {
-  id            String @id @default(cuid())
-  number        Int    @unique @default(autoincrement())
-  customerName  String
-  customerPhone String
-  customerId    String?
-  customer      Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  subtotal      Decimal @db.Decimal(10, 2)
-  discount      Decimal @default(0) @db.Decimal(10, 2)
-  deliveryFee   Decimal @default(0) @db.Decimal(10, 2)
-  total         Decimal @db.Decimal(10, 2)
-  deliveryType  delivery_type
-  address       String?
-  payment       payment_method
-  payments      OrderPayment[]
-  channel       order_channel @default(CATALOGO)
-  createdById   String?
-  createdBy     AdminProfile? @relation(fields: [createdById], references: [id], onDelete: SetNull)
-  notes         String?
-  origin        String?
-  referrer      String?
-  landingPage   String?
-  utmSource     String?
-  utmMedium     String?
-  utmCampaign   String?
-  utmContent    String?
-  sessionId     String?
-  status        order_status @default(NOVO)
-  items         OrderItem[]
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id              String @id @default(cuid())
+  number          Int    @unique @default(autoincrement())
+  customerName    String
+  customerPhone   String
+  customerId      String?
+  customer        Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  subtotal        Decimal @db.Decimal(10, 2)
+  discount        Decimal @default(0) @db.Decimal(10, 2)
+  deliveryFee     Decimal @default(0) @db.Decimal(10, 2)
+  total           Decimal @db.Decimal(10, 2)
+  deliveryType    delivery_type
+  address         String?
+  payment         payment_method
+  payments        OrderPayment[]
+  channel         order_channel @default(CATALOGO)
+  createdById     String?
+  createdBy       AdminProfile? @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  notes           String?
+  origin          String?
+  referrer        String?
+  landingPage     String?
+  utmSource       String?
+  utmMedium       String?
+  utmCampaign     String?
+  utmContent      String?
+  sessionId       String?
+  status          order_status @default(NOVO)
+  items           OrderItem[]
+  crmInteractions CrmInteraction[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   @@index([channel, createdAt])
   @@index([createdById, createdAt])
@@ -315,19 +371,19 @@ model OrderPayment {
 }
 
 model OrderItem {
-  id        String  @id @default(cuid())
-  orderId   String
-  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  productId String
-  variantId String?
+  id          String  @id @default(cuid())
+  orderId     String
+  order       Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId   String
+  variantId   String?
   name        String
   brand       String?
   sku         String?
   variantName String?
-  qty       Int
-  unitPrice Decimal  @db.Decimal(10, 2)
-  unitCost  Decimal? @db.Decimal(10, 2)
-  subtotal  Decimal  @db.Decimal(10, 2)
+  qty         Int
+  unitPrice   Decimal  @db.Decimal(10, 2)
+  unitCost    Decimal? @db.Decimal(10, 2)
+  subtotal    Decimal  @db.Decimal(10, 2)
 }
 
 // ---------- Analytics próprio ----------
@@ -368,16 +424,17 @@ enum admin_role {
 }
 
 model AdminProfile {
-  id                  String        @id
-  email               String        @unique
-  name                String?
-  role                admin_role    @default(EDITOR)
-  active              Boolean       @default(true)
-  orders              Order[]
-  crmLeadsAssigned    CrmLead[]     @relation("CrmLeadAssignee")
-  crmFollowUpsCreated CrmFollowUp[] @relation("CrmFollowUpCreator")
-  createdAt           DateTime      @default(now())
-  updatedAt           DateTime      @updatedAt
+  id                     String           @id
+  email                  String           @unique
+  name                   String?
+  role                   admin_role       @default(EDITOR)
+  active                 Boolean          @default(true)
+  orders                 Order[]
+  crmLeadsAssigned       CrmLead[]        @relation("CrmLeadAssignee")
+  crmFollowUpsCreated    CrmFollowUp[]    @relation("CrmFollowUpCreator")
+  crmInteractionsCreated CrmInteraction[]
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
 }
 
 model StoreSettings {
