@@ -10,6 +10,7 @@ export function AdminNav({ isAdmin }: { isAdmin: boolean }) {
   const items: Item[] = [
     { href: "/admin", label: "Dashboard" },
     { href: "/admin/vendas/nova", label: "Nova venda" },
+    { href: "/admin/crm", label: "CRM" },
     { href: "/admin/analise", label: "Análise" },
     { href: "/admin/produtos", label: "Produtos" },
     { href: "/admin/categorias", label: "Categorias" },
