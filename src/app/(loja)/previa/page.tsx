@@ -247,14 +247,6 @@ export default async function PreviewHomePage() {
         <SearchBar />
       </div>
 
-      <HomeCategoryRail categories={categories} />
-
-      <StoreLocationBar
-        address={location.address}
-        businessHours={location.businessHours}
-        mapsUrl={location.mapsUrl}
-      />
-
       {firstSectionProducts.length > 0 && (
         <ProductSection
           title={firstSectionTitle}
@@ -262,6 +254,14 @@ export default async function PreviewHomePage() {
           products={firstSectionProducts}
         />
       )}
+
+      <HomeCategoryRail categories={categories} />
+
+      <StoreLocationBar
+        address={location.address}
+        businessHours={location.businessHours}
+        mapsUrl={location.mapsUrl}
+      />
 
       {underTwenty.length >= 3 && (
         <ProductSection
