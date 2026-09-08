@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
+  captureCheckoutOpportunity,
+  markCheckoutOpportunityConverted,
+} from "@/lib/checkout-recovery";
+import {
   hasEnoughStock,
   orderItemRequiresVariant,
   orderLineKey,
@@ -83,6 +87,19 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
   }
+
+  // Registra a intenção de compra antes das validações comerciais finais.
+  // Assim, se um carrinho antigo ficar incompatível (ex.: produto passou a
+  // exigir cor/variação), nome, WhatsApp e itens continuam recuperáveis no CRM.
+  const recovery = await captureCheckoutOpportunity({
+    customerName,
+    customerPhone,
+    sessionId,
+    items: body.items,
+    deliveryType: body.deliveryType,
+    payment: body.payment,
+  });
+
   if (body.deliveryType !== "RETIRADA" && body.deliveryType !== "ENTREGA") {
     return NextResponse.json({ error: "Forma de recebimento inválida." }, { status: 400 });
   }
@@ -290,6 +307,7 @@ export async function POST(request: NextRequest) {
       data: {
         customerName,
         customerPhone,
+        customerId: recovery?.customerId ?? null,
         subtotal,
         deliveryFee,
         total,
@@ -326,6 +344,12 @@ export async function POST(request: NextRequest) {
       })),
     };
   });
+
+  await markCheckoutOpportunityConverted(
+    recovery,
+    result.orderNumber,
+    result.total
+  );
 
   if (sessionId) {
     await prisma.pushSubscription.updateMany({
