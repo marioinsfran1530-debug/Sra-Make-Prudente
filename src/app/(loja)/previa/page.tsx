@@ -13,6 +13,7 @@ import { HomeCategoryRail, BrandRail } from "@/components/HomeDiscoveryRails";
 import { ProductCarousel } from "@/components/ProductCarousel";
 import { SearchBar } from "@/components/SearchBar";
 import { StoreAccountButton } from "@/components/StoreAccountButton";
+import { StoreLocationBar } from "@/components/StoreLocationBar";
 import { WhatsAppLink } from "@/components/TrackedLink";
 import { getCategories, getProducts, getStoreSettings } from "@/lib/data";
 import {
@@ -23,6 +24,7 @@ import {
   rankPopularProducts,
 } from "@/lib/home-merchandising";
 import { resolveStorefrontConversion } from "@/lib/storefront-conversion";
+import { resolveStoreLocation } from "@/lib/store-location";
 import { waLink } from "@/lib/whatsapp";
 
 export const revalidate = 60;
@@ -116,8 +118,9 @@ export default async function PreviewHomePage() {
     .slice(0, 10)
     .map(([brand]) => brand);
 
-  const whatsappNumber = settings?.whatsapp ?? "5518991248713";
   const conversion = resolveStorefrontConversion(settings);
+  const location = resolveStoreLocation(settings);
+  const whatsappNumber = location.whatsapp;
   const heroHighlights = [conversion.highlight1, conversion.highlight2].filter(Boolean);
   const secondaryHref =
     conversion.secondaryCtaUrl ||
@@ -246,6 +249,12 @@ export default async function PreviewHomePage() {
 
       <HomeCategoryRail categories={categories} />
 
+      <StoreLocationBar
+        address={location.address}
+        businessHours={location.businessHours}
+        mapsUrl={location.mapsUrl}
+      />
+
       {firstSectionProducts.length > 0 && (
         <ProductSection
           title={firstSectionTitle}
@@ -372,25 +381,37 @@ export default async function PreviewHomePage() {
           <h2 className="mt-1 font-serif text-lg font-bold text-texto">
             Comprar ficou mais fácil
           </h2>
-          <div className="mt-4 grid grid-cols-3 gap-2">
+          <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
             {[
-              { icon: Search, title: "Escolha", text: "Encontre o produto" },
-              { icon: MessageCircle, title: "Confirme", text: "Finalize com a loja" },
-              { icon: Truck, title: "Receba", text: "Entrega ou retirada" },
+              { icon: Search, title: "Escolha", text: "Veja produtos e preços" },
+              { icon: Package, title: "Monte", text: "Adicione ao carrinho" },
+              {
+                icon: MessageCircle,
+                title: "Confirme",
+                text: "Combine retirada ou 99Entrega pelo WhatsApp",
+              },
             ].map((step, index) => (
-              <div key={step.title} className="rounded-2xl bg-creme px-2 py-3 text-center">
-                <div className="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-sm">
+              <div
+                key={step.title}
+                className="flex items-center gap-3 rounded-2xl bg-creme p-3 text-left sm:block sm:px-2 sm:text-center"
+              >
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white shadow-sm sm:mx-auto sm:mb-2">
                   <step.icon size={16} className="text-rosa-profundo" />
                 </div>
-                <p className="text-[11px] font-bold text-texto">
-                  {index + 1}. {step.title}
-                </p>
-                <p className="mt-1 text-[10px] leading-tight text-cinza">
-                  {step.text}
-                </p>
+                <div>
+                  <p className="text-[11px] font-bold text-texto">
+                    {index + 1}. {step.title}
+                  </p>
+                  <p className="mt-1 text-[10px] leading-tight text-cinza">
+                    {step.text}
+                  </p>
+                </div>
               </div>
             ))}
           </div>
+          <p className="mt-3 text-[11px] leading-relaxed text-cinza">
+            A entrega é feita por 99Entrega somente em Presidente Prudente. A loja confirma os itens e os detalhes antes de solicitar a corrida.
+          </p>
         </div>
       </section>
 

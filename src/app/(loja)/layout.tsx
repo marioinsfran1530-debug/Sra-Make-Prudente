@@ -6,6 +6,7 @@ import { StoreFooter } from "@/components/StoreFooter";
 import { StoreScrollReveal } from "@/components/StoreScrollReveal";
 import { TrackingInit } from "@/components/TrackingInit";
 import { getStoreSettings } from "@/lib/data";
+import { resolveStoreLocation } from "@/lib/store-location";
 
 const SITE_URL = "https://www.sramakeprudente.com.br";
 const STORE_CNPJ = process.env.NEXT_PUBLIC_STORE_CNPJ || "64.394.637/0001-92";
@@ -40,7 +41,8 @@ export default async function LojaLayout({
 }) {
   const settings = await getStoreSettings();
   const storeName = settings?.storeName ?? "Sra Make Prudente";
-  const telephone = phoneForSchema(settings?.whatsapp);
+  const location = resolveStoreLocation(settings);
+  const telephone = phoneForSchema(location.whatsapp);
 
   const sameAs = [
     socialUrl(settings?.instagram, "instagram"),
@@ -88,18 +90,14 @@ export default async function LojaLayout({
               },
             }
           : {}),
-        ...(settings?.address
-          ? {
-              address: {
-                "@type": "PostalAddress",
-                streetAddress: settings.address,
-                addressLocality: "Presidente Prudente",
-                addressRegion: "SP",
-                addressCountry: "BR",
-              },
-            }
-          : {}),
-        ...(settings?.googleMapsUrl ? { hasMap: settings.googleMapsUrl } : {}),
+        address: {
+          "@type": "PostalAddress",
+          streetAddress: location.address,
+          addressLocality: "Presidente Prudente",
+          addressRegion: "SP",
+          addressCountry: "BR",
+        },
+        hasMap: location.mapsUrl,
         ...(sameAs.length > 0 ? { sameAs } : {}),
       },
     ],
@@ -126,7 +124,12 @@ export default async function LojaLayout({
           />
           <div className="pb-20">
             {children}
-            <StoreFooter storeName={storeName} cnpj={STORE_CNPJ} />
+            <StoreFooter
+              storeName={storeName}
+              cnpj={STORE_CNPJ}
+              address={location.address}
+              mapsUrl={location.mapsUrl}
+            />
           </div>
           <BottomNav />
         </div>
