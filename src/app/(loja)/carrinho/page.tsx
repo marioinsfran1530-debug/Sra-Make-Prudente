@@ -122,7 +122,7 @@ export default function CarrinhoPage() {
               <span className="font-extrabold text-xl text-rosa-profundo">{money(subtotal)}</span>
             </div>
             <p className="text-[11px] text-cinza mb-4">
-              Entrega ou retirada e forma de pagamento serão escolhidas na próxima etapa.
+              Escolha retirada no Centro ou 99Entrega em Presidente Prudente na próxima etapa. A loja confirma tudo pelo WhatsApp.
             </p>
             <button
               type="button"

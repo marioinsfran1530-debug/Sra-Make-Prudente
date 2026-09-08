@@ -25,7 +25,7 @@ const PAYMENT_OPTIONS: { value: string; label: string }[] = [
   { value: "PIX", label: "Pix" },
   { value: "DINHEIRO", label: "Dinheiro" },
   { value: "CARTAO", label: "Cartão" },
-  { value: "CONFIRMAR_WHATSAPP", label: "Confirmar pelo WhatsApp" },
+  { value: "CONFIRMAR_WHATSAPP", label: "Combinar no WhatsApp" },
 ];
 
 type CheckoutSuccess = {
@@ -34,6 +34,7 @@ type CheckoutSuccess = {
   duplicate: boolean;
   message: string;
   whatsappUrl: string;
+  deliveryType: "RETIRADA" | "ENTREGA";
 };
 
 export default function CheckoutPage() {
@@ -133,6 +134,7 @@ export default function CheckoutPage() {
         duplicate: data.duplicate === true,
         message,
         whatsappUrl,
+        deliveryType,
       });
     } catch {
       setError(
@@ -178,13 +180,15 @@ export default function CheckoutPage() {
             Pedido #{success.orderNumber} recebido
           </h1>
           <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-cinza">
-            Seu pedido já está salvo no sistema da Sra Make. Agora abra o WhatsApp e envie a mensagem pronta para confirmar o atendimento com a loja.
+            {success.deliveryType === "RETIRADA"
+              ? "Seu pedido já está salvo. Envie a mensagem no WhatsApp para a loja confirmar os itens e separar sua retirada."
+              : "Seu pedido já está salvo. Envie a mensagem no WhatsApp para a loja confirmar os itens e combinar a entrega por 99Entrega em Presidente Prudente."}
           </p>
 
           <div className="mt-5 flex items-center justify-between rounded-2xl bg-creme/60 px-4 py-3 text-left">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-wide text-cinza">
-                Total do pedido
+                Total dos produtos
               </p>
               <p className="text-xs text-texto">
                 {success.duplicate
@@ -196,6 +200,12 @@ export default function CheckoutPage() {
               {money(success.total)}
             </strong>
           </div>
+
+          {success.deliveryType === "ENTREGA" && (
+            <p className="mt-3 rounded-xl bg-creme/50 px-3 py-2 text-[11px] leading-relaxed text-cinza">
+              A Sra Make solicita a 99Entrega após a confirmação. Os detalhes da corrida são combinados pelo WhatsApp.
+            </p>
+          )}
 
           <a
             href={success.whatsappUrl}
@@ -309,13 +319,13 @@ export default function CheckoutPage() {
                 active={deliveryType === "ENTREGA"}
                 onClick={() => setDeliveryType("ENTREGA")}
                 icon={Truck}
-                label="Entrega"
+                label="Entrega por 99"
               />
             </div>
 
             {deliveryType === "ENTREGA" && (
               <div className="mt-3">
-                <Field label="Endereço de entrega">
+                <Field label="Endereço em Presidente Prudente">
                   <input
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
@@ -323,6 +333,9 @@ export default function CheckoutPage() {
                     className="w-full bg-transparent outline-none text-sm text-texto"
                   />
                 </Field>
+                <p className="mt-2 text-[11px] leading-relaxed text-cinza">
+                  Entrega somente em Presidente Prudente. Após confirmar o pedido no WhatsApp, a Sra Make solicita a 99Entrega e combina os detalhes com você.
+                </p>
               </div>
             )}
 
@@ -398,7 +411,7 @@ export default function CheckoutPage() {
           Confira seu pedido
         </h1>
         <p className="text-xs text-cinza mt-1">
-          Primeiro registramos o pedido no sistema. Depois você abre o WhatsApp para confirmar o atendimento com a loja.
+          Primeiro registramos o pedido. Depois você abre o WhatsApp para a loja confirmar os itens e organizar a retirada ou a 99Entrega.
         </p>
       </div>
 
@@ -436,7 +449,9 @@ export default function CheckoutPage() {
               <Row
                 label="Recebimento"
                 value={
-                  deliveryType === "RETIRADA" ? "Retirar na loja" : "Entrega"
+                  deliveryType === "RETIRADA"
+                    ? "Retirar na loja"
+                    : "Entrega por 99Entrega"
                 }
               />
 
@@ -469,7 +484,10 @@ export default function CheckoutPage() {
             </div>
 
             <p className="text-[11px] leading-relaxed text-cinza mt-4">
-              O pedido será registrado primeiro no sistema da Sra Make. Depois você poderá abrir o WhatsApp com a mensagem pronta para confirmar com a loja.
+              O pedido será registrado primeiro. Depois você poderá abrir o WhatsApp com a mensagem pronta para a confirmação da loja.
+              {deliveryType === "ENTREGA"
+                ? " A entrega é feita por 99Entrega somente em Presidente Prudente."
+                : " A loja separará os produtos para retirada após confirmar."}
             </p>
 
             <label className="mt-4 flex items-start gap-3 rounded-xl border border-rosa/15 bg-creme/40 p-3 cursor-pointer">
@@ -499,7 +517,7 @@ export default function CheckoutPage() {
               style={{ backgroundColor: "#E4127B" }}
             >
               <Send size={16} />
-              {submitting ? "Registrando pedido..." : "Confirmar pedido"}
+              {submitting ? "Registrando pedido..." : "Registrar pedido"}
             </button>
 
             <button
@@ -512,7 +530,7 @@ export default function CheckoutPage() {
             </button>
 
             <p className="text-[10px] leading-relaxed text-center mt-3 text-cinza">
-              Nenhum pagamento é realizado pelo site.
+              Nenhum pagamento é realizado pelo site. A confirmação acontece pelo WhatsApp.
             </p>
           </div>
         </aside>

@@ -20,7 +20,7 @@ const PAYMENT_LABEL: Record<string, string> = {
   PIX: "Pix",
   DINHEIRO: "Dinheiro",
   CARTAO: "Cartão",
-  CONFIRMAR_WHATSAPP: "Confirmar pelo WhatsApp",
+  CONFIRMAR_WHATSAPP: "Combinar no WhatsApp",
 };
 
 function formatPhone(value: string) {
@@ -52,6 +52,8 @@ export function buildOrderMessage(params: {
   payment: string;
   notes?: string | null;
 }) {
+  const deliveryPendingConfirmation =
+    params.deliveryType === "ENTREGA" && params.deliveryFee === 0;
   const lines = params.items.map(
     (i) =>
       `• ${i.qty}x ${i.name}${i.variantName ? ` (${i.variantName})` : ""} — ${money(i.subtotal)}`
@@ -70,13 +72,22 @@ export function buildOrderMessage(params: {
     "",
     "*RESUMO*",
     `Subtotal: ${money(params.subtotal)}`,
-    params.deliveryFee > 0 ? `Entrega: ${money(params.deliveryFee)}` : null,
-    `*Total: ${money(params.total)}*`,
+    params.deliveryFee > 0
+      ? `Entrega por 99Entrega: ${money(params.deliveryFee)}`
+      : deliveryPendingConfirmation
+        ? "Entrega por 99Entrega: detalhes confirmados no WhatsApp"
+        : null,
+    `*${deliveryPendingConfirmation ? "Total dos produtos" : "Total"}: ${money(params.total)}*`,
     "",
     `*${params.deliveryType === "RETIRADA" ? "RETIRADA" : "ENTREGA"}*`,
-    params.deliveryType === "RETIRADA" ? "Tipo: Retirar na loja" : "Tipo: Entrega",
+    params.deliveryType === "RETIRADA"
+      ? "Tipo: Retirar na loja"
+      : "Tipo: Entrega por 99Entrega em Presidente Prudente",
     params.deliveryType === "ENTREGA" && params.address
       ? `Endereço: ${params.address}`
+      : null,
+    params.deliveryType === "ENTREGA"
+      ? "A loja solicita a 99Entrega após confirmar o pedido."
       : null,
     "",
     "*PAGAMENTO*",

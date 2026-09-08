@@ -130,7 +130,7 @@ export default async function LojaInfoPage() {
           A Sra Make Prudente é uma loja de maquiagem e cosméticos em Presidente Prudente. Atendemos consumidoras e profissionais que procuram produtos para maquiagem, cílios e lash design, nail design, skincare, acessórios e presentes.
         </p>
         <p className="mt-2 text-sm leading-relaxed text-cinza">
-          Você pode visitar nossa loja física no Centro, consultar o catálogo online para ver produtos e preços e falar com a equipe pelo WhatsApp para tirar dúvidas, confirmar disponibilidade, combinar retirada ou consultar entrega em Presidente Prudente.
+          Você pode visitar nossa loja física no Centro, consultar o catálogo online para ver produtos e preços e falar com a equipe pelo WhatsApp para tirar dúvidas, confirmar disponibilidade, combinar retirada ou solicitar entrega por 99Entrega em Presidente Prudente.
         </p>
       </section>
 

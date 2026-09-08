@@ -4,6 +4,7 @@ import { requireAdmin } from "@/lib/admin-auth";
 import { markAiSuggestionUsed } from "@/lib/ai-metrics";
 import { indexNowPaths, notifyIndexNow } from "@/lib/indexnow";
 import { validateProductInput } from "@/lib/product-input";
+import { findProductSlugConflict } from "@/lib/product-url";
 
 function normalizeCategoryIds(primaryCategoryId: string, categoryIds: unknown) {
   const ids = Array.isArray(categoryIds)
@@ -81,6 +82,20 @@ export async function POST(request: NextRequest) {
   }
 
   const { data } = validation;
+  const existingProducts = await prisma.product.findMany({
+    select: { id: true, name: true, brand: true },
+  });
+  const slugConflict = findProductSlugConflict(data, existingProducts);
+  if (slugConflict) {
+    return NextResponse.json(
+      {
+        error:
+          "Já existe um produto com o mesmo nome e marca. Acrescente a cor, o modelo ou outra característica ao nome para criar uma página própria.",
+      },
+      { status: 409 },
+    );
+  }
+
   const variants = Array.isArray(body.variants)
     ? body.variants
         .map((variant) => {
