@@ -163,6 +163,9 @@ export default async function ProdutoPage({ params }: { params: ProductParams })
               </p>
             </div>
             <div className="mt-4 border-t border-rosa/10 pt-4"><AddToCartBox product={product} /></div>
+            <p className="mt-3 rounded-xl border border-rosa/10 bg-white px-3 py-2 text-[11px] leading-relaxed text-cinza">
+              Retirada no Centro ou entrega por 99Entrega somente em Presidente Prudente. A loja confirma os detalhes pelo WhatsApp.
+            </p>
             <div className="mt-4 rounded-2xl p-3 bg-creme">
               <p className="text-xs font-bold mb-1 text-texto">Precisa de ajuda?</p>
               <p className="text-xs mb-3 text-cinza">Ficou em dúvida sobre qual escolher? Fale com a gente.</p>

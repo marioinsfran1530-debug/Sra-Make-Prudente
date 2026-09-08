@@ -2,13 +2,13 @@ export const STOREFRONT_CONVERSION_DEFAULTS = {
   heroEyebrow: "Catálogo da",
   heroTitle: "Maquiagem, lash e nail em Presidente Prudente",
   heroSubtitle:
-    "Veja preços e disponibilidade. Escolha seus produtos e finalize pelo WhatsApp.",
+    "Veja preços e disponibilidade. Monte seu pedido e confirme retirada ou entrega pelo WhatsApp.",
   primaryCtaLabel: "Ver produtos e preços",
   primaryCtaUrl: "/categoria",
   secondaryCtaLabel: "Precisa de ajuda? Fale no WhatsApp",
   secondaryCtaUrl: "",
   highlight1: "Retirada no Centro",
-  highlight2: "Entrega em Presidente Prudente",
+  highlight2: "99Entrega em Presidente Prudente",
   highlight3: "",
 } as const;
 
@@ -36,6 +36,7 @@ const LEGACY_VALUES = {
     "Você linda todos os dias.",
   ]),
   heroSubtitle: new Set([
+    "Veja preços e disponibilidade. Escolha seus produtos e finalize pelo WhatsApp.",
     "Maquiagem, lash, nail e acessórios. Escolha pelo catálogo e confirme pelo WhatsApp.",
     "Maquiagem, lash, nail e acessórios. Escolha seus produtos e finalize pelo WhatsApp.",
   ]),
@@ -45,7 +46,10 @@ const LEGACY_VALUES = {
     "Compra fácil e segura",
     "Compra simples e segura",
   ]),
-  highlight2: new Set(["Atendimento personalizado"]),
+  highlight2: new Set([
+    "Atendimento personalizado",
+    "Entrega em Presidente Prudente",
+  ]),
   highlight3: new Set(["Retirada ou entrega"]),
 };
 

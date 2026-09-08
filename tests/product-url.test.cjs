@@ -1,6 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
+  findProductSlugConflict,
   productIdFromLegacySlug,
   productPath,
   productSlug,
@@ -32,4 +33,38 @@ test("resolve URLs anteriores aos ajustes de digitação", () => {
     "cmt66povx000v4thr741j3s78",
   );
   assert.equal(productIdFromLegacySlug("produto-inexistente"), null);
+});
+
+test("mantém os endereços antigos dos grupos que tinham URL duplicada", () => {
+  assert.equal(
+    productIdFromLegacySlug("cilios-posticos-sabrina-sato"),
+    "cmt5ypy9f002ilkykcwqfp9uq",
+  );
+  assert.equal(
+    productIdFromLegacySlug("paleta-de-sombras-t-e-g"),
+    "cmt37b2be0007121rtmd7aews",
+  );
+});
+
+test("detecta nome e marca que produziriam a mesma URL", () => {
+  const candidates = [
+    { id: "produto-1", name: "Cílios postiços", brand: "Sabrina Sato" },
+    { id: "produto-2", name: "Paleta 9 cores", brand: "T&G" },
+  ];
+
+  assert.equal(
+    findProductSlugConflict(
+      { name: "  Cílios   postiços ", brand: "Sabrina Sato " },
+      candidates,
+    )?.id,
+    "produto-1",
+  );
+  assert.equal(
+    findProductSlugConflict(
+      { name: "Cílios postiços", brand: "Sabrina Sato" },
+      candidates,
+      "produto-1",
+    ),
+    null,
+  );
 });
