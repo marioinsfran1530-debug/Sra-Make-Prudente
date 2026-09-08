@@ -1,15 +1,113 @@
 "use client";
 
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ShoppingCart, Plus, Minus, X, ArrowRight } from "lucide-react";
+import {
+  ShoppingCart,
+  Plus,
+  Minus,
+  X,
+  ArrowRight,
+  AlertTriangle,
+  RefreshCw,
+} from "lucide-react";
 import { useCart } from "@/components/CartProvider";
 import { ProductImage } from "@/components/ProductImage";
 import { money } from "@/lib/money";
 import { trackEvent } from "@/lib/analytics";
 
+type CartIssue = {
+  type:
+    | "PRODUCT_UNAVAILABLE"
+    | "VARIANT_REQUIRED"
+    | "VARIANT_UNAVAILABLE"
+    | "INSUFFICIENT_STOCK"
+    | "INVALID_ITEM";
+  productId: string;
+  productName: string;
+  variantId: string | null;
+  message: string;
+  productPath?: string;
+  options?: Array<{ id: string; name: string; stockQty: number }>;
+};
+
+type CartValidation = {
+  valid: boolean;
+  issues: CartIssue[];
+};
+
 export default function CarrinhoPage() {
   const router = useRouter();
   const { items, subtotal, updateQty, removeItem } = useCart();
+  const [validation, setValidation] = useState<CartValidation | null>(null);
+  const [validating, setValidating] = useState(false);
+
+  const validateCart = useCallback(async (): Promise<CartValidation> => {
+    if (items.length === 0) {
+      const empty = { valid: false, issues: [] };
+      setValidation(empty);
+      return empty;
+    }
+
+    setValidating(true);
+
+    try {
+      const response = await fetch("/api/cart/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          items: items.map((item) => ({
+            productId: item.productId,
+            variantId: item.variantId,
+            qty: item.qty,
+          })),
+        }),
+      });
+
+      const data = (await response.json().catch(() => null)) as CartValidation | null;
+      const next =
+        data && Array.isArray(data.issues)
+          ? data
+          : {
+              valid: false,
+              issues: [
+                {
+                  type: "INVALID_ITEM" as const,
+                  productId: "",
+                  productName: "Carrinho",
+                  variantId: null,
+                  message:
+                    "Não conseguimos conferir o carrinho agora. Toque em conferir novamente antes de continuar.",
+                },
+              ],
+            };
+
+      setValidation(next);
+      return next;
+    } catch {
+      const failed: CartValidation = {
+        valid: false,
+        issues: [
+          {
+            type: "INVALID_ITEM",
+            productId: "",
+            productName: "Carrinho",
+            variantId: null,
+            message:
+              "Não conseguimos conferir o carrinho agora. Verifique sua conexão e tente novamente.",
+          },
+        ],
+      };
+      setValidation(failed);
+      return failed;
+    } finally {
+      setValidating(false);
+    }
+  }, [items]);
+
+  useEffect(() => {
+    void validateCart();
+  }, [validateCart]);
 
   if (items.length === 0) {
     return (
@@ -30,6 +128,8 @@ export default function CarrinhoPage() {
     );
   }
 
+  const hasIssues = validation?.valid === false;
+
   return (
     <main className="max-w-7xl mx-auto px-4 pt-5 pb-28 md:pb-8">
       <CheckoutProgress current={1} />
@@ -40,64 +140,127 @@ export default function CarrinhoPage() {
         <p className="text-xs text-cinza mt-1">Confira os produtos antes de continuar.</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-6 mt-5 items-start">
-        <div className="flex flex-col gap-3">
-          {items.map((item) => (
-            <div
-              key={item.productId + (item.variantId ?? "")}
-              className="flex gap-3 rounded-2xl p-3 bg-white border border-rosa/10"
-              style={{ boxShadow: "0 2px 14px rgba(35,20,42,0.06)" }}
-            >
-              <ProductImage
-                name={item.name}
-                imageUrl={item.imageUrl}
-                className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl flex-shrink-0"
-              />
-
-              <div className="flex-1 min-w-0 py-0.5">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-cinza">{item.brand}</p>
-                <p className="text-sm sm:text-base font-bold leading-snug text-texto">{item.name}</p>
-                {item.variantName && <p className="text-xs text-cinza mt-0.5">{item.variantName}</p>}
-
-                <div className="flex flex-wrap items-center justify-between gap-3 mt-3">
-                  <div className="flex items-center rounded-full border border-rosa/20 bg-white">
-                    <button
-                      type="button"
-                      aria-label="Diminuir quantidade"
-                      onClick={() => updateQty(item.productId, item.variantId, item.qty - 1)}
-                      className="w-8 h-8 flex items-center justify-center"
-                    >
-                      <Minus size={13} className="text-texto" />
-                    </button>
-                    <span className="w-7 text-center font-bold text-xs text-texto">{item.qty}</span>
-                    <button
-                      type="button"
-                      aria-label="Aumentar quantidade"
-                      onClick={() => updateQty(item.productId, item.variantId, item.qty + 1)}
-                      className="w-8 h-8 flex items-center justify-center"
-                    >
-                      <Plus size={13} className="text-texto" />
-                    </button>
-                  </div>
-
-                  <div className="text-right">
-                    {item.qty > 1 && <p className="text-[10px] text-cinza">{money(item.price)} cada</p>}
-                    <p className="font-extrabold text-base text-rosa-profundo">{money(item.price * item.qty)}</p>
-                  </div>
-                </div>
-              </div>
-
+      {hasIssues && (
+        <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+          <div className="flex gap-3">
+            <AlertTriangle size={20} className="mt-0.5 flex-shrink-0 text-amber-700" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-extrabold text-amber-900">Seu carrinho precisa de uma atualização</p>
+              <p className="mt-1 text-xs leading-relaxed text-amber-800">
+                Algum produto mudou desde que foi adicionado. Corrija os itens destacados para evitar que o pedido falhe na última etapa.
+              </p>
               <button
                 type="button"
-                aria-label={`Remover ${item.name}`}
-                title="Remover produto"
-                onClick={() => removeItem(item.productId, item.variantId)}
-                className="self-start w-8 h-8 rounded-full flex items-center justify-center border border-transparent text-cinza hover:border-rosa/15 hover:bg-creme hover:text-rosa-profundo transition"
+                onClick={() => void validateCart()}
+                disabled={validating}
+                className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-white px-3 py-2 text-[11px] font-extrabold text-amber-800 disabled:opacity-50"
               >
-                <X size={16} />
+                <RefreshCw size={13} className={validating ? "animate-spin" : ""} />
+                Conferir novamente
               </button>
             </div>
-          ))}
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-6 mt-5 items-start">
+        <div className="flex flex-col gap-3">
+          {items.map((item) => {
+            const issue = validation?.issues.find(
+              (candidate) =>
+                candidate.productId === item.productId &&
+                (candidate.variantId === item.variantId || candidate.variantId === null)
+            );
+            const needsNewOption =
+              issue?.type === "VARIANT_REQUIRED" || issue?.type === "VARIANT_UNAVAILABLE";
+            const unavailable = issue?.type === "PRODUCT_UNAVAILABLE";
+
+            return (
+              <div
+                key={item.productId + (item.variantId ?? "")}
+                className={`flex gap-3 rounded-2xl p-3 bg-white border ${
+                  issue ? "border-amber-300" : "border-rosa/10"
+                }`}
+                style={{ boxShadow: "0 2px 14px rgba(35,20,42,0.06)" }}
+              >
+                <ProductImage
+                  name={item.name}
+                  imageUrl={item.imageUrl}
+                  className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl flex-shrink-0"
+                />
+
+                <div className="flex-1 min-w-0 py-0.5">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-cinza">{item.brand}</p>
+                  <p className="text-sm sm:text-base font-bold leading-snug text-texto">{item.name}</p>
+                  {item.variantName && <p className="text-xs text-cinza mt-0.5">{item.variantName}</p>}
+
+                  {issue && (
+                    <div className="mt-2 rounded-xl bg-amber-50 px-3 py-2">
+                      <p className="text-[11px] font-semibold leading-relaxed text-amber-900">{issue.message}</p>
+                      {needsNewOption && issue.productPath && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            removeItem(item.productId, item.variantId);
+                            router.push(issue.productPath!);
+                          }}
+                          className="mt-2 text-[11px] font-extrabold text-rosa-profundo"
+                        >
+                          Remover item antigo e escolher opção →
+                        </button>
+                      )}
+                      {unavailable && (
+                        <button
+                          type="button"
+                          onClick={() => removeItem(item.productId, item.variantId)}
+                          className="mt-2 text-[11px] font-extrabold text-rosa-profundo"
+                        >
+                          Remover do carrinho
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap items-center justify-between gap-3 mt-3">
+                    <div className="flex items-center rounded-full border border-rosa/20 bg-white">
+                      <button
+                        type="button"
+                        aria-label="Diminuir quantidade"
+                        onClick={() => updateQty(item.productId, item.variantId, item.qty - 1)}
+                        className="w-8 h-8 flex items-center justify-center"
+                      >
+                        <Minus size={13} className="text-texto" />
+                      </button>
+                      <span className="w-7 text-center font-bold text-xs text-texto">{item.qty}</span>
+                      <button
+                        type="button"
+                        aria-label="Aumentar quantidade"
+                        onClick={() => updateQty(item.productId, item.variantId, item.qty + 1)}
+                        className="w-8 h-8 flex items-center justify-center"
+                      >
+                        <Plus size={13} className="text-texto" />
+                      </button>
+                    </div>
+
+                    <div className="text-right">
+                      {item.qty > 1 && <p className="text-[10px] text-cinza">{money(item.price)} cada</p>}
+                      <p className="font-extrabold text-base text-rosa-profundo">{money(item.price * item.qty)}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  aria-label={`Remover ${item.name}`}
+                  title="Remover produto"
+                  onClick={() => removeItem(item.productId, item.variantId)}
+                  className="self-start w-8 h-8 rounded-full flex items-center justify-center border border-transparent text-cinza hover:border-rosa/15 hover:bg-creme hover:text-rosa-profundo transition"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            );
+          })}
 
           <button
             type="button"
@@ -124,9 +287,18 @@ export default function CarrinhoPage() {
             <p className="text-[11px] text-cinza mb-4">
               Escolha retirada no Centro ou 99Entrega em Presidente Prudente na próxima etapa. A loja confirma tudo pelo WhatsApp.
             </p>
+            {hasIssues && (
+              <p className="mb-3 rounded-xl bg-amber-50 px-3 py-2 text-[11px] font-semibold leading-relaxed text-amber-900">
+                Corrija os itens destacados antes de continuar.
+              </p>
+            )}
             <button
               type="button"
-              onClick={() => {
+              disabled={validating || validation === null || hasIssues}
+              onClick={async () => {
+                const checked = await validateCart();
+                if (!checked.valid) return;
+
                 trackEvent("begin_checkout", {
                   itemCount: items.reduce((total, item) => total + item.qty, 0),
                   subtotal,
@@ -134,10 +306,11 @@ export default function CarrinhoPage() {
                 });
                 router.push("/checkout");
               }}
-              className="w-full py-3.5 rounded-xl font-bold text-sm text-white flex items-center justify-center gap-2 shadow-sm"
+              className="w-full py-3.5 rounded-xl font-bold text-sm text-white flex items-center justify-center gap-2 shadow-sm disabled:cursor-not-allowed disabled:opacity-45"
               style={{ backgroundColor: "#E4127B" }}
             >
-              Continuar pedido <ArrowRight size={16} />
+              {validating || validation === null ? "Conferindo carrinho..." : "Continuar pedido"}
+              {!validating && validation !== null && <ArrowRight size={16} />}
             </button>
           </div>
         </aside>

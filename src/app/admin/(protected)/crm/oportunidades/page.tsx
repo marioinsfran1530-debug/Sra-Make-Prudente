@@ -3,9 +3,38 @@ import { prisma } from "@/lib/prisma";
 import { whatsappUrl } from "@/lib/crm";
 import { crmTodayBounds, formatCrmDateTime } from "@/lib/crm-time";
 
+const CHECKOUT_SOURCE = "catalogo_checkout";
+
 function money(value: unknown) {
   if (value == null) return "—";
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(value));
+}
+
+function checkoutItemsSummary(metadata: unknown) {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return "Carrinho salvo no histórico do cliente";
+  }
+
+  const snapshot = (metadata as Record<string, unknown>).cartSnapshot;
+  if (!Array.isArray(snapshot) || snapshot.length === 0) {
+    return "Carrinho salvo no histórico do cliente";
+  }
+
+  const items = snapshot
+    .map((item) => {
+      if (!item || typeof item !== "object" || Array.isArray(item)) return null;
+      const row = item as Record<string, unknown>;
+      const name = typeof row.productName === "string" ? row.productName.trim() : "";
+      const variant = typeof row.variantName === "string" ? row.variantName.trim() : "";
+      const qty = Number(row.qty);
+      if (!name) return null;
+      return `${name}${variant ? ` (${variant})` : ""}${Number.isFinite(qty) && qty > 1 ? ` × ${qty}` : ""}`;
+    })
+    .filter((item): item is string => Boolean(item));
+
+  if (items.length === 0) return "Carrinho salvo no histórico do cliente";
+  const visible = items.slice(0, 3).join(" · ");
+  return items.length > 3 ? `${visible} · +${items.length - 3} itens` : visible;
 }
 
 export default async function OportunidadesPage() {
@@ -14,7 +43,24 @@ export default async function OportunidadesPage() {
   const staleDate = new Date(now.getTime() - 48 * 60 * 60 * 1000);
   const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
 
-  const [followUps, awaitingPayment, staleLeads, reactivation] = await Promise.all([
+  const [checkoutFailures, followUps, awaitingPayment, staleLeads, reactivation] = await Promise.all([
+    prisma.crmLead.findMany({
+      where: {
+        source: CHECKOUT_SOURCE,
+        stage: "NOVO",
+      },
+      orderBy: { updatedAt: "desc" },
+      include: {
+        customer: { select: { id: true, name: true, phone: true } },
+        interactions: {
+          where: { kind: "CHECKOUT_CATALOGO" },
+          orderBy: { createdAt: "desc" },
+          take: 1,
+          select: { metadata: true, createdAt: true },
+        },
+      },
+      take: 100,
+    }),
     prisma.crmFollowUp.findMany({
       where: { status: "PENDENTE", dueAt: { lte: endToday } },
       orderBy: { dueAt: "asc" },
@@ -31,6 +77,7 @@ export default async function OportunidadesPage() {
       where: {
         stage: { in: ["NOVO", "ATENDIMENTO", "PRODUTO_INDICADO"] },
         updatedAt: { lte: staleDate },
+        NOT: { source: CHECKOUT_SOURCE },
       },
       orderBy: { updatedAt: "asc" },
       include: { customer: { select: { id: true, name: true, phone: true } }, product: { select: { name: true } } },
@@ -59,7 +106,7 @@ export default async function OportunidadesPage() {
   ]);
 
   const overdue = followUps.filter((item) => item.dueAt < startToday).length;
-  const totalActions = followUps.length + awaitingPayment.length + staleLeads.length + reactivation.length;
+  const totalActions = checkoutFailures.length + followUps.length + awaitingPayment.length + staleLeads.length + reactivation.length;
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
@@ -72,15 +119,36 @@ export default async function OportunidadesPage() {
         <Link href="/admin/crm/atendimento" className="rounded-xl bg-emerald-600 px-4 py-3 text-center text-xs font-extrabold text-white">Novo atendimento</Link>
       </div>
 
-      <section className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-5">
+      <section className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-6">
         <Metric label="Ações sugeridas" value={String(totalActions)} />
+        <Metric label="Checkout com erro" value={String(checkoutFailures.length)} attention={checkoutFailures.length > 0} />
         <Metric label="Follow-ups" value={String(followUps.length)} />
         <Metric label="Atrasados" value={String(overdue)} attention={overdue > 0} />
         <Metric label="Aguard. pagamento" value={String(awaitingPayment.length)} attention={awaitingPayment.length > 0} />
         <Metric label="Reativação" value={String(reactivation.length)} />
       </section>
 
-      <OpportunitySection title="1. Retornos vencidos ou de hoje" subtitle="Tarefas que já foram agendadas pela equipe." empty="Nenhum follow-up para hoje.">
+      <OpportunitySection title="1. Checkouts que não concluíram" subtitle="Clientes que tocaram em Registrar pedido, mas a venda ainda não foi criada. Nome, WhatsApp e carrinho ficam salvos para recuperação." empty="Nenhum checkout pendente de recuperação.">
+        {checkoutFailures.map((lead) => {
+          const interaction = lead.interactions[0];
+          const items = checkoutItemsSummary(interaction?.metadata);
+          const message = `Olá, ${lead.customer.name.split(" ")[0]}! Aqui é da Sra Make Prudente. Vimos que seu pedido no catálogo não conseguiu ser concluído. Posso te ajudar a finalizar?`;
+          return (
+            <OpportunityRow
+              key={lead.id}
+              name={lead.customer.name}
+              detail={`${money(lead.estimatedValue)} · ${items} · tentativa ${formatCrmDateTime(interaction?.createdAt ?? lead.updatedAt)}`}
+              phone={lead.customer.phone}
+              customerId={lead.customer.id}
+              leadId={lead.id}
+              whatsapp={whatsappUrl(lead.customer.phone, message)}
+              badge="Recuperar venda"
+            />
+          );
+        })}
+      </OpportunitySection>
+
+      <OpportunitySection title="2. Retornos vencidos ou de hoje" subtitle="Tarefas que já foram agendadas pela equipe." empty="Nenhum follow-up para hoje.">
         {followUps.map((item) => {
           const message = item.lead?.product?.name
             ? `Olá, ${item.customer.name.split(" ")[0]}! Aqui é da Sra Make Prudente. Passando para saber se posso te ajudar com ${item.lead.product.name}.`
@@ -91,19 +159,19 @@ export default async function OportunidadesPage() {
         })}
       </OpportunitySection>
 
-      <OpportunitySection title="2. Aguardando pagamento" subtitle="Oportunidades que já chegaram perto da venda." empty="Nenhum cliente aguardando pagamento.">
+      <OpportunitySection title="3. Aguardando pagamento" subtitle="Oportunidades que já chegaram perto da venda." empty="Nenhum cliente aguardando pagamento.">
         {awaitingPayment.map((lead) => (
           <OpportunityRow key={lead.id} name={lead.customer.name} detail={`${lead.product?.name || "Produto não definido"} · ${money(lead.estimatedValue)}`} phone={lead.customer.phone} customerId={lead.customer.id} leadId={lead.id} whatsapp={whatsappUrl(lead.customer.phone, `Olá, ${lead.customer.name.split(" ")[0]}! Aqui é da Sra Make Prudente. Posso te ajudar a concluir seu pedido?`)} badge="Quase venda" />
         ))}
       </OpportunitySection>
 
-      <OpportunitySection title="3. Atendimento parado há mais de 48h" subtitle="Contatos abertos que podem estar sendo esquecidos." empty="Nenhum atendimento parado.">
+      <OpportunitySection title="4. Atendimento parado há mais de 48h" subtitle="Contatos abertos que podem estar sendo esquecidos." empty="Nenhum atendimento parado.">
         {staleLeads.map((lead) => (
           <OpportunityRow key={lead.id} name={lead.customer.name} detail={`${lead.product?.name || "Interesse não definido"} · sem atualização desde ${formatCrmDateTime(lead.updatedAt)}`} phone={lead.customer.phone} customerId={lead.customer.id} leadId={lead.id} whatsapp={whatsappUrl(lead.customer.phone, `Olá, ${lead.customer.name.split(" ")[0]}! Aqui é da Sra Make Prudente. Ficou alguma dúvida sobre o produto que vimos?`)} badge="Retomar" />
         ))}
       </OpportunitySection>
 
-      <OpportunitySection title="4. Clientes para reativação" subtitle="Compraram, mas estão há pelo menos 60 dias sem nova compra e não têm retorno pendente." empty="Nenhuma reativação prioritária agora.">
+      <OpportunitySection title="5. Clientes para reativação" subtitle="Compraram, mas estão há pelo menos 60 dias sem nova compra e não têm retorno pendente." empty="Nenhuma reativação prioritária agora.">
         {reactivation.map((customer) => {
           const last = customer.orders[0];
           const favorite = last?.items[0]?.name || "sua última compra";
