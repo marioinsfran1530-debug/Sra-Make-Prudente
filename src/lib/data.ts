@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { cache } from "react";
 import { productStockStatus, type StockStatus } from "@/lib/stock";
-import { productSlug } from "@/lib/product-url";
+import { productIdFromLegacySlug, productSlug } from "@/lib/product-url";
 
 // Camada de leitura pública. Regra do plano (seção 3): o Prisma não passa
 // pelas policies de RLS do Supabase, então TODO filtro de "ativo" precisa
@@ -216,6 +216,9 @@ export const getProductById = cache(async (id: string) => {
 export const getProductByIdentifier = cache(async (identifier: string) => {
   const productById = await getProductById(identifier);
   if (productById) return productById;
+
+  const legacyProductId = productIdFromLegacySlug(identifier);
+  if (legacyProductId) return getProductById(legacyProductId);
 
   const candidates = await prisma.product.findMany({
     where: { active: true },
