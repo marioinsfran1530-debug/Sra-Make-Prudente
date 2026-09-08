@@ -40,6 +40,11 @@ const nextConfig = {
         destination: "/categoria/maquiagem",
         permanent: true,
       },
+      {
+        source: "/categoria/perfumes-e-bory-splash",
+        destination: "/categoria/perfumes-e-body-splash",
+        permanent: true,
+      },
     ];
   },
   async headers() {
