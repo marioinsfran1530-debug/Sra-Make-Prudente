@@ -86,7 +86,7 @@ const CATEGORY_SEO: Record<string, CategorySeoContent> = {
       "Veja produtos infantis de beleza em Presidente Prudente disponíveis no catálogo da Sra Make, sempre conferindo indicação de uso e informações do fabricante.",
     about: ["itens infantis", "opções para presente", "produtos de beleza", "acessórios"],
   },
-  "perfumes-e-bory-splash": {
+  "perfumes-e-body-splash": {
     title: "Perfumes e Higiene Pessoal em Presidente Prudente",
     description:
       "Perfumes, body splash e higiene pessoal em Presidente Prudente. Consulte fragrâncias e cuidados pessoais disponíveis na Sra Make Prudente.",
