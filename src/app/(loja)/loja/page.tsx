@@ -12,6 +12,7 @@ import {
   Truck,
 } from "lucide-react";
 import { getStoreSettings } from "@/lib/data";
+import { DICAS } from "@/lib/dicas";
 import { resolveStoreLocation } from "@/lib/store-location";
 import { waLink } from "@/lib/whatsapp";
 import { InfoRow } from "@/components/InfoRow";
@@ -352,40 +353,34 @@ export default async function LojaInfoPage() {
           <Sparkles size={18} className="text-rosa-profundo" aria-hidden="true" />
           <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-rosa-profundo">Dicas da Sra Make</p>
         </div>
-        <h2 className="mt-1 font-serif text-xl font-bold text-texto">Comece pela sua necessidade</h2>
+        <h2 className="mt-1 font-serif text-xl font-bold text-texto">Conteúdo para ajudar na escolha</h2>
         <p className="mt-2 text-sm leading-relaxed text-cinza">
-          Enquanto a área completa de dicas é preparada, estes atalhos ajudam você a chegar mais rápido aos produtos certos.
+          Guias rápidos sobre maquiagem, cílios e compras em Presidente Prudente, sempre conectando a informação aos produtos e ao atendimento da loja.
         </p>
 
         <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
-          {[
-            {
-              title: "Base, corretivo e maquiagem",
-              text: "Compare opções para pele, olhos e lábios e veja o que está disponível na loja.",
-              href: "/categoria/maquiagem",
-            },
-            {
-              title: "Cílios e lash design",
-              text: "Encontre cílios, pinças e itens para quem está começando ou já trabalha com lash.",
-              href: "/categoria/lash",
-            },
-            {
-              title: "Skincare e cuidados",
-              text: "Veja produtos para uma rotina simples de cuidados e beleza no dia a dia.",
-              href: "/categoria/cosmeticos",
-            },
-          ].map((item) => (
+          {DICAS.slice(0, 3).map((item) => (
             <Link
-              key={item.title}
-              href={item.href}
+              key={item.slug}
+              href={`/dicas/${item.slug}`}
               className="rounded-2xl border border-rosa/10 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
             >
-              <h3 className="text-sm font-bold text-texto">{item.title}</h3>
-              <p className="mt-1.5 text-xs leading-relaxed text-cinza">{item.text}</p>
-              <span className="mt-3 inline-block text-xs font-bold text-rosa-profundo">Ver produtos →</span>
+              <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-rosa-profundo">
+                {item.category}
+              </p>
+              <h3 className="mt-1.5 text-sm font-bold text-texto">{item.title}</h3>
+              <p className="mt-1.5 text-xs leading-relaxed text-cinza">{item.excerpt}</p>
+              <span className="mt-3 inline-block text-xs font-bold text-rosa-profundo">Ler dica →</span>
             </Link>
           ))}
         </div>
+
+        <Link
+          href="/dicas"
+          className="mt-4 inline-flex items-center rounded-xl bg-white px-4 py-2.5 text-xs font-bold text-rosa-profundo shadow-sm"
+        >
+          Ver todas as dicas
+        </Link>
       </section>
 
       <section className="mb-5 rounded-3xl border border-rosa/10 bg-white p-5 shadow-sm sm:p-6">
