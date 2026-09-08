@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { productPath } from "@/lib/product-url";
 
+type RouteProduct = { id: string; name: string; brand: string };
+
+const ROUTE_SKIP = new Set(["a", "o", "as", "os", "de", "da", "do", "das", "dos", "e", "em", "com", "para", "por", "kit", "combo", "produto"]);
+
 function slug(value: string) {
   return value
     .toLowerCase()
@@ -10,6 +14,34 @@ function slug(value: string) {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "")
     .slice(0, 40);
+}
+
+function routeWords(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .filter((word) => !ROUTE_SKIP.has(word));
+}
+
+function routeKey(product: RouteProduct, catalog: RouteProduct[]) {
+  const words = routeWords(product.name);
+  const max = Math.min(4, words.length);
+
+  for (let count = 1; count <= max; count += 1) {
+    const candidate = words.slice(0, count).join("-");
+    const same = catalog.filter(
+      (item) => routeWords(item.name).slice(0, count).join("-") === candidate
+    );
+    if (same.length === 1) return candidate;
+  }
+
+  const base = words.slice(0, Math.max(1, max)).join("-") || "produto";
+  return `${base}-${product.id.slice(-4)}`;
 }
 
 function campaignKind(value: string | null) {
@@ -40,17 +72,18 @@ export async function GET(
 ) {
   const { code } = await params;
 
-  if (!/^[a-z0-9]{6,10}$/i.test(code)) {
+  if (!/^[a-z0-9-]{2,80}$/i.test(code)) {
     return NextResponse.redirect(new URL("/loja", request.url), 302);
   }
 
-  const product = await prisma.product.findFirst({
-    where: {
-      id: { endsWith: code },
-      active: true,
-    },
+  const products = await prisma.product.findMany({
+    where: { active: true },
     select: { id: true, name: true, brand: true },
   });
+
+  const product =
+    products.find((item) => routeKey(item, products) === code) ??
+    products.find((item) => item.id.endsWith(code));
 
   if (!product) {
     return NextResponse.redirect(new URL("/loja", request.url), 302);
