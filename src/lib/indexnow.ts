@@ -1,3 +1,5 @@
+import { productPath, type ProductSlugSource } from "@/lib/product-url";
+
 const SITE_URL = "https://www.sramakeprudente.com.br";
 const INDEXNOW_KEY = "8d93f10c5a4e47c2b691e0ad3f8c7621";
 const INDEXNOW_ENDPOINT = "https://api.indexnow.org/indexnow";
@@ -36,7 +38,7 @@ export async function notifyIndexNow(paths: string[]) {
 }
 
 export const indexNowPaths = {
-  product: (id: string) => `/produto/${id}`,
+  product: (product: ProductSlugSource) => productPath(product),
   category: (slug: string) => `/categoria/${slug}`,
   catalog: "/categoria",
   sitemap: "/sitemap.xml",

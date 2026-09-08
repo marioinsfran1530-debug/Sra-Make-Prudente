@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
-import Script from "next/script";
 import { PwaLaunchPreserver } from "@/components/PwaLaunchPreserver";
+import { GoogleAnalytics } from "@/components/GoogleAnalytics";
 import "./globals.css";
 
 const SITE_URL = "https://www.sramakeprudente.com.br";
@@ -8,7 +8,6 @@ const TITLE = "Loja de Maquiagem em Presidente Prudente | Sra Make";
 const DESCRIPTION =
   "Loja de maquiagem em Presidente Prudente/SP. Compre bases, corretivos, batons, gloss, paletas, cílios, lash, nail e cosméticos, com retirada e entrega local.";
 const SOCIAL_IMAGE_URL = `${SITE_URL}/app-icon/512?v=3`;
-const GA_MEASUREMENT_ID = "G-60T57RTWD1";
 
 function jsonLd(data: Record<string, unknown>) {
   return JSON.stringify(data).replace(/</g, "\\u003c");
@@ -138,18 +137,7 @@ export default function RootLayout({
     <html lang="pt-BR">
       <body>
         <PwaLaunchPreserver />
-        <Script
-          src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
-          strategy="afterInteractive"
-        />
-        <Script id="google-analytics" strategy="afterInteractive">
-          {`
-            window.dataLayer = window.dataLayer || [];
-            function gtag(){dataLayer.push(arguments);}
-            gtag('js', new Date());
-            gtag('config', '${GA_MEASUREMENT_ID}');
-          `}
-        </Script>
+        <GoogleAnalytics />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: jsonLd(storeStructuredData) }}

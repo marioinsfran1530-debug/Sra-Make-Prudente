@@ -148,7 +148,7 @@ export async function POST(request: NextRequest) {
   }
 
   await notifyIndexNow([
-    indexNowPaths.product(product.id),
+    indexNowPaths.product(product),
     indexNowPaths.catalog,
     indexNowPaths.sitemap,
     ...product.categories.map(({ category }) => indexNowPaths.category(category.slug)),

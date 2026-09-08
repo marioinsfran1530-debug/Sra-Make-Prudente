@@ -64,7 +64,12 @@ export async function PUT(
     sku: body.sku !== undefined ? body.sku : current.sku,
     description: body.description !== undefined ? body.description : current.description,
     price: body.price ?? Number(current.price),
-    promoPrice: body.promoPrice !== undefined ? body.promoPrice : current.promoPrice ? Number(current.promoPrice) : null,
+    promoPrice:
+      body.promoPrice !== undefined
+        ? body.promoPrice
+        : current.promoPrice
+          ? Number(current.promoPrice)
+          : null,
     stockQty: body.stockQty ?? current.stockQty,
   };
   const validation = validateProductInput(mergedInput);
@@ -224,7 +229,8 @@ export async function PUT(
   }
 
   await notifyIndexNow([
-    indexNowPaths.product(product.id),
+    indexNowPaths.product(current),
+    indexNowPaths.product(product),
     indexNowPaths.catalog,
     indexNowPaths.sitemap,
   ]);
@@ -242,7 +248,12 @@ export async function DELETE(
 
   const product = await prisma.product.findUnique({
     where: { id },
-    select: { id: true, images: { select: { storagePath: true } } },
+    select: {
+      id: true,
+      name: true,
+      brand: true,
+      images: { select: { storagePath: true } },
+    },
   });
 
   if (!product) {
@@ -270,7 +281,11 @@ export async function DELETE(
     .map((image) => image.storagePath)
     .filter((path): path is string => Boolean(path));
 
-  if (storagePaths.length > 0 && process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  if (
+    storagePaths.length > 0 &&
+    process.env.NEXT_PUBLIC_SUPABASE_URL &&
+    process.env.SUPABASE_SERVICE_ROLE_KEY
+  ) {
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
       process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -286,7 +301,7 @@ export async function DELETE(
   }
 
   await notifyIndexNow([
-    indexNowPaths.product(id),
+    indexNowPaths.product(product),
     indexNowPaths.catalog,
     indexNowPaths.sitemap,
   ]);
