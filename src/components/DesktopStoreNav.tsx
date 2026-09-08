@@ -22,7 +22,7 @@ export function DesktopStoreNav({
     { href: "/", label: "Início", icon: Home },
     { href: "/categoria", label: "Categorias", icon: Grid3x3 },
     { href: "/carrinho", label: "Carrinho", icon: ShoppingCart },
-    { href: "/loja", label: "Loja", icon: Store },
+    { href: "/loja", label: "Nossa loja", icon: Store },
   ];
 
   return (

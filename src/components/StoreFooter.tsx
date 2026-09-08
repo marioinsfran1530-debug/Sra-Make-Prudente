@@ -34,6 +34,12 @@ export function StoreFooter({
           Endereço e horários
         </Link>
         <Link
+          href="/dicas"
+          className="underline underline-offset-2 transition-colors hover:text-texto"
+        >
+          Dicas da Sra Make
+        </Link>
+        <Link
           href="/politica-de-trocas-e-devolucoes"
           className="underline underline-offset-2 transition-colors hover:text-texto"
         >

@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 import { prisma } from "@/lib/prisma";
 import { productPath } from "@/lib/product-url";
+import { DICAS } from "@/lib/dicas";
 
 const SITE_URL = "https://www.sramakeprudente.com.br";
 
@@ -50,12 +51,25 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.8,
     },
     {
+      url: `${SITE_URL}/dicas`,
+      lastModified: new Date("2026-09-08T12:00:00-03:00"),
+      changeFrequency: "weekly",
+      priority: 0.7,
+    },
+    {
       url: `${SITE_URL}/loja`,
       ...(settings?.updatedAt ? { lastModified: settings.updatedAt } : {}),
       changeFrequency: "monthly",
       priority: 0.5,
     },
   ];
+
+  const dicaRoutes: MetadataRoute.Sitemap = DICAS.map((dica) => ({
+    url: `${SITE_URL}/dicas/${dica.slug}`,
+    lastModified: new Date(`${dica.updatedAt}T12:00:00-03:00`),
+    changeFrequency: "monthly",
+    priority: 0.6,
+  }));
 
   const categoryRoutes: MetadataRoute.Sitemap = categories.map((category) => ({
     url: `${SITE_URL}/categoria/${category.slug}`,
@@ -71,5 +85,5 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.6,
   }));
 
-  return [...staticRoutes, ...categoryRoutes, ...productRoutes];
+  return [...staticRoutes, ...dicaRoutes, ...categoryRoutes, ...productRoutes];
 }
