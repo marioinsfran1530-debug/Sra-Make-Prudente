@@ -14,7 +14,7 @@ const ITEMS = [
   { href: "/", label: "Início", icon: HomeIcon },
   { href: "/categoria", label: "Produtos", icon: Grid3x3 },
   { href: "/carrinho", label: "Carrinho", icon: ShoppingCart },
-  { href: "/loja", label: "Loja", icon: Store },
+  { href: "/loja", label: "Nossa loja", icon: Store },
 ];
 
 export function BottomNav() {
