@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getStoreSettings } from "@/lib/data";
+import { resolveStoreLocation } from "@/lib/store-location";
 import { waLink } from "@/lib/whatsapp";
 import { InfoRow } from "@/components/InfoRow";
 
@@ -9,7 +10,6 @@ export const revalidate = 60;
 const SITE_URL = "https://www.sramakeprudente.com.br";
 const PAGE_URL = `${SITE_URL}/loja`;
 const STORE_NAME = "Sra Make Prudente";
-const STORE_ADDRESS = "Avenida Brasil, 373 - Box 202, Centro, Presidente Prudente/SP, 19010-031";
 const STORE_PHONE = "+55 18 99124-8713";
 
 export const metadata: Metadata = {
@@ -32,15 +32,9 @@ function jsonLd(data: Record<string, unknown>) {
 
 export default async function LojaInfoPage() {
   const settings = await getStoreSettings();
-  const whatsapp = settings?.whatsapp ?? "5518991248713";
-  const address = settings?.address || STORE_ADDRESS;
-  const mapsUrl =
-    settings?.googleMapsUrl ||
-    `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+  const location = resolveStoreLocation(settings);
+  const { address, businessHours, mapsUrl, whatsapp } = location;
   const instagram = settings?.instagram ?? "@sramakeprudente";
-  const businessHours =
-    settings?.businessHours ||
-    "Segunda a sexta, 09:00 às 17:00. Sábado, 09:00 às 15:00. Domingo e feriados: atendimento somente online.";
 
   const aboutStructuredData = {
     "@context": "https://schema.org",
@@ -69,7 +63,7 @@ export default async function LojaInfoPage() {
     hasMap: mapsUrl,
     address: {
       "@type": "PostalAddress",
-      streetAddress: "Avenida Brasil, 373 - Box 202",
+      streetAddress: address,
       addressLocality: "Presidente Prudente",
       addressRegion: "SP",
       postalCode: "19010-031",
