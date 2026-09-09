@@ -1,5 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
+import {
+  consumeRateLimit,
+  getClientIp,
+  isTrustedSameSiteRequest,
+} from "@/lib/public-api-security";
 
 const ALLOWED_EVENTS = new Set([
   "page_view",
@@ -31,20 +36,31 @@ function integerField(value: unknown) {
   return parsed === null ? null : Math.max(0, Math.trunc(parsed));
 }
 
-function sameOrigin(request: NextRequest) {
-  const origin = request.headers.get("origin");
-  if (!origin) return true;
-  try {
-    return new URL(origin).origin === request.nextUrl.origin;
-  } catch {
-    return false;
-  }
+function rateLimited(retryAfterSeconds: number) {
+  return NextResponse.json(
+    { error: "Muitas solicitações." },
+    { status: 429, headers: { "Retry-After": String(retryAfterSeconds) } }
+  );
 }
 
 export async function POST(request: NextRequest) {
-  if (!sameOrigin(request)) {
+  if (!isTrustedSameSiteRequest(request)) {
     return NextResponse.json({ error: "Origem não permitida." }, { status: 403 });
   }
+
+  const contentLength = Number(request.headers.get("content-length") ?? 0);
+  if (contentLength > 32 * 1024) {
+    return NextResponse.json({ error: "Payload muito grande." }, { status: 413 });
+  }
+
+  const clientIp = getClientIp(request);
+  const ipLimit = await consumeRateLimit({
+    bucket: "analytics_ip_5m",
+    key: clientIp,
+    limit: 240,
+    windowSeconds: 5 * 60,
+  });
+  if (!ipLimit.allowed) return rateLimited(ipLimit.retryAfterSeconds);
 
   let body: Record<string, unknown>;
   try {
@@ -58,6 +74,34 @@ export async function POST(request: NextRequest) {
 
   if (!event || !ALLOWED_EVENTS.has(event) || !sessionId) {
     return NextResponse.json({ error: "Evento inválido." }, { status: 400 });
+  }
+
+  const sessionLimit = await consumeRateLimit({
+    bucket: "analytics_session_5m",
+    key: sessionId,
+    limit: 120,
+    windowSeconds: 5 * 60,
+  });
+  if (!sessionLimit.allowed) return rateLimited(sessionLimit.retryAfterSeconds);
+
+  if (event === "begin_checkout") {
+    const [checkoutIpLimit, checkoutSessionLimit] = await Promise.all([
+      consumeRateLimit({
+        bucket: "begin_checkout_ip_1h",
+        key: clientIp,
+        limit: 30,
+        windowSeconds: 60 * 60,
+      }),
+      consumeRateLimit({
+        bucket: "begin_checkout_session_1h",
+        key: sessionId,
+        limit: 8,
+        windowSeconds: 60 * 60,
+      }),
+    ]);
+
+    if (!checkoutIpLimit.allowed) return rateLimited(checkoutIpLimit.retryAfterSeconds);
+    if (!checkoutSessionLimit.allowed) return rateLimited(checkoutSessionLimit.retryAfterSeconds);
   }
 
   const value = numberField(body.value);
