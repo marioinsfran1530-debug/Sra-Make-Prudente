@@ -37,10 +37,6 @@ export default function AdminSecurityPage() {
         return;
       }
 
-      for (const factor of factors.totp.filter((item) => item.status === "unverified")) {
-        await supabase.auth.mfa.unenroll({ factorId: factor.id }).catch(() => undefined);
-      }
-
       const { data: enrollment, error: enrollError } = await supabase.auth.mfa.enroll({
         factorType: "totp",
         friendlyName: "Sra Make Admin",
