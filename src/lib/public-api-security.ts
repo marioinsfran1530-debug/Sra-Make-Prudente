@@ -59,41 +59,31 @@ export async function consumeRateLimit(input: {
   const windowStart = new Date(Math.floor(now / windowMs) * windowMs);
   const key = hashKey(input.key);
 
-  const row = await prisma.apiRateLimit.upsert({
-    where: {
-      bucket_key_windowStart: {
-        bucket: input.bucket,
-        key,
-        windowStart,
-      },
-    },
-    create: {
-      bucket: input.bucket,
-      key,
-      windowStart,
-      count: 1,
-    },
-    update: {
-      count: { increment: 1 },
-    },
-    select: { count: true },
-  });
+  const rows = await prisma.$queryRaw<Array<{ count: number }>>`
+    INSERT INTO app_security."ApiRateLimit" ("bucket", "key", "windowStart", "count", "updatedAt")
+    VALUES (${input.bucket}, ${key}, ${windowStart}, 1, NOW())
+    ON CONFLICT ("bucket", "key", "windowStart")
+    DO UPDATE SET
+      "count" = app_security."ApiRateLimit"."count" + 1,
+      "updatedAt" = NOW()
+    RETURNING "count"
+  `;
 
+  const count = Number(rows[0]?.count ?? input.limit + 1);
   const retryAfterSeconds = Math.max(
     1,
     Math.ceil((windowStart.getTime() + windowMs - now) / 1000)
   );
 
   if (Math.random() < 0.01) {
-    void prisma.apiRateLimit
-      .deleteMany({
-        where: { updatedAt: { lt: new Date(now - 3 * 24 * 60 * 60 * 1000) } },
-      })
-      .catch(() => undefined);
+    void prisma.$executeRaw`
+      DELETE FROM app_security."ApiRateLimit"
+      WHERE "updatedAt" < ${new Date(now - 3 * 24 * 60 * 60 * 1000)}
+    `.catch(() => undefined);
   }
 
   return {
-    allowed: row.count <= input.limit,
+    allowed: count <= input.limit,
     retryAfterSeconds,
   };
 }
