@@ -17,6 +17,7 @@ export function AdminNav({ isAdmin }: { isAdmin: boolean }) {
     { href: "/admin/pedidos", label: "Pedidos" },
     { href: "/admin/divulgacao", label: "Divulgação" },
     { href: "/admin/loja", label: "Loja" },
+    { href: "/admin/dispositivos", label: "Segurança" },
   ];
   if (isAdmin) items.push({ href: "/admin/ia", label: "IA" }, { href: "/admin/usuarios", label: "Usuários" });
 
