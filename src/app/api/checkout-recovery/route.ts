@@ -5,6 +5,11 @@ import {
   type CheckoutRecoveryPhase,
 } from "@/lib/checkout-recovery";
 import { normalizeBrazilPhone } from "@/lib/order-request-safety";
+import {
+  consumeRateLimit,
+  getClientIp,
+  isTrustedSameSiteRequest,
+} from "@/lib/public-api-security";
 
 type RecoveryBody = {
   customerName?: string;
@@ -30,11 +35,31 @@ function text(value: unknown, maxLength: number) {
   return typeof value === "string" ? value.trim().slice(0, maxLength) : "";
 }
 
+function rateLimited(retryAfterSeconds: number) {
+  return NextResponse.json(
+    { ok: false },
+    { status: 429, headers: { "Retry-After": String(retryAfterSeconds) } }
+  );
+}
+
 export async function POST(request: NextRequest) {
+  if (!isTrustedSameSiteRequest(request)) {
+    return NextResponse.json({ ok: false }, { status: 403 });
+  }
+
   const contentLength = Number(request.headers.get("content-length") ?? 0);
   if (contentLength > 48 * 1024) {
     return NextResponse.json({ ok: false }, { status: 413 });
   }
+
+  const clientIp = getClientIp(request);
+  const ipLimit = await consumeRateLimit({
+    bucket: "checkout_recovery_ip_10m",
+    key: clientIp,
+    limit: 20,
+    windowSeconds: 10 * 60,
+  });
+  if (!ipLimit.allowed) return rateLimited(ipLimit.retryAfterSeconds);
 
   let body: RecoveryBody;
   try {
@@ -57,6 +82,24 @@ export async function POST(request: NextRequest) {
   if (!Array.isArray(body.items) || body.items.length === 0 || body.items.length > 50) {
     return NextResponse.json({ ok: false }, { status: 400 });
   }
+
+  const [sessionLimit, phoneLimit] = await Promise.all([
+    consumeRateLimit({
+      bucket: "checkout_recovery_session_1h",
+      key: sessionId,
+      limit: 10,
+      windowSeconds: 60 * 60,
+    }),
+    consumeRateLimit({
+      bucket: "checkout_recovery_phone_1h",
+      key: normalizedPhone,
+      limit: 8,
+      windowSeconds: 60 * 60,
+    }),
+  ]);
+
+  if (!sessionLimit.allowed) return rateLimited(sessionLimit.retryAfterSeconds);
+  if (!phoneLimit.allowed) return rateLimited(phoneLimit.retryAfterSeconds);
 
   const recentCheckoutActivity = await prisma.analyticsEvent.findFirst({
     where: {

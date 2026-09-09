@@ -30,6 +30,19 @@ export async function requireAdmin(minRole: "ADMIN" | "EDITOR" = "EDITOR") {
   if (!session) {
     return { session: null, error: "Não autenticado.", status: 401 as const };
   }
+
+  const supabase = await createSupabaseServerClient();
+  const { data: aal, error: aalError } =
+    await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+
+  if (aalError || aal?.currentLevel !== "aal2") {
+    return {
+      session: null,
+      error: "Autenticação em duas etapas necessária.",
+      status: 403 as const,
+    };
+  }
+
   if (minRole === "ADMIN" && session.role !== "ADMIN") {
     return { session: null, error: "Permissão insuficiente.", status: 403 as const };
   }

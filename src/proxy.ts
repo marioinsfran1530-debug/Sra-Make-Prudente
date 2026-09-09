@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 
 const PUBLIC_ADMIN_PATHS = ["/admin/login", "/admin/reset-password"];
+const MFA_FLOW_PATHS = ["/admin/mfa", "/admin/seguranca"];
 const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
 function isSameOrigin(request: NextRequest) {
@@ -13,6 +14,10 @@ function isSameOrigin(request: NextRequest) {
   } catch {
     return false;
   }
+}
+
+function redirectTo(request: NextRequest, pathname: string) {
+  return NextResponse.redirect(new URL(pathname, request.url));
 }
 
 export async function proxy(request: NextRequest) {
@@ -71,6 +76,70 @@ export async function proxy(request: NextRequest) {
     const loginUrl = new URL("/admin/login", request.url);
     loginUrl.searchParams.set("next", pathname);
     return NextResponse.redirect(loginUrl);
+  }
+
+  const isMfaFlowPage =
+    isAdminPage && MFA_FLOW_PATHS.some((path) => pathname.startsWith(path));
+
+  const { data: aal, error: aalError } =
+    await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+
+  if (aalError || !aal) {
+    if (isAdminApi) {
+      return NextResponse.json(
+        { error: "Não foi possível validar a segurança da sessão." },
+        { status: 403 }
+      );
+    }
+
+    if (!isMfaFlowPage) {
+      return redirectTo(request, "/admin/seguranca");
+    }
+
+    return response;
+  }
+
+  const hasVerifiedMfa = aal.nextLevel === "aal2";
+  const isMfaVerified = aal.currentLevel === "aal2";
+
+  if (!hasVerifiedMfa) {
+    if (isAdminApi) {
+      return NextResponse.json(
+        {
+          error: "Autenticação em duas etapas obrigatória.",
+          code: "MFA_SETUP_REQUIRED",
+        },
+        { status: 428 }
+      );
+    }
+
+    if (!pathname.startsWith("/admin/seguranca")) {
+      return redirectTo(request, "/admin/seguranca");
+    }
+
+    return response;
+  }
+
+  if (!isMfaVerified) {
+    if (isAdminApi) {
+      return NextResponse.json(
+        {
+          error: "Confirme o código da autenticação em duas etapas.",
+          code: "MFA_REQUIRED",
+        },
+        { status: 403 }
+      );
+    }
+
+    if (!pathname.startsWith("/admin/mfa")) {
+      return redirectTo(request, "/admin/mfa");
+    }
+
+    return response;
+  }
+
+  if (isMfaFlowPage) {
+    return redirectTo(request, "/admin");
   }
 
   return response;
