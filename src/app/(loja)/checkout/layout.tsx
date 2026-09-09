@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import CheckoutRecoveryObserver from "@/components/CheckoutRecoveryObserver";
 
 export const metadata: Metadata = {
   title: "Finalizar pedido",
@@ -13,5 +14,10 @@ export default function CheckoutLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return children;
+  return (
+    <>
+      <CheckoutRecoveryObserver />
+      {children}
+    </>
+  );
 }

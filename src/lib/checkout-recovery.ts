@@ -6,6 +6,11 @@ type CheckoutItemInput = {
   qty: number;
 };
 
+export type CheckoutRecoveryPhase =
+  | "CONTACT"
+  | "REVIEW"
+  | "SUBMIT_ATTEMPT";
+
 type CaptureCheckoutInput = {
   customerName: string;
   customerPhone: string;
@@ -13,6 +18,7 @@ type CaptureCheckoutInput = {
   items: CheckoutItemInput[];
   deliveryType?: string;
   payment?: string;
+  phase?: CheckoutRecoveryPhase;
 };
 
 export type CheckoutRecoveryRef = {
@@ -27,18 +33,49 @@ function safeQty(value: unknown) {
   return Number.isFinite(qty) && qty > 0 ? Math.min(qty, 99) : 1;
 }
 
+function normalizeCustomerPhone(value: string) {
+  let digits = value.replace(/\D/g, "");
+  if (digits.startsWith("55") && digits.length > 11) digits = digits.slice(2);
+  return digits;
+}
+
+function phaseCopy(phase: CheckoutRecoveryPhase) {
+  if (phase === "CONTACT") {
+    return {
+      note: "Cliente iniciou o checkout, informou nome e WhatsApp, mas o pedido ainda não foi concluído.",
+      body: "Cliente informou contato durante o checkout do catálogo.",
+    };
+  }
+  if (phase === "REVIEW") {
+    return {
+      note: "Cliente chegou à revisão do checkout, mas o pedido ainda não foi concluído.",
+      body: "Cliente chegou à revisão do pedido no catálogo.",
+    };
+  }
+  return {
+    note: "Cliente tentou registrar um pedido pelo catálogo. Verificar se a compra foi concluída.",
+    body: "Cliente tentou registrar um pedido pelo catálogo.",
+  };
+}
+
 export async function captureCheckoutOpportunity(
   input: CaptureCheckoutInput
 ): Promise<CheckoutRecoveryRef | null> {
   try {
+    const normalizedPhone = normalizeCustomerPhone(input.customerPhone);
+    if (normalizedPhone.length !== 10 && normalizedPhone.length !== 11) return null;
+
+    const phase = input.phase ?? "SUBMIT_ATTEMPT";
+    const copy = phaseCopy(phase);
+
     const customer = await prisma.customer.upsert({
-      where: { phone: input.customerPhone },
+      where: { phone: normalizedPhone },
       update: {
         name: input.customerName,
       },
       create: {
         name: input.customerName,
-        phone: input.customerPhone,
+        phone: normalizedPhone,
         source: CHECKOUT_SOURCE,
       },
       select: { id: true },
@@ -103,7 +140,15 @@ export async function captureCheckoutOpportunity(
       };
     });
 
-    const estimatedValue = latestCheckout?.value == null ? null : Number(latestCheckout.value);
+    const calculatedValue = cartSnapshot.reduce(
+      (total, item) => total + item.unitPrice * item.qty,
+      0
+    );
+    const estimatedValue = Number.isFinite(calculatedValue)
+      ? calculatedValue
+      : latestCheckout?.value == null
+        ? null
+        : Number(latestCheckout.value);
     const sessionCode = input.sessionId || null;
 
     let lead = sessionCode
@@ -124,7 +169,7 @@ export async function captureCheckoutOpportunity(
         where: { id: lead.id },
         data: {
           estimatedValue,
-          notes: "Cliente tentou registrar um pedido pelo catálogo. Verificar se a compra foi concluída.",
+          notes: copy.note,
         },
         select: { id: true },
       });
@@ -136,7 +181,7 @@ export async function captureCheckoutOpportunity(
           estimatedValue,
           source: CHECKOUT_SOURCE,
           campaignCode: sessionCode,
-          notes: "Cliente tentou registrar um pedido pelo catálogo. Verificar se a compra foi concluída.",
+          notes: copy.note,
         },
         select: { id: true },
       });
@@ -154,6 +199,7 @@ export async function captureCheckoutOpportunity(
 
     const metadata = {
       sessionId: input.sessionId || null,
+      phase,
       deliveryType: input.deliveryType || null,
       payment: input.payment || null,
       itemCount:
@@ -167,7 +213,7 @@ export async function captureCheckoutOpportunity(
       await prisma.crmInteraction.update({
         where: { id: recentInteraction.id },
         data: {
-          body: "Nova tentativa de registrar o mesmo checkout no catálogo.",
+          body: copy.body,
           metadata,
         },
       });
@@ -179,7 +225,7 @@ export async function captureCheckoutOpportunity(
           kind: "CHECKOUT_CATALOGO",
           channel: "CATALOGO",
           direction: "IN",
-          body: "Cliente tentou registrar um pedido pelo catálogo.",
+          body: copy.body,
           metadata,
         },
       });
