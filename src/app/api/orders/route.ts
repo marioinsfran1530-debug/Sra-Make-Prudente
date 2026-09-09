@@ -15,6 +15,11 @@ import {
   normalizeBrazilPhone,
   sameOrderItems,
 } from "@/lib/order-request-safety";
+import {
+  consumeRateLimit,
+  getClientIp,
+  isTrustedSameSiteRequest,
+} from "@/lib/public-api-security";
 
 type CartItemInput = {
   productId: string;
@@ -55,11 +60,31 @@ function text(value: unknown, maxLength: number) {
   return typeof value === "string" ? value.trim().slice(0, maxLength) : "";
 }
 
+function rateLimited(retryAfterSeconds: number) {
+  return NextResponse.json(
+    { error: "Muitas tentativas. Aguarde um pouco e tente novamente." },
+    { status: 429, headers: { "Retry-After": String(retryAfterSeconds) } }
+  );
+}
+
 export async function POST(request: NextRequest) {
+  if (!isTrustedSameSiteRequest(request)) {
+    return NextResponse.json({ error: "Origem da requisição não permitida." }, { status: 403 });
+  }
+
   const contentLength = Number(request.headers.get("content-length") ?? 0);
   if (contentLength > 64 * 1024) {
     return NextResponse.json({ error: "Pedido muito grande." }, { status: 413 });
   }
+
+  const clientIp = getClientIp(request);
+  const ipLimit = await consumeRateLimit({
+    bucket: "orders_ip_10m",
+    key: clientIp,
+    limit: 15,
+    windowSeconds: 10 * 60,
+  });
+  if (!ipLimit.allowed) return rateLimited(ipLimit.retryAfterSeconds);
 
   let body: OrderBody;
   try {
@@ -87,6 +112,30 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
   }
+
+  const limits = [
+    consumeRateLimit({
+      bucket: "orders_phone_30m",
+      key: customerPhone,
+      limit: 8,
+      windowSeconds: 30 * 60,
+    }),
+  ];
+
+  if (sessionId) {
+    limits.push(
+      consumeRateLimit({
+        bucket: "orders_session_30m",
+        key: sessionId,
+        limit: 8,
+        windowSeconds: 30 * 60,
+      })
+    );
+  }
+
+  const orderLimits = await Promise.all(limits);
+  const blockedLimit = orderLimits.find((limit) => !limit.allowed);
+  if (blockedLimit) return rateLimited(blockedLimit.retryAfterSeconds);
 
   // Registra a intenção de compra antes das validações comerciais finais.
   // Assim, se um carrinho antigo ficar incompatível (ex.: produto passou a
