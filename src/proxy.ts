@@ -2,8 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 
 const PUBLIC_ADMIN_PATHS = ["/admin/login", "/admin/reset-password"];
-const MFA_FLOW_PATHS = ["/admin/mfa", "/admin/seguranca"];
 const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+const TRUSTED_ADMIN_DEVICE_COOKIE = "sra_admin_trusted_device";
 
 function isSameOrigin(request: NextRequest) {
   const origin = request.headers.get("origin");
@@ -18,6 +18,49 @@ function isSameOrigin(request: NextRequest) {
 
 function redirectTo(request: NextRequest, pathname: string) {
   return NextResponse.redirect(new URL(pathname, request.url));
+}
+
+async function sha256Hex(value: string) {
+  const bytes = new TextEncoder().encode(value);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+async function isTrustedAdminDevice(request: NextRequest, adminId: string) {
+  const token = request.cookies.get(TRUSTED_ADMIN_DEVICE_COOKIE)?.value;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!token || token.length < 32 || !supabaseUrl || !serviceRoleKey) {
+    return false;
+  }
+
+  try {
+    const tokenHash = await sha256Hex(token);
+    const url = new URL("/rest/v1/AdminTrustedDevice", supabaseUrl);
+    url.searchParams.set("select", "id");
+    url.searchParams.set("adminId", `eq.${adminId}`);
+    url.searchParams.set("tokenHash", `eq.${tokenHash}`);
+    url.searchParams.set("revokedAt", "is.null");
+    url.searchParams.set("expiresAt", `gt.${new Date().toISOString()}`);
+    url.searchParams.set("limit", "1");
+
+    const response = await fetch(url, {
+      headers: {
+        apikey: serviceRoleKey,
+        Authorization: `Bearer ${serviceRoleKey}`,
+      },
+      cache: "no-store",
+    });
+
+    if (!response.ok) return false;
+    const devices = (await response.json()) as Array<{ id: string }>;
+    return devices.length > 0;
+  } catch {
+    return false;
+  }
 }
 
 export async function proxy(request: NextRequest) {
@@ -78,8 +121,9 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  const isMfaFlowPage =
-    isAdminPage && MFA_FLOW_PATHS.some((path) => pathname.startsWith(path));
+  const isMfaSetupPage = pathname === "/admin/seguranca";
+  const isMfaChallengePage = pathname === "/admin/mfa";
+  const isMfaFlowPage = isMfaSetupPage || isMfaChallengePage;
 
   const { data: aal, error: aalError } =
     await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
@@ -113,14 +157,18 @@ export async function proxy(request: NextRequest) {
       );
     }
 
-    if (!pathname.startsWith("/admin/seguranca")) {
+    if (!isMfaSetupPage) {
       return redirectTo(request, "/admin/seguranca");
     }
 
     return response;
   }
 
-  if (!isMfaVerified) {
+  const trustedDevice = isMfaVerified
+    ? true
+    : await isTrustedAdminDevice(request, user.id);
+
+  if (!trustedDevice) {
     if (isAdminApi) {
       return NextResponse.json(
         {
@@ -131,7 +179,7 @@ export async function proxy(request: NextRequest) {
       );
     }
 
-    if (!pathname.startsWith("/admin/mfa")) {
+    if (!isMfaChallengePage) {
       return redirectTo(request, "/admin/mfa");
     }
 
