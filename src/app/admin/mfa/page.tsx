@@ -9,6 +9,7 @@ export default function AdminMfaPage() {
   const [factorId, setFactorId] = useState<string | null>(null);
   const [challengeId, setChallengeId] = useState<string | null>(null);
   const [code, setCode] = useState("");
+  const [trustDevice, setTrustDevice] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [verifying, setVerifying] = useState(false);
@@ -75,13 +76,25 @@ export default function AdminMfaPage() {
       code: cleanCode,
     });
 
-    setVerifying(false);
-
     if (verifyError) {
+      setVerifying(false);
       setError("Código inválido ou expirado. Gere um novo código no autenticador.");
       return;
     }
 
+    if (trustDevice) {
+      try {
+        await fetch("/api/admin/trusted-devices", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        });
+      } catch {
+        // O MFA continua válido para esta sessão mesmo se o aparelho não puder ser salvo.
+      }
+    }
+
+    setVerifying(false);
     router.replace("/admin");
     router.refresh();
   }
@@ -108,6 +121,21 @@ export default function AdminMfaPage() {
               required
               className="w-full mt-1 mb-4 rounded-xl border border-rosa/20 px-3 py-3 text-center text-xl tracking-[0.3em] outline-none"
             />
+
+            <label className="mb-4 flex items-start gap-2 rounded-xl border border-rosa/15 bg-creme/40 p-3 text-xs text-texto">
+              <input
+                type="checkbox"
+                checked={trustDevice}
+                onChange={(e) => setTrustDevice(e.target.checked)}
+                className="mt-0.5"
+              />
+              <span>
+                <strong>Confiar neste aparelho por 30 dias.</strong>
+                <span className="mt-1 block text-cinza">
+                  Durante esse período, o código não será solicitado novamente neste navegador.
+                </span>
+              </span>
+            </label>
 
             {error && <p className="text-xs text-vermelho mb-3">{error}</p>}
 

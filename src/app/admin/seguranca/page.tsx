@@ -87,13 +87,23 @@ export default function AdminSecurityPage() {
       code: cleanCode,
     });
 
-    setVerifying(false);
-
     if (verifyError) {
+      setVerifying(false);
       setError("Código inválido. Confira o horário do celular e tente novamente.");
       return;
     }
 
+    try {
+      await fetch("/api/admin/trusted-devices", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+    } catch {
+      // O MFA permanece ativo mesmo se não for possível salvar este aparelho.
+    }
+
+    setVerifying(false);
     router.replace("/admin");
     router.refresh();
   }
@@ -103,7 +113,7 @@ export default function AdminSecurityPage() {
       <div className="w-full max-w-md bg-white rounded-2xl p-6 shadow-sm">
         <p className="font-serif font-bold text-lg text-texto mb-1">Proteja sua conta administrativa</p>
         <p className="text-xs text-cinza mb-5">
-          A autenticação em duas etapas passa a ser obrigatória para acessar dados de clientes, pedidos e CRM.
+          A autenticação em duas etapas é obrigatória para acessar dados de clientes, pedidos e CRM. Após esta confirmação, este aparelho ficará confiável por 30 dias.
         </p>
 
         {loading ? (
