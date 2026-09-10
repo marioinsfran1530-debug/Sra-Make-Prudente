@@ -2,6 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import {
+  activePaymentProviders,
+  findPaymentRule,
+  type PaymentSettingsConfig,
+} from "@/lib/payment-settings";
 
 type Variant = {
   id: string;
@@ -38,7 +43,7 @@ type CartLine = {
   imageUrl: string | null;
 };
 
-type PaymentMethod = "PIX" | "DINHEIRO" | "DEBITO" | "CREDITO";
+type PaymentMethod = "PIX" | "DINHEIRO" | "DEBITO" | "CREDITO" | "LINK";
 type LastAddition = { key: string; previousQty: number } | null;
 type Tab = "FAVORITOS" | "TODOS" | string;
 
@@ -68,6 +73,10 @@ function parseMoney(value: string) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function roundMoney(value: number) {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
 function productPrice(product: Product, variant?: Variant | null) {
   if (variant) {
     if (variant.promoPrice !== null) return variant.promoPrice;
@@ -87,13 +96,22 @@ function newSaleToken() {
   return `sale-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-export function CounterSaleForm({ products }: { products: Product[] }) {
+export function CounterSaleForm({
+  products,
+  paymentSettings,
+}: {
+  products: Product[];
+  paymentSettings: PaymentSettingsConfig;
+}) {
   const router = useRouter();
   const searchRef = useRef<HTMLInputElement>(null);
+  const providers = useMemo(() => activePaymentProviders(paymentSettings), [paymentSettings]);
   const [query, setQuery] = useState("");
   const [cart, setCart] = useState<CartLine[]>([]);
   const [discount, setDiscount] = useState("0");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("PIX");
+  const [selectedProviderId, setSelectedProviderId] = useState(() => providers[0]?.id ?? "");
+  const [installments, setInstallments] = useState(1);
   const [cashReceived, setCashReceived] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
@@ -131,6 +149,16 @@ export function CounterSaleForm({ products }: { products: Product[] }) {
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
   }, [activeTab, query]);
+
+  useEffect(() => {
+    if (providers.length === 0) {
+      setSelectedProviderId("");
+      return;
+    }
+    if (!providers.some((provider) => provider.id === selectedProviderId)) {
+      setSelectedProviderId(providers[0].id);
+    }
+  }, [providers, selectedProviderId]);
 
   useEffect(() => {
     if (!cartOpen && !variantPicker) return;
@@ -180,6 +208,30 @@ export function CounterSaleForm({ products }: { products: Product[] }) {
   const receivedValue = Math.max(0, parseMoney(cashReceived));
   const cashShort = paymentMethod === "DINHEIRO" && receivedValue + 0.0001 < total;
   const change = paymentMethod === "DINHEIRO" ? Math.max(0, receivedValue - total) : 0;
+
+  const selectedProvider = providers.find((provider) => provider.id === selectedProviderId);
+  const paymentNeedsProvider = paymentMethod === "DEBITO" || paymentMethod === "CREDITO" || paymentMethod === "LINK";
+  const paymentRule = paymentNeedsProvider
+    ? findPaymentRule(
+        selectedProvider,
+        paymentMethod === "DEBITO" ? "DEBIT" : paymentMethod === "LINK" ? "LINK" : "CREDIT",
+        paymentMethod === "DEBITO" ? 1 : installments
+      )
+    : { feeRate: 0, settlementDays: 0 };
+  const feeAmount = roundMoney(total * (paymentRule.feeRate / 100));
+  const netAmount = roundMoney(Math.max(0, total - feeAmount));
+  const installmentOptions = useMemo(() => {
+    if (!selectedProvider || paymentMethod === "DEBITO") return [1];
+    const rules = paymentMethod === "LINK" ? selectedProvider.linkRules : selectedProvider.creditRules;
+    const values = rules.map((rule) => rule.installments).filter((value) => value >= 1 && value <= 24);
+    return values.length > 0 ? Array.from(new Set(values)).sort((a, b) => a - b) : [1];
+  }, [paymentMethod, selectedProvider]);
+  const configuredInstallment =
+    paymentMethod === "DEBITO" || !selectedProvider
+      ? true
+      : (paymentMethod === "LINK" ? selectedProvider.linkRules : selectedProvider.creditRules).some(
+          (rule) => rule.installments === installments
+        );
 
   const cartQtyByProduct = useMemo(() => {
     const map = new Map<string, number>();
@@ -342,6 +394,7 @@ export function CounterSaleForm({ products }: { products: Product[] }) {
 
   function setPayment(method: PaymentMethod) {
     setPaymentMethod(method);
+    setInstallments(1);
     if (method !== "DINHEIRO") setCashReceived("");
   }
 
@@ -364,9 +417,27 @@ export function CounterSaleForm({ products }: { products: Product[] }) {
       setError("O valor recebido é menor que o total da venda.");
       return;
     }
+    if (paymentNeedsProvider && !selectedProvider) {
+      setError("Cadastre e selecione uma operadora em Loja > Pagamentos e taxas.");
+      return;
+    }
+    if ((paymentMethod === "CREDITO" || paymentMethod === "LINK") && !configuredInstallment) {
+      setError("A taxa deste parcelamento ainda não foi configurada para a operadora selecionada.");
+      return;
+    }
 
     setSaving(true);
     try {
+      const cardPayment = paymentNeedsProvider
+        ? {
+            method: paymentMethod === "LINK" ? "CREDITO" : paymentMethod,
+            amount: Number(total.toFixed(2)),
+            providerId: selectedProvider?.id,
+            channel: paymentMethod === "LINK" ? "LINK" : "MACHINE",
+            installments: paymentMethod === "DEBITO" ? 1 : installments,
+          }
+        : { method: paymentMethod, amount: Number(total.toFixed(2)) };
+
       const response = await fetch("/api/admin/counter-sales", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -377,7 +448,7 @@ export function CounterSaleForm({ products }: { products: Product[] }) {
             variantId: item.variantId,
             qty: item.qty,
           })),
-          payments: [{ method: paymentMethod, amount: Number(total.toFixed(2)) }],
+          payments: [cardPayment],
           discount: Number(discountValue.toFixed(2)),
           customerName,
           customerPhone,
@@ -389,6 +460,8 @@ export function CounterSaleForm({ products }: { products: Product[] }) {
 
       setCart([]);
       setDiscount("0");
+      setPaymentMethod("PIX");
+      setInstallments(1);
       setCashReceived("");
       setCustomerName("");
       setCustomerPhone("");
@@ -537,7 +610,7 @@ export function CounterSaleForm({ products }: { products: Product[] }) {
         <div className="mt-3">
           <p className="text-[10px] font-bold uppercase text-cinza">Pagamento</p>
           <div className="mt-2 grid grid-cols-2 gap-2">
-            {(["PIX", "DINHEIRO", "DEBITO", "CREDITO"] as PaymentMethod[]).map((method) => (
+            {(["PIX", "DINHEIRO", "DEBITO", "CREDITO", "LINK"] as PaymentMethod[]).map((method) => (
               <button
                 key={method}
                 type="button"
@@ -554,7 +627,9 @@ export function CounterSaleForm({ products }: { products: Product[] }) {
                     ? "Crédito"
                     : method === "DINHEIRO"
                       ? "Dinheiro"
-                      : "Pix"}
+                      : method === "LINK"
+                        ? "Link de pagamento"
+                        : "Pix"}
               </button>
             ))}
           </div>
@@ -606,6 +681,62 @@ export function CounterSaleForm({ products }: { products: Product[] }) {
           </div>
         )}
 
+        {paymentNeedsProvider && (
+          <div className="mt-3 rounded-xl border border-rosa/15 p-3">
+            {providers.length === 0 ? (
+              <div className="rounded-lg bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
+                Nenhuma operadora ativa. <a href="/admin/loja" className="font-bold underline">Configure em Loja → Pagamentos e taxas</a> antes de finalizar no cartão.
+              </div>
+            ) : (
+              <>
+                <label className="text-[10px] font-bold uppercase text-cinza">Operadora / banco</label>
+                <select
+                  value={selectedProviderId}
+                  onChange={(event) => {
+                    setSelectedProviderId(event.target.value);
+                    setInstallments(1);
+                  }}
+                  className="mt-1 w-full rounded-xl border border-rosa/15 bg-white px-3 py-2.5 text-sm font-bold text-texto"
+                >
+                  {providers.map((provider) => (
+                    <option key={provider.id} value={provider.id}>{provider.name}</option>
+                  ))}
+                </select>
+
+                {(paymentMethod === "CREDITO" || paymentMethod === "LINK") && (
+                  <div className="mt-3">
+                    <label className="text-[10px] font-bold uppercase text-cinza">Parcelas</label>
+                    <select
+                      value={installments}
+                      onChange={(event) => setInstallments(Number(event.target.value))}
+                      className="mt-1 w-full rounded-xl border border-rosa/15 bg-white px-3 py-2.5 text-sm font-bold text-texto"
+                    >
+                      {installmentOptions.map((value) => (
+                        <option key={value} value={value}>
+                          {value}x de {money(total / value)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <div className="mt-3 rounded-xl bg-creme/60 p-3 text-xs">
+                  <div className="flex justify-between gap-3"><span className="text-cinza">Taxa da operadora</span><strong>{paymentRule.feeRate.toFixed(2).replace(".", ",")}%</strong></div>
+                  <div className="mt-1 flex justify-between gap-3"><span className="text-cinza">Valor da taxa</span><strong>- {money(feeAmount)}</strong></div>
+                  <div className="mt-1 flex justify-between gap-3"><span className="text-cinza">Líquido previsto</span><strong className="text-rosa-profundo">{money(netAmount)}</strong></div>
+                  <div className="mt-2 border-t border-rosa/10 pt-2 text-[10px] font-bold">
+                    {paymentMethod === "LINK"
+                      ? `A receber${paymentRule.settlementDays > 0 ? ` · previsão em ${paymentRule.settlementDays} dia(s)` : ""}`
+                      : paymentRule.settlementDays > 0
+                        ? `A receber em ${paymentRule.settlementDays} dia(s)`
+                        : "Recebido na hora"}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
         <details className="mt-3 rounded-xl border border-rosa/10 p-3">
           <summary className="cursor-pointer text-xs font-bold text-texto">
             Cliente e observações (opcional)
@@ -649,7 +780,7 @@ export function CounterSaleForm({ products }: { products: Product[] }) {
         >
           <button
             type="button"
-            disabled={saving || cart.length === 0 || cashShort}
+            disabled={saving || cart.length === 0 || cashShort || (paymentNeedsProvider && providers.length === 0)}
             onClick={finalize}
             className="w-full rounded-xl bg-rosa-profundo px-4 py-3.5 text-sm font-extrabold text-white disabled:opacity-50"
           >
