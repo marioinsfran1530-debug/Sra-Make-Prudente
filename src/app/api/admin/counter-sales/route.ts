@@ -5,6 +5,7 @@ import { syncOrderToCrm } from "@/lib/crm-order-sync";
 
 type Body = {
   idempotencyKey?: string;
+  sourceOrderId?: string;
   items?: Array<{ productId?: string; variantId?: string | null; qty?: number }>;
   payments?: Array<{
     method?: "PIX" | "DINHEIRO" | "DEBITO" | "CREDITO";
@@ -14,6 +15,7 @@ type Body = {
     installments?: number;
   }>;
   discount?: number;
+  deliveryFee?: number;
   customerName?: string;
   customerPhone?: string;
   notes?: string;
@@ -33,6 +35,7 @@ export async function POST(request: NextRequest) {
   try {
     const order = await createCounterSale({
       idempotencyKey: typeof body.idempotencyKey === "string" ? body.idempotencyKey : "",
+      sourceOrderId: typeof body.sourceOrderId === "string" ? body.sourceOrderId : undefined,
       items: (body.items ?? []).map((item) => ({
         productId: typeof item.productId === "string" ? item.productId : "",
         variantId: typeof item.variantId === "string" ? item.variantId : null,
@@ -46,6 +49,7 @@ export async function POST(request: NextRequest) {
         installments: Number(payment.installments ?? 1),
       })),
       discount: Number(body.discount ?? 0),
+      deliveryFee: Number(body.deliveryFee ?? 0),
       customerName: typeof body.customerName === "string" ? body.customerName : "",
       customerPhone: typeof body.customerPhone === "string" ? body.customerPhone : "",
       notes: typeof body.notes === "string" ? body.notes : "",
