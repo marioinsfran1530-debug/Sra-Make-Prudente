@@ -42,34 +42,31 @@ export default function AdminSecurityPage() {
         return;
       }
 
-      // Uma tentativa interrompida pode deixar um fator TOTP não verificado.
-      // Removemos esses fatores antes de gerar uma nova chave para evitar conflito
-      // de friendlyName e permitir repetir a ativação no próprio celular.
+      // Tentativas interrompidas podem deixar fatores TOTP pendentes.
+      // Quando eles aparecem na listagem, removemos antes de criar um novo.
       const pendingFactors = factors.totp.filter((factor) => factor.status !== "verified");
       for (const factor of pendingFactors) {
-        const { error: unenrollError } = await supabase.auth.mfa.unenroll({ factorId: factor.id });
-        if (unenrollError) {
-          setError("Existe uma ativação anterior incompleta. Recarregue a página e tente novamente.");
-          setLoading(false);
-          return;
-        }
+        await supabase.auth.mfa.unenroll({ factorId: factor.id });
       }
 
       const { data: userData } = await supabase.auth.getUser();
       const email = userData.user?.email?.trim();
       if (email) setAccountLabel(email);
 
+      // Não usamos friendlyName fixo aqui. O Supabase exige que esse nome seja único
+      // e uma ativação antiga interrompida pode manter o nome reservado mesmo quando
+      // o fator pendente não aparece em listFactors().
       const { data: enrollment, error: enrollError } = await supabase.auth.mfa.enroll({
         factorType: "totp",
-        friendlyName: "Sra Make Admin",
       });
 
       if (enrollError || !enrollment) {
-        setError(
-          enrollError?.message
-            ? `Não foi possível ativar a autenticação em duas etapas. ${enrollError.message}`
-            : "Não foi possível ativar a autenticação em duas etapas. Tente novamente."
-        );
+        const message = enrollError?.message?.toLowerCase() ?? "";
+        if (message.includes("already exists") || message.includes("friendly name")) {
+          setError("Existe uma configuração anterior incompleta de autenticação. Saia da conta, entre novamente e tente ativar outra vez.");
+        } else {
+          setError("Não foi possível preparar a autenticação em duas etapas. Tente novamente.");
+        }
         setLoading(false);
         return;
       }
