@@ -30,6 +30,10 @@ function NavLink({ item, active }: { item: Item; active: boolean }) {
     <Link
       href={item.href}
       aria-current={active ? "page" : undefined}
+      onClick={(event) => {
+        const details = event.currentTarget.closest("details") as HTMLDetailsElement | null;
+        if (details) details.open = false;
+      }}
       className={`flex min-h-10 items-center justify-center rounded-xl px-3 py-2 text-center text-[11px] font-bold leading-tight transition sm:min-h-0 sm:text-xs ${
         active
           ? "bg-rosa-profundo text-white shadow-sm"
@@ -43,7 +47,7 @@ function NavLink({ item, active }: { item: Item; active: boolean }) {
 
 function MenuGroup({ label, items, active, isActive }: MenuGroupProps) {
   return (
-    <details className="group relative">
+    <details className="group relative open:col-span-2 sm:open:col-span-1">
       <summary
         className={`flex min-h-10 cursor-pointer list-none items-center justify-center gap-1 rounded-xl px-3 py-2 text-center text-[11px] font-bold leading-tight transition marker:content-none sm:min-h-0 sm:text-xs ${
           active
@@ -57,7 +61,7 @@ function MenuGroup({ label, items, active, isActive }: MenuGroupProps) {
         </span>
       </summary>
 
-      <div className="absolute right-0 z-40 mt-2 min-w-52 rounded-2xl border border-rosa/15 bg-white p-2 shadow-lg">
+      <div className="mt-2 w-full rounded-2xl border border-rosa/15 bg-white p-2 shadow-lg sm:absolute sm:right-0 sm:z-40 sm:min-w-52">
         <div className="grid gap-1">
           {items.map((item) => (
             <NavLink key={`${item.href}-${item.label}`} item={item} active={isActive(item)} />
@@ -98,7 +102,7 @@ export function AdminNav({ isAdmin }: { isAdmin: boolean }) {
       aria-label="Navegação do painel"
       className="mt-4 rounded-2xl border border-rosa/15 bg-white p-2 shadow-md"
     >
-      {/* Mesma hierarquia no celular e no desktop: venda permanece sempre a um toque. */}
+      {/* No celular, os grupos expandem dentro do fluxo e empurram o conteúdo para baixo. */}
       <div className="grid grid-cols-2 gap-1.5 sm:flex sm:flex-wrap sm:items-center">
         {primaryItems.map((item) => (
           <NavLink key={item.href} item={item} active={isActive(item)} />
