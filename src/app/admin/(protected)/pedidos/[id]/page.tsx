@@ -68,6 +68,8 @@ export default async function AdminPedidoDetailPage({ params }: { params: Promis
   const productById = new Map(products.map((product) => [product.id, product]));
 
   const hasPhone = Boolean(order.customerPhone.trim());
+  const canTakeToSale =
+    order.channel !== "LOJA_FISICA" && order.status !== "FINALIZADO" && order.status !== "CANCELADO";
   const reviewMessage = `Maravilhosa, obrigada por escolher a Sra Make. 💗\n\nSe você saiu satisfeita, deixe sua experiência registrada e ajude outra pessoa a escolher com mais confiança:\n${GOOGLE_REVIEW_URL}`;
 
   return (
@@ -80,10 +82,26 @@ export default async function AdminPedidoDetailPage({ params }: { params: Promis
           <p className="text-xs text-cinza">{new Date(order.createdAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}</p>
           <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[9px] font-bold ${order.channel === "LOJA_FISICA" ? "bg-green-50 text-green-700" : "bg-creme text-rosa-profundo"}`}>{CHANNEL_LABEL[order.channel] ?? order.channel}</span>
         </div>
-        {order.channel === "LOJA_FISICA" && (
-          <Link href="/admin/vendas/nova" className="rounded-xl border border-rosa/20 px-3 py-2 text-xs font-bold text-rosa-profundo">+ Nova venda</Link>
-        )}
+        <div className="flex shrink-0 flex-col gap-2">
+          {canTakeToSale && (
+            <Link
+              href={`/admin/vendas/nova?pedido=${order.id}`}
+              className="rounded-xl bg-rosa-profundo px-3 py-2 text-center text-xs font-bold text-white"
+            >
+              Levar para Nova venda
+            </Link>
+          )}
+          {order.channel === "LOJA_FISICA" && (
+            <Link href="/admin/vendas/nova" className="rounded-xl border border-rosa/20 px-3 py-2 text-center text-xs font-bold text-rosa-profundo">+ Nova venda</Link>
+          )}
+        </div>
       </div>
+
+      {canTakeToSale && (
+        <div className="mb-4 rounded-xl border border-rosa/15 bg-creme/60 px-3 py-2.5 text-[11px] leading-5 text-cinza">
+          Use <strong className="text-texto">Levar para Nova venda</strong> quando o cliente acrescentar itens pelo WhatsApp. O pedido original permanece salvo e a venda abre pronta para revisão e pagamento.
+        </div>
+      )}
 
       <div className="mb-4 rounded-2xl bg-white p-4" style={{ boxShadow: "0 2px 10px rgba(35,20,42,0.06)" }}>
         <p className="text-sm font-bold text-texto">{order.customerName}</p>

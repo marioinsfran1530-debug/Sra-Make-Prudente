@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
-import { resolveOrderUnitPrice } from "@/lib/order-validation";
 import { findPaymentRule, normalizePaymentSettings } from "@/lib/payment-settings";
+import { stockWasDecremented } from "@/lib/order-rules";
 
 export class CounterSaleError extends Error {}
 
@@ -22,11 +22,13 @@ type CreateCounterSaleInput = {
   items: CounterSaleItemInput[];
   payments: CounterSalePaymentInput[];
   discount?: number;
+  deliveryFee?: number;
   customerName?: string;
   customerPhone?: string;
   notes?: string;
   createdById: string;
   idempotencyKey: string;
+  sourceOrderId?: string;
 };
 
 type StockRow = { id: string; stockQty: number };
@@ -64,7 +66,9 @@ export async function createCounterSale(input: CreateCounterSaleInput) {
   if (idempotencyKey.length < 8) {
     throw new CounterSaleError("Identificador da venda inválido. Atualize a tela e tente novamente.");
   }
+  const sourceOrderId = input.sourceOrderId?.trim() || null;
   const saleSessionId = `counter-sale:${idempotencyKey}`;
+  const lockKey = sourceOrderId ? `counter-sale-source:${sourceOrderId}` : saleSessionId;
 
   const normalizedItems = input.items.map((item) => ({
     productId: item.productId.trim(),
@@ -82,20 +86,65 @@ export async function createCounterSale(input: CreateCounterSaleInput) {
   if (!Number.isFinite(discount) || discount < 0) {
     throw new CounterSaleError("Desconto inválido.");
   }
+  const deliveryFee = cents(Number(input.deliveryFee ?? 0));
+  if (!Number.isFinite(deliveryFee) || deliveryFee < 0) {
+    throw new CounterSaleError("Taxa de entrega inválida.");
+  }
 
   return prisma.$transaction(async (tx) => {
     await tx.$queryRaw<Array<{ locked: number }>>`
       SELECT 1::int AS locked
       FROM (
-        SELECT pg_advisory_xact_lock(hashtext(${saleSessionId}))
+        SELECT pg_advisory_xact_lock(hashtext(${lockKey}))
       ) AS advisory_lock
     `;
 
-    const existingOrder = await tx.order.findFirst({
-      where: { sessionId: saleSessionId, origin: "loja_fisica" },
-      include: { items: true, payments: true },
-    });
-    if (existingOrder) return existingOrder;
+    if (!sourceOrderId) {
+      const existingOrder = await tx.order.findFirst({
+        where: { sessionId: saleSessionId, origin: "loja_fisica" },
+        include: { items: true, payments: true },
+      });
+      if (existingOrder) return existingOrder;
+    }
+
+    const sourceOrder = sourceOrderId
+      ? await tx.order.findUnique({
+          where: { id: sourceOrderId },
+          include: { items: true, payments: true },
+        })
+      : null;
+
+    if (sourceOrderId && !sourceOrder) {
+      throw new CounterSaleError("O pedido original não foi encontrado.");
+    }
+    if (sourceOrder?.status === "FINALIZADO") {
+      return sourceOrder;
+    }
+    if (sourceOrder?.status === "CANCELADO") {
+      throw new CounterSaleError("O pedido original já foi cancelado.");
+    }
+    if (sourceOrder?.channel === "LOJA_FISICA") {
+      throw new CounterSaleError("Esta venda de balcão já foi registrada anteriormente.");
+    }
+
+    // Se o pedido já tinha sido confirmado, o estoque já estava baixado.
+    // Devolvemos os itens originais dentro da mesma transação e, em seguida,
+    // aplicamos exatamente o carrinho final revisado no balcão/WhatsApp.
+    if (sourceOrder && stockWasDecremented(sourceOrder.status)) {
+      for (const item of sourceOrder.items) {
+        if (item.variantId) {
+          await tx.productVariant.update({
+            where: { id: item.variantId },
+            data: { stockQty: { increment: item.qty } },
+          });
+        } else {
+          await tx.product.update({
+            where: { id: item.productId },
+            data: { stockQty: { increment: item.qty } },
+          });
+        }
+      }
+    }
 
     const productIds = Array.from(new Set(normalizedItems.map((item) => item.productId)));
     const products = await tx.product.findMany({
@@ -128,15 +177,9 @@ export async function createCounterSale(input: CreateCounterSaleInput) {
       const lineKey = variant ? `v:${variant.id}` : `p:${product.id}`;
       requestedByLine.set(lineKey, (requestedByLine.get(lineKey) ?? 0) + item.qty);
 
-      const unitPrice = resolveOrderUnitPrice({
-        productPrice: Number(product.price),
-        productPromoPrice: product.promoPrice === null ? null : Number(product.promoPrice),
-        variantPrice: variant?.price === null || variant?.price === undefined ? null : Number(variant.price),
-        variantPromoPrice:
-          variant?.promoPrice === null || variant?.promoPrice === undefined
-            ? null
-            : Number(variant.promoPrice),
-      });
+      // No catálogo atual, as variantes representam cor/tonalidade e estoque.
+      // O preço principal do produto é a fonte de verdade da venda.
+      const unitPrice = product.promoPrice === null ? Number(product.price) : Number(product.promoPrice);
 
       if (!Number.isFinite(unitPrice) || unitPrice < 0) {
         throw new CounterSaleError(`Preço inválido para ${product.name}.`);
@@ -189,7 +232,7 @@ export async function createCounterSale(input: CreateCounterSaleInput) {
 
     const subtotal = cents(orderItems.reduce((sum, item) => sum + item.subtotal, 0));
     if (discount > subtotal) throw new CounterSaleError("O desconto não pode ser maior que o subtotal.");
-    const total = cents(subtotal - discount);
+    const total = cents(subtotal - discount + deliveryFee);
 
     if (!Array.isArray(input.payments) || input.payments.length === 0) {
       throw new CounterSaleError("Informe a forma de pagamento.");
@@ -289,27 +332,57 @@ export async function createCounterSale(input: CreateCounterSaleInput) {
     const customerPhone = input.customerPhone?.replace(/\D/g, "").slice(0, 20) || "";
     const notes = input.notes?.trim().slice(0, 500) || null;
 
-    const order = await tx.order.create({
-      data: {
-        customerName,
-        customerPhone,
-        subtotal,
-        discount,
-        deliveryFee: 0,
-        total,
-        deliveryType: "RETIRADA",
-        payment: primaryPayment,
-        channel: "LOJA_FISICA",
-        createdById: input.createdById,
-        notes,
-        origin: "loja_fisica",
-        sessionId: saleSessionId,
-        status: "FINALIZADO",
-        items: { create: orderItems },
-        payments: { create: payments.map(({ method, amount }) => ({ method, amount })) },
-      },
-      include: { items: true, payments: true },
-    });
+    if (sourceOrder) {
+      await tx.$executeRaw`
+        DELETE FROM app_security."OrderPaymentFinancial"
+        WHERE "orderPaymentId" IN (
+          SELECT id FROM "OrderPayment" WHERE "orderId" = ${sourceOrder.id}
+        )
+      `;
+      await tx.orderPayment.deleteMany({ where: { orderId: sourceOrder.id } });
+      await tx.orderItem.deleteMany({ where: { orderId: sourceOrder.id } });
+    }
+
+    const order = sourceOrder
+      ? await tx.order.update({
+          where: { id: sourceOrder.id },
+          data: {
+            customerName,
+            customerPhone,
+            subtotal,
+            discount,
+            deliveryFee,
+            total,
+            payment: primaryPayment,
+            createdById: input.createdById,
+            notes,
+            status: "FINALIZADO",
+            items: { create: orderItems },
+            payments: { create: payments.map(({ method, amount }) => ({ method, amount })) },
+          },
+          include: { items: true, payments: true },
+        })
+      : await tx.order.create({
+          data: {
+            customerName,
+            customerPhone,
+            subtotal,
+            discount,
+            deliveryFee: 0,
+            total,
+            deliveryType: "RETIRADA",
+            payment: primaryPayment,
+            channel: "LOJA_FISICA",
+            createdById: input.createdById,
+            notes,
+            origin: "loja_fisica",
+            sessionId: saleSessionId,
+            status: "FINALIZADO",
+            items: { create: orderItems },
+            payments: { create: payments.map(({ method, amount }) => ({ method, amount })) },
+          },
+          include: { items: true, payments: true },
+        });
 
     for (let index = 0; index < payments.length; index += 1) {
       const financial = payments[index].financial;
@@ -330,10 +403,15 @@ export async function createCounterSale(input: CreateCounterSaleInput) {
     await tx.analyticsEvent.create({
       data: {
         event: "order_finalized",
-        sessionId: saleSessionId,
+        sessionId: order.sessionId ?? saleSessionId,
         value: total,
-        context: `pedido:${order.number}`,
-        origin: "loja_fisica",
+        context: sourceOrder ? `pedido:${order.number}:fechado-na-nova-venda` : `pedido:${order.number}`,
+        origin: order.origin,
+        landingPage: order.landingPage,
+        utmSource: order.utmSource,
+        utmMedium: order.utmMedium,
+        utmCampaign: order.utmCampaign,
+        utmContent: order.utmContent,
       },
     });
 

@@ -43,6 +43,19 @@ type CartLine = {
   imageUrl: string | null;
 };
 
+export type InitialCounterSale = {
+  orderId: string;
+  orderNumber: number;
+  customerName: string;
+  customerPhone: string;
+  notes: string;
+  items: Array<{
+    productId: string;
+    variantId: string | null;
+    qty: number;
+  }>;
+};
+
 type PaymentMethod = "PIX" | "DINHEIRO" | "DEBITO" | "CREDITO" | "LINK";
 type LastAddition = { key: string; previousQty: number } | null;
 type Tab = "FAVORITOS" | "TODOS" | string;
@@ -77,11 +90,7 @@ function roundMoney(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
-function productPrice(product: Product, variant?: Variant | null) {
-  if (variant) {
-    if (variant.promoPrice !== null) return variant.promoPrice;
-    if (variant.price !== null) return variant.price;
-  }
+function productPrice(product: Product) {
   return product.promoPrice ?? product.price;
 }
 
@@ -89,6 +98,39 @@ function productAvailable(product: Product) {
   return product.variants.length > 0
     ? product.variants.reduce((sum, variant) => sum + Math.max(0, variant.stockQty), 0)
     : Math.max(0, product.stockQty);
+}
+
+function buildInitialCart(products: Product[], initialSale?: InitialCounterSale | null): CartLine[] {
+  if (!initialSale) return [];
+
+  return initialSale.items.flatMap((item) => {
+    const product = products.find((candidate) => candidate.id === item.productId);
+    if (!product) return [];
+
+    const variant = item.variantId
+      ? product.variants.find((candidate) => candidate.id === item.variantId) ?? null
+      : null;
+    if (item.variantId && !variant) return [];
+
+    const stockQty = variant ? variant.stockQty : product.stockQty;
+    const qty = Math.min(Math.max(0, stockQty), Math.max(1, item.qty));
+    if (qty <= 0) return [];
+
+    return [
+      {
+        key: `${product.id}:${variant?.id ?? "base"}`,
+        productId: product.id,
+        variantId: variant?.id ?? null,
+        name: product.name,
+        variantName: variant?.name ?? null,
+        sku: variant?.sku ?? product.sku,
+        qty,
+        stockQty,
+        unitPrice: productPrice(product),
+        imageUrl: product.imageUrl,
+      },
+    ];
+  });
 }
 
 function newSaleToken() {
@@ -99,23 +141,25 @@ function newSaleToken() {
 export function CounterSaleForm({
   products,
   paymentSettings,
+  initialSale = null,
 }: {
   products: Product[];
   paymentSettings: PaymentSettingsConfig;
+  initialSale?: InitialCounterSale | null;
 }) {
   const router = useRouter();
   const searchRef = useRef<HTMLInputElement>(null);
   const providers = useMemo(() => activePaymentProviders(paymentSettings), [paymentSettings]);
   const [query, setQuery] = useState("");
-  const [cart, setCart] = useState<CartLine[]>([]);
+  const [cart, setCart] = useState<CartLine[]>(() => buildInitialCart(products, initialSale));
   const [discount, setDiscount] = useState("0");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("PIX");
   const [selectedProviderId, setSelectedProviderId] = useState(() => providers[0]?.id ?? "");
   const [installments, setInstallments] = useState(1);
   const [cashReceived, setCashReceived] = useState("");
-  const [customerName, setCustomerName] = useState("");
-  const [customerPhone, setCustomerPhone] = useState("");
-  const [notes, setNotes] = useState("");
+  const [customerName, setCustomerName] = useState(initialSale?.customerName ?? "");
+  const [customerPhone, setCustomerPhone] = useState(initialSale?.customerPhone ?? "");
+  const [notes, setNotes] = useState(initialSale?.notes ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
@@ -308,7 +352,7 @@ export function CounterSaleForm({
           sku: variant?.sku ?? product.sku,
           qty: 1,
           stockQty,
-          unitPrice: productPrice(product, variant),
+          unitPrice: productPrice(product),
           imageUrl: product.imageUrl,
         },
       ];
@@ -737,7 +781,7 @@ export function CounterSaleForm({
           </div>
         )}
 
-        <details className="mt-3 rounded-xl border border-rosa/10 p-3">
+        <details className="mt-3 rounded-xl border border-rosa/10 p-3" open={Boolean(initialSale)}>
           <summary className="cursor-pointer text-xs font-bold text-texto">
             Cliente e observações (opcional)
           </summary>
@@ -796,6 +840,15 @@ export function CounterSaleForm({
 
   return (
     <>
+      {initialSale && (
+        <div className="mb-4 rounded-2xl border border-rosa/20 bg-white p-4 shadow-sm">
+          <p className="text-xs font-extrabold text-rosa-profundo">Pedido #{initialSale.orderNumber} carregado na venda</p>
+          <p className="mt-1 text-[11px] leading-5 text-cinza">
+            Revise os itens, acrescente o que foi combinado no WhatsApp e escolha o pagamento antes de finalizar. O pedido original permanece no histórico.
+          </p>
+        </div>
+      )}
+
       <div className="grid gap-4 pb-24 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start lg:pb-0">
         <section className="min-w-0 overflow-visible rounded-2xl bg-white shadow-sm">
           <div className="sticky top-0 z-20 rounded-t-2xl border-b border-rosa/10 bg-white/95 p-3 backdrop-blur sm:p-4">
@@ -1102,7 +1155,7 @@ export function CounterSaleForm({
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
                       <strong className="text-xs text-rosa-profundo">
-                        {money(productPrice(variantPicker, variant))}
+                        {money(productPrice(variantPicker))}
                       </strong>
                       <span className="flex h-7 w-7 items-center justify-center rounded-full bg-rosa-profundo text-base font-bold text-white">
                         +

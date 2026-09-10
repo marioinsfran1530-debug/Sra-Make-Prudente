@@ -21,11 +21,10 @@ export function AddToCartBox({ product }: { product: PublicProduct }) {
     ? !selectedVariant || selectedVariant.stock === "INDISPONIVEL"
     : product.stock === "INDISPONIVEL";
 
-  const unitPrice =
-    selectedVariant?.promoPrice ??
-    selectedVariant?.price ??
-    product.promoPrice ??
-    product.price;
+  // Hoje as variantes do catálogo representam principalmente cor/tonalidade e estoque.
+  // O preço exibido na página do produto é a fonte de verdade da venda; isso evita
+  // que valores antigos salvos em uma variante reapareçam no carrinho.
+  const unitPrice = product.promoPrice ?? product.price;
 
   function handleAdd() {
     if (outOfStock) return;

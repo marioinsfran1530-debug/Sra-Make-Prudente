@@ -1,16 +1,15 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
   BarChart3,
   CheckCircle2,
-  Clock3,
   Package,
   ShoppingBag,
   ShoppingCart,
   TrendingDown,
   TrendingUp,
   Trophy,
-  XCircle,
 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getAdminSession } from "@/lib/admin-auth";
@@ -54,6 +53,11 @@ const FUNNEL_EVENTS = [
 
 type Period = "today" | "7d" | "30d" | "month" | "all";
 
+type DateRange = {
+  gte: Date;
+  lt: Date;
+};
+
 const PERIODS: { value: Period; label: string }[] = [
   { value: "today", label: "Hoje" },
   { value: "7d", label: "7 dias" },
@@ -77,7 +81,39 @@ function saoPauloMidnightUtc(year: number, month: number, day: number) {
   return new Date(Date.UTC(year, month - 1, day, 3, 0, 0, 0));
 }
 
-function getPeriodRange(period: Period) {
+function parseDateInput(value?: string) {
+  if (!value) return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const test = new Date(Date.UTC(year, month - 1, day));
+  if (
+    test.getUTCFullYear() !== year ||
+    test.getUTCMonth() !== month - 1 ||
+    test.getUTCDate() !== day
+  ) {
+    return null;
+  }
+  return { year, month, day };
+}
+
+function getCustomRange(from?: string, to?: string): DateRange | null {
+  const startParts = parseDateInput(from);
+  const endParts = parseDateInput(to);
+  if (!startParts || !endParts) return null;
+
+  const gte = saoPauloMidnightUtc(startParts.year, startParts.month, startParts.day);
+  const endStart = saoPauloMidnightUtc(endParts.year, endParts.month, endParts.day);
+  if (gte.getTime() > endStart.getTime()) return null;
+
+  const lt = new Date(endStart);
+  lt.setUTCDate(lt.getUTCDate() + 1);
+  return { gte, lt };
+}
+
+function getPeriodRange(period: Period): DateRange | null {
   if (period === "all") return null;
   const { year, month, day } = getSaoPauloDateParts();
   const todayStart = saoPauloMidnightUtc(year, month, day);
@@ -93,7 +129,7 @@ function getPeriodRange(period: Period) {
   return { gte: saoPauloMidnightUtc(year, month, 1), lt: tomorrowStart };
 }
 
-function getPreviousRange(range: { gte: Date; lt: Date } | null) {
+function getPreviousRange(range: DateRange | null) {
   if (!range) return null;
   const duration = range.lt.getTime() - range.gte.getTime();
   return {
@@ -102,7 +138,14 @@ function getPreviousRange(range: { gte: Date; lt: Date } | null) {
   };
 }
 
-function ordersHref(status: string, period: Period) {
+function formatDateInput(value?: string) {
+  const parts = parseDateInput(value);
+  if (!parts) return "";
+  return `${String(parts.day).padStart(2, "0")}/${String(parts.month).padStart(2, "0")}/${parts.year}`;
+}
+
+function ordersHref(status: string, period: Period, custom: boolean) {
+  if (custom) return `/admin/pedidos?status=${encodeURIComponent(status)}`;
   return `/admin/pedidos?status=${encodeURIComponent(status)}&period=${period}`;
 }
 
@@ -120,11 +163,9 @@ function isTechnicalOrigin(origin: string | null) {
   return normalized.includes("vercel") || normalized.includes("preview");
 }
 
-function analysisProductsHref(period: Period) {
-  if (period === "today") return "/admin/analise/produtos";
-  return period === "7d"
-    ? "/admin/analise/produtos"
-    : `/admin/analise/produtos?period=${period}`;
+function analysisProductsHref(period: Period, custom: boolean) {
+  if (custom || period === "today" || period === "7d") return "/admin/analise/produtos";
+  return `/admin/analise/produtos?period=${period}`;
 }
 
 type ProductPerformance = {
@@ -139,18 +180,20 @@ type ProductPerformance = {
 export default async function AdminDashboardPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ period?: string }>;
+  searchParams?: Promise<{ period?: string; from?: string; to?: string }>;
 }) {
   const session = await getAdminSession();
   if (!session) return null;
 
-  const resolvedSearchParams = searchParams ? await searchParams : undefined;
-  const requestedPeriod = resolvedSearchParams?.period;
+  const params = searchParams ? await searchParams : undefined;
+  const requestedPeriod = params?.period;
   const period: Period = PERIODS.some((item) => item.value === requestedPeriod)
     ? (requestedPeriod as Period)
     : "today";
 
-  const range = getPeriodRange(period);
+  const customRange = getCustomRange(params?.from, params?.to);
+  const isCustom = Boolean(customRange);
+  const range = customRange ?? getPeriodRange(period);
   const previousRange = getPreviousRange(range);
   const finalizedDateFilter = range ? { updatedAt: range } : {};
   const canceledDateFilter = range ? { updatedAt: range } : {};
@@ -229,9 +272,7 @@ export default async function AdminDashboardPage({
   const canceledCount = canceledOrders._count.id;
   const averageTicket = finalizedCount > 0 ? soldValue / finalizedCount : 0;
 
-  const previousSoldValue = previousFinalized
-    ? Number(previousFinalized._sum.total ?? 0)
-    : 0;
+  const previousSoldValue = previousFinalized ? Number(previousFinalized._sum.total ?? 0) : 0;
   const previousCount = previousFinalized?._count.id ?? 0;
   const revenueTrend = trendPct(soldValue, previousSoldValue);
   const orderTrend = trendPct(finalizedCount, previousCount);
@@ -342,9 +383,12 @@ export default async function AdminDashboardPage({
 
   const criticalTopProducts = topProducts.filter(
     (product) =>
-      product.stockQty !== null &&
-      computeStockStatus(product.stockQty) !== "DISPONIVEL"
+      product.stockQty !== null && computeStockStatus(product.stockQty) !== "DISPONIVEL"
   );
+
+  const customLabel = isCustom
+    ? `${formatDateInput(params?.from)} até ${formatDateInput(params?.to)}`
+    : null;
 
   return (
     <div className="mx-auto max-w-7xl">
@@ -371,7 +415,7 @@ export default async function AdminDashboardPage({
         <p className="mb-2 text-[11px] font-bold text-texto">Período</p>
         <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
           {PERIODS.map((item) => {
-            const active = period === item.value;
+            const active = !isCustom && period === item.value;
             return (
               <Link
                 key={item.value}
@@ -388,6 +432,50 @@ export default async function AdminDashboardPage({
             );
           })}
         </div>
+
+        <details
+          open={isCustom}
+          className={`mt-2 rounded-2xl border bg-white ${isCustom ? "border-rosa-profundo/40" : "border-rosa/15"}`}
+        >
+          <summary className="cursor-pointer list-none px-4 py-3 text-xs font-bold text-rosa-profundo">
+            📅 {isCustom && customLabel ? `Personalizado · ${customLabel}` : "Personalizado · escolher datas"}
+          </summary>
+          <form method="get" action="/admin" className="grid gap-3 border-t border-rosa/10 p-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+            <label className="grid gap-1 text-[10px] font-bold uppercase text-cinza">
+              De
+              <input
+                type="date"
+                name="from"
+                required
+                defaultValue={params?.from ?? ""}
+                className="rounded-xl border border-rosa/20 bg-white px-3 py-2.5 text-sm font-semibold text-texto"
+              />
+            </label>
+            <label className="grid gap-1 text-[10px] font-bold uppercase text-cinza">
+              Até
+              <input
+                type="date"
+                name="to"
+                required
+                defaultValue={params?.to ?? ""}
+                className="rounded-xl border border-rosa/20 bg-white px-3 py-2.5 text-sm font-semibold text-texto"
+              />
+            </label>
+            <button
+              type="submit"
+              className="rounded-xl bg-rosa-profundo px-5 py-2.5 text-xs font-extrabold text-white"
+            >
+              Aplicar
+            </button>
+          </form>
+          {isCustom && (
+            <div className="px-4 pb-4">
+              <Link href="/admin" className="text-[11px] font-bold text-cinza underline">
+                Limpar período personalizado
+              </Link>
+            </div>
+          )}
+        </details>
       </div>
 
       <section
@@ -405,13 +493,12 @@ export default async function AdminDashboardPage({
                 <span>
                   {finalizedCount} {finalizedCount === 1 ? "venda finalizada" : "vendas finalizadas"}
                 </span>
-                {revenueTrend !== null && (
-                  <TrendBadge value={revenueTrend} label="receita" />
-                )}
-                {orderTrend !== null && (
-                  <TrendBadge value={orderTrend} label="pedidos" subtle />
-                )}
+                {revenueTrend !== null && <TrendBadge value={revenueTrend} label="receita" />}
+                {orderTrend !== null && <TrendBadge value={orderTrend} label="pedidos" subtle />}
               </div>
+              {isCustom && customLabel && (
+                <p className="mt-2 text-[10px] font-bold text-green-700">{customLabel}</p>
+              )}
             </div>
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-green-100 text-green-700">
               <CheckCircle2 size={22} />
@@ -431,7 +518,7 @@ export default async function AdminDashboardPage({
 
         <div className="grid grid-cols-2 border-t border-green-100 bg-white/70">
           <Link
-            href={ordersHref("pending", period)}
+            href={ordersHref("pending", period, isCustom)}
             className="border-r border-green-100 px-5 py-3 transition hover:bg-amber-50"
           >
             <p className="text-[10px] font-bold uppercase tracking-wide text-cinza">Pendentes</p>
@@ -440,7 +527,7 @@ export default async function AdminDashboardPage({
             </p>
           </Link>
           <Link
-            href={ordersHref("CANCELADO", period)}
+            href={ordersHref("CANCELADO", period, isCustom)}
             className="px-5 py-3 transition hover:bg-red-50"
           >
             <p className="text-[10px] font-bold uppercase tracking-wide text-cinza">Cancelados</p>
@@ -452,15 +539,10 @@ export default async function AdminDashboardPage({
       </section>
 
       <div className="mb-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <section
-          className="rounded-2xl bg-white p-5"
-          style={{ boxShadow: "0 2px 12px rgba(35,20,42,0.06)" }}
-        >
+        <section className="rounded-2xl bg-white p-5" style={{ boxShadow: "0 2px 12px rgba(35,20,42,0.06)" }}>
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-rosa-profundo">
-                Catálogo
-              </p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-rosa-profundo">Catálogo</p>
               <h2 className="mt-0.5 text-base font-bold text-texto">Funil de conversão</h2>
             </div>
             <Link href="/admin/analise" className="text-[11px] font-bold text-rosa-profundo">
@@ -478,35 +560,21 @@ export default async function AdminDashboardPage({
 
           <div className="mt-4 flex items-center justify-between rounded-xl bg-rosa/5 px-4 py-3">
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-wide text-cinza">
-                Conversão do catálogo
-              </p>
-              <p className="mt-1 text-xl font-extrabold text-rosa-profundo">
-                {pct(catalogConversion)}
-              </p>
+              <p className="text-[10px] font-bold uppercase tracking-wide text-cinza">Conversão do catálogo</p>
+              <p className="mt-1 text-xl font-extrabold text-rosa-profundo">{pct(catalogConversion)}</p>
             </div>
             <BarChart3 size={22} className="text-rosa-profundo" />
           </div>
         </section>
 
-        <section
-          className="rounded-2xl bg-white p-5"
-          style={{ boxShadow: "0 2px 12px rgba(35,20,42,0.06)" }}
-        >
+        <section className="rounded-2xl bg-white p-5" style={{ boxShadow: "0 2px 12px rgba(35,20,42,0.06)" }}>
           <div className="mb-4">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-rosa-profundo">
-              Operação
-            </p>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-rosa-profundo">Operação</p>
             <h2 className="mt-0.5 text-base font-bold text-texto">Saúde do estoque</h2>
           </div>
 
           <div className="grid grid-cols-3 gap-2">
-            <StockMetric
-              href="/admin/produtos?status=active"
-              value={activeProducts}
-              label="Ativos"
-              icon={<Package size={17} />}
-            />
+            <StockMetric href="/admin/produtos?status=active" value={activeProducts} label="Ativos" icon={<Package size={17} />} />
             <StockMetric
               href="/admin/produtos?status=ULTIMAS"
               value={lowStock}
@@ -543,15 +611,11 @@ export default async function AdminDashboardPage({
             <div className="mt-4 grid grid-cols-2 gap-2 rounded-xl bg-green-50 p-3">
               <div>
                 <p className="text-[10px] text-cinza">Lucro bruto conhecido</p>
-                <p className="mt-1 text-sm font-extrabold text-green-700">
-                  {money(grossProfitKnown)}
-                </p>
+                <p className="mt-1 text-sm font-extrabold text-green-700">{money(grossProfitKnown)}</p>
               </div>
               <div>
                 <p className="text-[10px] text-cinza">Margem conhecida</p>
-                <p className="mt-1 text-sm font-extrabold text-green-700">
-                  {pct(grossMarginKnown)}
-                </p>
+                <p className="mt-1 text-sm font-extrabold text-green-700">{pct(grossMarginKnown)}</p>
               </div>
             </div>
           )}
@@ -559,21 +623,13 @@ export default async function AdminDashboardPage({
       </div>
 
       <div className="mb-5 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(300px,0.65fr)]">
-        <section
-          className="rounded-2xl bg-white"
-          style={{ boxShadow: "0 2px 12px rgba(35,20,42,0.06)" }}
-        >
+        <section className="rounded-2xl bg-white" style={{ boxShadow: "0 2px 12px rgba(35,20,42,0.06)" }}>
           <div className="flex items-center justify-between gap-3 border-b border-rosa/10 px-5 py-4">
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-rosa-profundo">
-                Ranking
-              </p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-rosa-profundo">Ranking</p>
               <h2 className="mt-0.5 text-base font-bold text-texto">Produtos mais vendidos</h2>
             </div>
-            <Link
-              href={analysisProductsHref(period)}
-              className="text-[11px] font-bold text-rosa-profundo"
-            >
+            <Link href={analysisProductsHref(period, isCustom)} className="text-[11px] font-bold text-rosa-profundo">
               Ver desempenho →
             </Link>
           </div>
@@ -583,8 +639,7 @@ export default async function AdminDashboardPage({
           ) : (
             <div className="divide-y divide-rosa/10">
               {topProducts.map((product, index) => {
-                const stockStatus =
-                  product.stockQty === null ? null : computeStockStatus(product.stockQty);
+                const stockStatus = product.stockQty === null ? null : computeStockStatus(product.stockQty);
                 return (
                   <div key={product.productId} className="flex items-center gap-3 px-5 py-3">
                     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-rosa/10 text-xs font-extrabold text-rosa-profundo">
@@ -595,9 +650,7 @@ export default async function AdminDashboardPage({
                       <p className="mt-0.5 truncate text-[10px] text-cinza">{product.brand}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-xs font-extrabold text-texto">
-                        {product.units} un.
-                      </p>
+                      <p className="text-xs font-extrabold text-texto">{product.units} un.</p>
                       <p className="mt-0.5 text-[10px] text-cinza">{money(product.revenue)}</p>
                       {stockStatus && stockStatus !== "DISPONIVEL" && (
                         <p className={`mt-0.5 text-[9px] font-bold ${stockStatus === "INDISPONIVEL" ? "text-red-600" : "text-amber-600"}`}>
@@ -613,10 +666,7 @@ export default async function AdminDashboardPage({
         </section>
 
         <div className="grid gap-4">
-          <section
-            className="rounded-2xl bg-white p-5"
-            style={{ boxShadow: "0 2px 12px rgba(35,20,42,0.06)" }}
-          >
+          <section className="rounded-2xl bg-white p-5" style={{ boxShadow: "0 2px 12px rgba(35,20,42,0.06)" }}>
             <div className="mb-3 flex items-center gap-2">
               <Trophy size={17} className="text-rosa-profundo" />
               <h2 className="text-sm font-bold text-texto">Marcas que mais venderam</h2>
@@ -638,10 +688,7 @@ export default async function AdminDashboardPage({
             )}
           </section>
 
-          <section
-            className="rounded-2xl bg-white p-5"
-            style={{ boxShadow: "0 2px 12px rgba(35,20,42,0.06)" }}
-          >
+          <section className="rounded-2xl bg-white p-5" style={{ boxShadow: "0 2px 12px rgba(35,20,42,0.06)" }}>
             <div className="mb-3 flex items-center gap-2">
               <ShoppingCart size={17} className="text-rosa-profundo" />
               <h2 className="text-sm font-bold text-texto">Vendas por canal</h2>
@@ -654,13 +701,9 @@ export default async function AdminDashboardPage({
                   <div key={item.channel} className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-xs font-bold text-texto">{item.channel}</p>
-                      <p className="text-[10px] text-cinza">
-                        {item.orders} {item.orders === 1 ? "venda" : "vendas"}
-                      </p>
+                      <p className="text-[10px] text-cinza">{item.orders} {item.orders === 1 ? "venda" : "vendas"}</p>
                     </div>
-                    <p className="text-xs font-extrabold text-rosa-profundo">
-                      {money(item.revenue)}
-                    </p>
+                    <p className="text-xs font-extrabold text-rosa-profundo">{money(item.revenue)}</p>
                   </div>
                 ))}
               </div>
@@ -676,15 +719,11 @@ export default async function AdminDashboardPage({
               <h2 className="text-base font-bold text-texto">Pedidos recentes</h2>
               <p className="text-xs text-cinza">Últimos pedidos da loja, independentemente do período acima</p>
             </div>
-            <Link href="/admin/pedidos" className="text-xs font-bold text-rosa-profundo">
-              Ver todos
-            </Link>
+            <Link href="/admin/pedidos" className="text-xs font-bold text-rosa-profundo">Ver todos</Link>
           </div>
           <div className="flex flex-col gap-2">
             {recentOrders.length === 0 && (
-              <div className="rounded-2xl bg-white p-5">
-                <p className="text-xs text-cinza">Nenhum pedido ainda.</p>
-              </div>
+              <div className="rounded-2xl bg-white p-5"><p className="text-xs text-cinza">Nenhum pedido ainda.</p></div>
             )}
             {recentOrders.map((order) => (
               <Link
@@ -695,9 +734,7 @@ export default async function AdminDashboardPage({
               >
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <p className="truncate text-sm font-bold text-texto">
-                      #{order.number} — {order.customerName}
-                    </p>
+                    <p className="truncate text-sm font-bold text-texto">#{order.number} — {order.customerName}</p>
                     <StatusBadge status={order.status} />
                   </div>
                   <p className="mt-1 text-[10px] text-cinza">
@@ -711,12 +748,8 @@ export default async function AdminDashboardPage({
                   </p>
                 </div>
                 <div className="shrink-0 text-right">
-                  <p className="text-sm font-extrabold text-rosa-profundo">
-                    {money(Number(order.total))}
-                  </p>
-                  <p className="mt-0.5 text-[9px] text-cinza">
-                    {STATUS_LABEL[order.status] ?? order.status}
-                  </p>
+                  <p className="text-sm font-extrabold text-rosa-profundo">{money(Number(order.total))}</p>
+                  <p className="mt-0.5 text-[9px] text-cinza">{STATUS_LABEL[order.status] ?? order.status}</p>
                 </div>
               </Link>
             ))}
@@ -725,10 +758,7 @@ export default async function AdminDashboardPage({
 
         <aside>
           <h2 className="mb-3 text-base font-bold text-texto">Acesso rápido</h2>
-          <div
-            className="rounded-2xl bg-white p-4"
-            style={{ boxShadow: "0 2px 12px rgba(35,20,42,0.06)" }}
-          >
+          <div className="rounded-2xl bg-white p-4" style={{ boxShadow: "0 2px 12px rgba(35,20,42,0.06)" }}>
             <div className="grid gap-2">
               <QuickLink href="/admin/pedidos" title="Pedidos" description="Acompanhar e finalizar vendas" />
               <QuickLink href="/admin/produtos" title="Produtos" description="Estoque, preços e destaques" />
@@ -746,15 +776,7 @@ export default async function AdminDashboardPage({
   );
 }
 
-function TrendBadge({
-  value,
-  label,
-  subtle = false,
-}: {
-  value: number;
-  label: string;
-  subtle?: boolean;
-}) {
+function TrendBadge({ value, label, subtle = false }: { value: number; label: string; subtle?: boolean }) {
   const positive = value >= 0;
   const Icon = positive ? TrendingUp : TrendingDown;
   return (
@@ -768,8 +790,7 @@ function TrendBadge({
       }`}
     >
       <Icon size={11} />
-      {positive ? "+" : ""}
-      {value.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}% {label}
+      {positive ? "+" : ""}{value.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}% {label}
     </span>
   );
 }
@@ -787,9 +808,7 @@ function FunnelStep({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-xl bg-creme/70 px-1.5 py-3">
       <p className="text-sm font-extrabold text-texto">{value.toLocaleString("pt-BR")}</p>
-      <p className="mt-1 truncate text-[8px] font-bold uppercase tracking-wide text-cinza">
-        {label}
-      </p>
+      <p className="mt-1 truncate text-[8px] font-bold uppercase tracking-wide text-cinza">{label}</p>
     </div>
   );
 }
@@ -804,7 +823,7 @@ function StockMetric({
   href: string;
   value: number;
   label: string;
-  icon: React.ReactNode;
+  icon: ReactNode;
   tone?: "normal" | "warning" | "danger";
 }) {
   const tones = {
@@ -823,15 +842,7 @@ function StockMetric({
   );
 }
 
-function QuickLink({
-  href,
-  title,
-  description,
-}: {
-  href: string;
-  title: string;
-  description: string;
-}) {
+function QuickLink({ href, title, description }: { href: string; title: string; description: string }) {
   return (
     <Link href={href} className="rounded-xl border border-rosa/10 p-3 transition hover:bg-rosa/5">
       <p className="text-xs font-bold text-texto">{title}</p>
