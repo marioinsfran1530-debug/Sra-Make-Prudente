@@ -3,28 +3,26 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-type Item = { href: string; label: string };
+type Item = { href: string; label: string; exact?: boolean };
 
 type MenuGroupProps = {
   label: string;
   items: Item[];
   active: boolean;
-  isActive: (href: string) => boolean;
-  className?: string;
+  isActive: (item: Item) => boolean;
 };
 
 const primaryItems: Item[] = [
-  { href: "/admin", label: "Dashboard" },
-  { href: "/admin/vendas/nova", label: "Nova venda" },
+  { href: "/admin", label: "Dashboard", exact: true },
   { href: "/admin/crm", label: "CRM" },
   { href: "/admin/pedidos", label: "Pedidos" },
+  { href: "/admin/vendas/nova", label: "Nova venda" },
 ];
 
-const catalogItems: Item[] = [
-  { href: "/admin/produtos", label: "Produtos" },
-  { href: "/admin/categorias", label: "Categorias" },
-  { href: "/admin/loja", label: "Loja" },
-  { href: "/admin/divulgacao", label: "Divulgação" },
+const productItems: Item[] = [
+  { href: "/admin/produtos", label: "Produtos", exact: true },
+  { href: "/admin/produtos/novo", label: "Novo produto" },
+  { href: "/admin/categorias", label: "Categorias e subcategorias" },
 ];
 
 function NavLink({ item, active }: { item: Item; active: boolean }) {
@@ -43,9 +41,9 @@ function NavLink({ item, active }: { item: Item; active: boolean }) {
   );
 }
 
-function MenuGroup({ label, items, active, isActive, className = "" }: MenuGroupProps) {
+function MenuGroup({ label, items, active, isActive }: MenuGroupProps) {
   return (
-    <details className={`group relative ${className}`}>
+    <details className="group relative">
       <summary
         className={`flex min-h-10 cursor-pointer list-none items-center justify-center gap-1 rounded-xl px-3 py-2 text-center text-[11px] font-bold leading-tight transition marker:content-none sm:min-h-0 sm:text-xs ${
           active
@@ -59,10 +57,10 @@ function MenuGroup({ label, items, active, isActive, className = "" }: MenuGroup
         </span>
       </summary>
 
-      <div className="absolute right-0 z-40 mt-2 min-w-44 rounded-2xl border border-rosa/15 bg-white p-2 shadow-lg">
+      <div className="absolute right-0 z-40 mt-2 min-w-52 rounded-2xl border border-rosa/15 bg-white p-2 shadow-lg">
         <div className="grid gap-1">
           {items.map((item) => (
-            <NavLink key={item.href} item={item} active={isActive(item.href)} />
+            <NavLink key={`${item.href}-${item.label}`} item={item} active={isActive(item)} />
           ))}
         </div>
       </div>
@@ -75,6 +73,8 @@ export function AdminNav({ isAdmin }: { isAdmin: boolean }) {
 
   const managementItems: Item[] = [
     { href: "/admin/analise", label: "Análise" },
+    { href: "/admin/divulgacao", label: "Divulgação" },
+    { href: "/admin/loja", label: "Loja" },
     ...(isAdmin
       ? [
           { href: "/admin/ia", label: "IA" },
@@ -84,48 +84,33 @@ export function AdminNav({ isAdmin }: { isAdmin: boolean }) {
     { href: "/admin/dispositivos", label: "Segurança" },
   ];
 
-  function isActive(href: string) {
-    if (href === "/admin") return pathname === "/admin";
-    return pathname === href || pathname.startsWith(`${href}/`);
+  function isActive(item: Item) {
+    if (item.exact) return pathname === item.href;
+    return pathname === item.href || pathname.startsWith(`${item.href}/`);
   }
 
-  const catalogActive = catalogItems.some((item) => isActive(item.href));
-  const managementActive = managementItems.some((item) => isActive(item.href));
-  const secondaryItems = [...catalogItems, ...managementItems];
-  const secondaryActive = secondaryItems.some((item) => isActive(item.href));
+  const productsActive =
+    pathname.startsWith("/admin/produtos") || pathname.startsWith("/admin/categorias");
+  const managementActive = managementItems.some((item) => isActive(item));
 
   return (
     <nav
       aria-label="Navegação do painel"
       className="mt-4 rounded-2xl border border-rosa/15 bg-white p-2 shadow-md"
     >
-      {/* Celular: mantém as quatro ações mais usadas e recolhe o restante. */}
-      <div className="grid grid-cols-3 gap-1.5 sm:hidden">
+      {/* Mesma hierarquia no celular e no desktop: venda permanece sempre a um toque. */}
+      <div className="grid grid-cols-2 gap-1.5 sm:flex sm:flex-wrap sm:items-center">
         {primaryItems.map((item) => (
-          <NavLink key={item.href} item={item} active={isActive(item.href)} />
+          <NavLink key={item.href} item={item} active={isActive(item)} />
         ))}
 
         <MenuGroup
-          label="Menu"
-          items={secondaryItems}
-          active={secondaryActive}
-          isActive={isActive}
-          className="col-span-2"
-        />
-      </div>
-
-      {/* Desktop: seis opções visíveis, com funções secundárias agrupadas. */}
-      <div className="hidden items-center gap-1.5 sm:flex sm:flex-wrap">
-        {primaryItems.map((item) => (
-          <NavLink key={item.href} item={item} active={isActive(item.href)} />
-        ))}
-
-        <MenuGroup
-          label="Catálogo"
-          items={catalogItems}
-          active={catalogActive}
+          label="Produtos"
+          items={productItems}
+          active={productsActive}
           isActive={isActive}
         />
+
         <MenuGroup
           label="Gestão"
           items={managementItems}
