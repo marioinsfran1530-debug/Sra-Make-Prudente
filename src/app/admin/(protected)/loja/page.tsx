@@ -1,10 +1,24 @@
 import Link from "next/link";
 import { StoreSettingsForm } from "@/components/admin/StoreSettingsForm";
+import { PaymentSettingsForm } from "@/components/admin/PaymentSettingsForm";
 import { prisma } from "@/lib/prisma";
 import { getAdminSession } from "@/lib/admin-auth";
+import { normalizePaymentSettings } from "@/lib/payment-settings";
+
+type PaymentSettingsRow = { config: unknown };
 
 export default async function AdminLojaPage() {
-  const [settings, adminSession] = await Promise.all([prisma.storeSettings.findFirst(), getAdminSession()]);
+  const [settings, adminSession, paymentRows] = await Promise.all([
+    prisma.storeSettings.findFirst(),
+    getAdminSession(),
+    prisma.$queryRaw<PaymentSettingsRow[]>`
+      SELECT "config"
+      FROM app_security."PaymentSettings"
+      WHERE "id" = 'default'
+      LIMIT 1
+    `,
+  ]);
+  const paymentSettings = normalizePaymentSettings(paymentRows[0]?.config);
 
   return (
     <div>
@@ -26,6 +40,7 @@ export default async function AdminLojaPage() {
       </div>
 
       <StoreSettingsForm initial={settings} canEditConversionCopy={adminSession?.role === "ADMIN"} />
+      <PaymentSettingsForm initial={paymentSettings} canEdit={adminSession?.role === "ADMIN"} />
     </div>
   );
 }

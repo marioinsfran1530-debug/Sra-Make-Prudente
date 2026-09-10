@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { resolveOrderUnitPrice } from "@/lib/order-validation";
+import { findPaymentRule, normalizePaymentSettings } from "@/lib/payment-settings";
 
 export class CounterSaleError extends Error {}
 
@@ -12,6 +13,9 @@ type CounterSaleItemInput = {
 type CounterSalePaymentInput = {
   method: "PIX" | "DINHEIRO" | "DEBITO" | "CREDITO";
   amount: number;
+  providerId?: string;
+  channel?: "MACHINE" | "LINK";
+  installments?: number;
 };
 
 type CreateCounterSaleInput = {
@@ -26,9 +30,30 @@ type CreateCounterSaleInput = {
 };
 
 type StockRow = { id: string; stockQty: number };
+type PaymentSettingsRow = { config: unknown };
+
+type PaymentFinancialSnapshot = {
+  providerId: string;
+  providerName: string;
+  channel: "MACHINE" | "LINK";
+  installments: number;
+  feeRate: number;
+  feeAmount: number;
+  netAmount: number;
+  settlementStatus: "RECEBIDO" | "A_RECEBER";
+  settlementDays: number;
+  expectedAt: Date | null;
+};
 
 function cents(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function expectedSettlementDate(days: number) {
+  if (days <= 0) return null;
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  return date;
 }
 
 export async function createCounterSale(input: CreateCounterSaleInput) {
@@ -170,10 +195,63 @@ export async function createCounterSale(input: CreateCounterSaleInput) {
       throw new CounterSaleError("Informe a forma de pagamento.");
     }
 
-    const payments = input.payments.map((payment) => ({
-      method: payment.method,
-      amount: cents(Number(payment.amount)),
-    }));
+    const settingsRows = await tx.$queryRaw<PaymentSettingsRow[]>`
+      SELECT "config"
+      FROM app_security."PaymentSettings"
+      WHERE "id" = 'default'
+      LIMIT 1
+    `;
+    const paymentSettings = normalizePaymentSettings(settingsRows[0]?.config);
+
+    const payments = input.payments.map((payment) => {
+      const method = payment.method;
+      const amount = cents(Number(payment.amount));
+      const installments = Math.max(1, Math.min(24, Math.floor(Number(payment.installments ?? 1))));
+      const channel = payment.channel;
+
+      let financial: PaymentFinancialSnapshot | null = null;
+      if (channel) {
+        if (method !== "DEBITO" && method !== "CREDITO") {
+          throw new CounterSaleError("Detalhes de maquininha ou link só podem ser usados em pagamentos com cartão.");
+        }
+        if (method === "DEBITO" && channel !== "MACHINE") {
+          throw new CounterSaleError("Pagamento no débito deve usar a maquininha.");
+        }
+
+        const providerId = payment.providerId?.trim() || "";
+        const provider = paymentSettings.providers.find((item) => item.id === providerId && item.active);
+        if (!provider) {
+          throw new CounterSaleError("Selecione uma operadora ativa. Confira Pagamentos e taxas nas configurações da loja.");
+        }
+
+        const rule = findPaymentRule(
+          provider,
+          method === "DEBITO" ? "DEBIT" : channel === "LINK" ? "LINK" : "CREDIT",
+          method === "DEBITO" ? 1 : installments
+        );
+        const feeRate = Number(rule.feeRate.toFixed(4));
+        const feeAmount = cents(amount * (feeRate / 100));
+        const netAmount = cents(amount - feeAmount);
+        const settlementDays = Math.max(0, Math.floor(rule.settlementDays));
+        const settlementStatus: "RECEBIDO" | "A_RECEBER" =
+          channel === "LINK" || settlementDays > 0 ? "A_RECEBER" : "RECEBIDO";
+
+        financial = {
+          providerId: provider.id,
+          providerName: provider.name,
+          channel,
+          installments: method === "DEBITO" ? 1 : installments,
+          feeRate,
+          feeAmount,
+          netAmount,
+          settlementStatus,
+          settlementDays,
+          expectedAt: settlementStatus === "A_RECEBER" ? expectedSettlementDate(settlementDays) : null,
+        };
+      }
+
+      return { method, amount, financial };
+    });
 
     for (const payment of payments) {
       if (!["PIX", "DINHEIRO", "DEBITO", "CREDITO"].includes(payment.method)) {
@@ -181,6 +259,9 @@ export async function createCounterSale(input: CreateCounterSaleInput) {
       }
       if (!Number.isFinite(payment.amount) || payment.amount <= 0) {
         throw new CounterSaleError("Valor de pagamento inválido.");
+      }
+      if ((payment.method === "DEBITO" || payment.method === "CREDITO") && !payment.financial) {
+        throw new CounterSaleError("Informe a operadora e as condições do pagamento com cartão.");
       }
     }
 
@@ -225,10 +306,26 @@ export async function createCounterSale(input: CreateCounterSaleInput) {
         sessionId: saleSessionId,
         status: "FINALIZADO",
         items: { create: orderItems },
-        payments: { create: payments },
+        payments: { create: payments.map(({ method, amount }) => ({ method, amount })) },
       },
       include: { items: true, payments: true },
     });
+
+    for (let index = 0; index < payments.length; index += 1) {
+      const financial = payments[index].financial;
+      const orderPayment = order.payments[index];
+      if (!financial || !orderPayment) continue;
+
+      await tx.$executeRaw`
+        INSERT INTO app_security."OrderPaymentFinancial" (
+          "orderPaymentId", "providerId", "providerName", "channel", "installments",
+          "feeRate", "feeAmount", "netAmount", "settlementStatus", "settlementDays", "expectedAt"
+        ) VALUES (
+          ${orderPayment.id}, ${financial.providerId}, ${financial.providerName}, ${financial.channel}, ${financial.installments},
+          ${financial.feeRate}, ${financial.feeAmount}, ${financial.netAmount}, ${financial.settlementStatus}, ${financial.settlementDays}, ${financial.expectedAt}
+        )
+      `;
+    }
 
     await tx.analyticsEvent.create({
       data: {

@@ -1,37 +1,48 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { CounterSaleForm } from "@/components/admin/CounterSaleForm";
+import { normalizePaymentSettings } from "@/lib/payment-settings";
 
 export const dynamic = "force-dynamic";
 
+type PaymentSettingsRow = { config: unknown };
+
 export default async function NewCounterSalePage() {
-  const products = await prisma.product.findMany({
-    where: { active: true },
-    orderBy: [{ name: "asc" }],
-    select: {
-      id: true,
-      name: true,
-      brand: true,
-      sku: true,
-      price: true,
-      promoPrice: true,
-      stockQty: true,
-      category: { select: { id: true, name: true, slug: true, active: true } },
-      images: { orderBy: { order: "asc" }, take: 1, select: { url: true, alt: true } },
-      variants: {
-        where: { active: true },
-        orderBy: { name: "asc" },
-        select: {
-          id: true,
-          name: true,
-          sku: true,
-          price: true,
-          promoPrice: true,
-          stockQty: true,
+  const [products, paymentRows] = await Promise.all([
+    prisma.product.findMany({
+      where: { active: true },
+      orderBy: [{ name: "asc" }],
+      select: {
+        id: true,
+        name: true,
+        brand: true,
+        sku: true,
+        price: true,
+        promoPrice: true,
+        stockQty: true,
+        category: { select: { id: true, name: true, slug: true, active: true } },
+        images: { orderBy: { order: "asc" }, take: 1, select: { url: true, alt: true } },
+        variants: {
+          where: { active: true },
+          orderBy: { name: "asc" },
+          select: {
+            id: true,
+            name: true,
+            sku: true,
+            price: true,
+            promoPrice: true,
+            stockQty: true,
+          },
         },
       },
-    },
-  });
+    }),
+    prisma.$queryRaw<PaymentSettingsRow[]>`
+      SELECT "config"
+      FROM app_security."PaymentSettings"
+      WHERE "id" = 'default'
+      LIMIT 1
+    `,
+  ]);
 
   const serialized = products.map((product) => ({
     id: product.id,
@@ -55,6 +66,8 @@ export default async function NewCounterSalePage() {
     })),
   }));
 
+  const paymentSettings = normalizePaymentSettings(paymentRows[0]?.config);
+
   return (
     <div className="mx-auto max-w-7xl">
       <div className="mb-3 flex items-center justify-between gap-3 sm:mb-4 sm:items-start">
@@ -70,7 +83,7 @@ export default async function NewCounterSalePage() {
         </Link>
       </div>
 
-      <CounterSaleForm products={serialized} />
+      <CounterSaleForm products={serialized} paymentSettings={paymentSettings} />
     </div>
   );
 }
