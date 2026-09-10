@@ -2,8 +2,11 @@ import { prisma } from "@/lib/prisma";
 import { logCrmInteraction } from "@/lib/crm-activity";
 
 export function normalizeCrmPhone(value: string) {
-  const digits = value.replace(/\D/g, "");
-  if (digits.startsWith("55") && digits.length >= 12) return digits.slice(2);
+  let digits = value.replace(/\D/g, "");
+  if (digits.startsWith("55") && digits.length >= 12) digits = digits.slice(2);
+  if (digits.length === 10 && /^[1-9]{2}[6-9]/.test(digits)) {
+    digits = `${digits.slice(0, 2)}9${digits.slice(2)}`;
+  }
   return digits;
 }
 
