@@ -6,7 +6,13 @@ import { syncOrderToCrm } from "@/lib/crm-order-sync";
 type Body = {
   idempotencyKey?: string;
   items?: Array<{ productId?: string; variantId?: string | null; qty?: number }>;
-  payments?: Array<{ method?: "PIX" | "DINHEIRO" | "DEBITO" | "CREDITO"; amount?: number }>;
+  payments?: Array<{
+    method?: "PIX" | "DINHEIRO" | "DEBITO" | "CREDITO";
+    amount?: number;
+    providerId?: string;
+    channel?: "MACHINE" | "LINK";
+    installments?: number;
+  }>;
   discount?: number;
   customerName?: string;
   customerPhone?: string;
@@ -35,6 +41,9 @@ export async function POST(request: NextRequest) {
       payments: (body.payments ?? []).map((payment) => ({
         method: payment.method ?? "PIX",
         amount: Number(payment.amount ?? 0),
+        providerId: typeof payment.providerId === "string" ? payment.providerId : undefined,
+        channel: payment.channel === "LINK" ? "LINK" : payment.channel === "MACHINE" ? "MACHINE" : undefined,
+        installments: Number(payment.installments ?? 1),
       })),
       discount: Number(body.discount ?? 0),
       customerName: typeof body.customerName === "string" ? body.customerName : "",
