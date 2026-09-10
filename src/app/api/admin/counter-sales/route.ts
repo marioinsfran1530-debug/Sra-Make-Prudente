@@ -21,6 +21,23 @@ type Body = {
   notes?: string;
 };
 
+function sourceOrderFromRequest(request: NextRequest, body: Body) {
+  if (typeof body.sourceOrderId === "string" && body.sourceOrderId.trim()) {
+    return body.sourceOrderId.trim();
+  }
+
+  const referer = request.headers.get("referer");
+  if (!referer) return undefined;
+
+  try {
+    const url = new URL(referer);
+    if (url.origin !== request.nextUrl.origin || url.pathname !== "/admin/vendas/nova") return undefined;
+    return url.searchParams.get("pedido")?.trim() || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function POST(request: NextRequest) {
   const { session, error, status } = await requireAdmin("EDITOR");
   if (error || !session) return NextResponse.json({ error }, { status });
@@ -35,7 +52,7 @@ export async function POST(request: NextRequest) {
   try {
     const order = await createCounterSale({
       idempotencyKey: typeof body.idempotencyKey === "string" ? body.idempotencyKey : "",
-      sourceOrderId: typeof body.sourceOrderId === "string" ? body.sourceOrderId : undefined,
+      sourceOrderId: sourceOrderFromRequest(request, body),
       items: (body.items ?? []).map((item) => ({
         productId: typeof item.productId === "string" ? item.productId : "",
         variantId: typeof item.variantId === "string" ? item.variantId : null,
