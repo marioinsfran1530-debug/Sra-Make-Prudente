@@ -64,6 +64,8 @@ export default async function NewCounterSalePage({
             customerPhone: true,
             notes: true,
             status: true,
+            discount: true,
+            deliveryFee: true,
             items: {
               select: {
                 productId: true,
@@ -106,6 +108,8 @@ export default async function NewCounterSalePage({
         customerName: sourceOrder.customerName,
         customerPhone: sourceOrder.customerPhone,
         notes: sourceOrder.notes ?? "",
+        discount: Number(sourceOrder.discount),
+        deliveryFee: Number(sourceOrder.deliveryFee),
         items: sourceOrder.items.map((item) => ({
           productId: item.productId,
           variantId: item.variantId,
