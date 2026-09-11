@@ -25,8 +25,8 @@ export default function AnalysisLayout({ children }: { children: React.ReactNode
           margin-bottom: 0.75rem;
         }
 
-        .analysis-shell .analysis-drawer > :first-child {
-          align-items: center;
+        .analysis-shell .analysis-drawer-toggle {
+          display: block;
         }
 
         .analysis-shell > .mx-auto > .mb-5.grid.gap-4 {
@@ -38,6 +38,12 @@ export default function AnalysisLayout({ children }: { children: React.ReactNode
           min-width: 0;
         }
 
+        @media (min-width: 640px) {
+          .analysis-shell .analysis-drawer-toggle {
+            width: auto;
+          }
+        }
+
         @media (min-width: 1280px) {
           .analysis-shell > .mx-auto > .mb-5.grid.gap-4 {
             grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -46,13 +52,15 @@ export default function AnalysisLayout({ children }: { children: React.ReactNode
 
         @media (max-width: 639px) {
           .analysis-shell .analysis-drawer > :first-child {
-            display: grid;
-            grid-template-columns: minmax(0, 1fr) auto;
-            gap: 0.75rem;
+            display: block;
           }
 
-          .analysis-shell .analysis-drawer > :first-child > div {
-            min-width: 0;
+          .analysis-shell .analysis-drawer > :first-child > * + * {
+            margin-top: 0.25rem;
+          }
+
+          .analysis-shell .analysis-drawer-toggle {
+            width: 100%;
           }
 
           .analysis-shell .py-3:has(> .mt-2.overflow-x-auto.pb-1) > .flex.items-start.justify-between {

@@ -33,7 +33,7 @@ export function AnalysisDrawers() {
 
         const button = document.createElement("button");
         button.type = "button";
-        button.className = "analysis-drawer-toggle shrink-0 rounded-xl border border-rosa/15 bg-creme px-3 py-2 text-[10px] font-extrabold text-rosa-profundo";
+        button.className = "analysis-drawer-toggle mt-3 w-full rounded-xl border border-rosa/15 bg-creme px-3 py-2.5 text-[10px] font-extrabold text-rosa-profundo sm:w-auto";
         button.textContent = "Ver detalhes ↓";
         button.setAttribute("aria-expanded", "false");
 
@@ -45,7 +45,7 @@ export function AnalysisDrawers() {
           body.forEach((node) => { node.style.display = open ? "" : "none"; });
         });
 
-        header.appendChild(button);
+        header.insertAdjacentElement("afterend", button);
       }
     }, 0);
 
