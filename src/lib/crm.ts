@@ -93,9 +93,8 @@ export function buildCustomers(orders: CrmOrderSnapshot[], now = new Date()): Cr
 
     const favoriteProducts = Array.from(productQty.entries())
       .map(([name, qty]) => ({ name, qty }))
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 3)
-      .map(([name, qty]) => ({ name, qty }));
+      .sort((a, b) => b.qty - a.qty || a.name.localeCompare(b.name))
+      .slice(0, 3);
 
     const latestWithOrigin = [...sorted].reverse().find((order) => order.utmSource || order.origin);
     const origin = latestWithOrigin?.utmSource || latestWithOrigin?.origin || last.channel || "Não informado";
