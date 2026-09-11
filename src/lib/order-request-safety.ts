@@ -6,13 +6,9 @@ export function normalizeBrazilPhone(value: unknown): string | null {
     digits = digits.slice(2);
   }
 
-  // Celulares brasileiros antigos ainda podem ser digitados com 8 dígitos
-  // (DDD + 8). Para números móveis, canonicalizamos para o formato atual
-  // com o nono dígito, evitando criar dois clientes para o mesmo WhatsApp.
-  if (digits.length === 10 && /^[1-9]{2}[6-9]/.test(digits)) {
-    digits = `${digits.slice(0, 2)}9${digits.slice(2)}`;
-  }
-
+  // Não inferimos nem acrescentamos dígitos ao telefone informado.
+  // Há números legítimos com 10 dígitos e alterar o valor pode associar
+  // o pedido a outra pessoa. Apenas removemos máscara/código do país.
   if (digits.length !== 10 && digits.length !== 11) return null;
   if (/^(\d)\1+$/.test(digits)) return null;
 

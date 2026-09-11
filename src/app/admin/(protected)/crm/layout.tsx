@@ -17,6 +17,8 @@ function currentSection(pathname: string): CrmSection {
 export default function CrmLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const active = currentSection(pathname);
+  const customerMatch = pathname.match(/^\/admin\/crm\/cliente\/([^/]+)$/);
+  const customerId = customerMatch?.[1] ? decodeURIComponent(customerMatch[1]) : null;
 
   return (
     <div className="pb-24 sm:pb-0">
@@ -30,6 +32,14 @@ export default function CrmLayout({ children }: { children: React.ReactNode }) {
         <Link href="/admin/crm/follow-ups/novo" className="whitespace-nowrap rounded-xl px-3 py-2 text-[11px] font-bold text-rosa-profundo hover:bg-creme">Agendar retorno</Link>
         <Link href="/admin/crm/novo" className="whitespace-nowrap rounded-xl border border-rosa-profundo px-3 py-2 text-[11px] font-extrabold text-rosa-profundo">+ Novo contato</Link>
       </nav>
+
+      {customerId && (
+        <div className="mx-auto mb-3 flex max-w-6xl justify-end">
+          <Link href={`/admin/crm/cliente/${encodeURIComponent(customerId)}/editar`} className="rounded-xl border border-rosa/20 bg-white px-3 py-2 text-[11px] font-extrabold text-rosa-profundo shadow-sm">
+            Editar cliente
+          </Link>
+        </div>
+      )}
 
       {children}
 

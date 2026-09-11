@@ -36,9 +36,6 @@ export type CrmCustomer = {
 export function normalizePhone(value: string) {
   let digits = (value || "").replace(/\D/g, "");
   if (digits.startsWith("55") && digits.length > 11) digits = digits.slice(2);
-  if (digits.length === 10 && /^[1-9]{2}[6-9]/.test(digits)) {
-    digits = `${digits.slice(0, 2)}9${digits.slice(2)}`;
-  }
   return digits;
 }
 
@@ -50,7 +47,6 @@ export function phoneKey(value: string) {
 export function whatsappPhone(value: string) {
   const digits = normalizePhone(value);
   if (!digits) return "";
-  if (digits.startsWith("55") && digits.length > 11) return digits;
   if (digits.length === 10 || digits.length === 11) return `55${digits}`;
   return digits;
 }

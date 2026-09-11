@@ -12,6 +12,10 @@ test("normaliza celular brasileiro com máscara", () => {
   assert.equal(normalizeBrazilPhone("(18) 99999-9999"), "+5518999999999");
 });
 
+test("preserva telefone de 10 dígitos exatamente como informado", () => {
+  assert.equal(normalizeBrazilPhone("(18) 9964-0712"), "+551899640712");
+});
+
 test("normaliza telefone brasileiro com código do país", () => {
   assert.equal(normalizeBrazilPhone("+55 18 3222-3344"), "+551832223344");
 });

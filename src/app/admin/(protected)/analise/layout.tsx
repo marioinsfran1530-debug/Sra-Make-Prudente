@@ -1,9 +1,11 @@
 import { AnalysisSubnav } from "@/components/admin/AnalysisSubnav";
+import { AnalysisDrawers } from "@/components/admin/AnalysisDrawers";
 
 export default function AnalysisLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="analysis-shell min-w-0">
       <AnalysisSubnav />
+      <AnalysisDrawers />
       {children}
 
       <style>{`
@@ -15,9 +17,18 @@ export default function AnalysisLayout({ children }: { children: React.ReactNode
           display: none;
         }
 
-        /* O painel de listas usa grid sem coluna explícita antes do xl.
-           Com títulos longos, a coluna implícita pode crescer além da viewport.
-           Mantemos uma coluna limitada ao container no mobile/tablet. */
+        .analysis-shell .analysis-drawer > :first-child {
+          margin-bottom: 0;
+        }
+
+        .analysis-shell .analysis-drawer[data-drawer-open="true"] > :first-child {
+          margin-bottom: 0.75rem;
+        }
+
+        .analysis-shell .analysis-drawer > :first-child {
+          align-items: center;
+        }
+
         .analysis-shell > .mx-auto > .mb-5.grid.gap-4 {
           min-width: 0;
           grid-template-columns: minmax(0, 1fr);
@@ -34,6 +45,16 @@ export default function AnalysisLayout({ children }: { children: React.ReactNode
         }
 
         @media (max-width: 639px) {
+          .analysis-shell .analysis-drawer > :first-child {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 0.75rem;
+          }
+
+          .analysis-shell .analysis-drawer > :first-child > div {
+            min-width: 0;
+          }
+
           .analysis-shell .py-3:has(> .mt-2.overflow-x-auto.pb-1) > .flex.items-start.justify-between {
             flex-direction: column;
             align-items: flex-start;
