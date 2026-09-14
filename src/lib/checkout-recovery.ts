@@ -66,20 +66,36 @@ export async function captureCheckoutOpportunity(
     if (normalizedPhone.length !== 10 && normalizedPhone.length !== 11) return null;
 
     const phase = input.phase ?? "SUBMIT_ATTEMPT";
-    const copy = phaseCopy(phase);
 
-    const customer = await prisma.customer.upsert({
+    // Durante a digitação, um celular brasileiro de 11 dígitos passa por um
+    // estado intermediário de 10 dígitos. Não criamos/alteramos CRM nesse
+    // instante para não associar o nome novo ao telefone de outra pessoa.
+    // Números legítimos de 10 dígitos continuam aceitos quando a cliente
+    // avança explicitamente para revisão/envio do pedido.
+    if (phase === "CONTACT" && normalizedPhone.length === 10) return null;
+
+    const copy = phaseCopy(phase);
+    const existingCustomer = await prisma.customer.findUnique({
       where: { phone: normalizedPhone },
-      update: {
-        name: input.customerName,
-      },
-      create: {
-        name: input.customerName,
-        phone: normalizedPhone,
-        source: CHECKOUT_SOURCE,
-      },
       select: { id: true },
     });
+
+    const customer = existingCustomer
+      ? phase === "CONTACT"
+        ? existingCustomer
+        : await prisma.customer.update({
+            where: { id: existingCustomer.id },
+            data: { name: input.customerName },
+            select: { id: true },
+          })
+      : await prisma.customer.create({
+          data: {
+            name: input.customerName,
+            phone: normalizedPhone,
+            source: CHECKOUT_SOURCE,
+          },
+          select: { id: true },
+        });
 
     const latestCheckout = input.sessionId
       ? await prisma.analyticsEvent.findFirst({
@@ -246,13 +262,16 @@ export async function markCheckoutOpportunityConverted(
   if (!recovery) return;
 
   try {
+    // Pedido criado ainda não é venda finalizada. Mantemos a mesma
+    // oportunidade aberta para o sync de status avançá-la posteriormente,
+    // evitando criar uma segunda oportunidade para o mesmo pedido.
     await prisma.crmLead.update({
       where: { id: recovery.leadId },
       data: {
-        stage: "VENDIDO",
+        stage: "AGUARDANDO_PAGAMENTO",
         estimatedValue: total,
         notes: `Pedido #${orderNumber} registrado pelo catálogo.`,
-        closedAt: new Date(),
+        closedAt: null,
       },
     });
 
