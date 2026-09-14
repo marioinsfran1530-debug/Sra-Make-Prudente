@@ -27,7 +27,8 @@ import { resolveStorefrontConversion } from "@/lib/storefront-conversion";
 import { resolveStoreLocation } from "@/lib/store-location";
 import { waLink } from "@/lib/whatsapp";
 
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export const metadata: Metadata = {
   title: "Prévia do catálogo | Sra Make Prudente",
@@ -95,17 +96,17 @@ export default async function PreviewHomePage() {
     .slice(0, 8);
 
   const firstSectionProducts =
-    offers.length >= 2
-      ? offers.slice(0, 8)
-      : bestSellers.length > 0
-        ? bestSellers.slice(0, 8)
-        : featured.slice(0, 8);
+    featured.length > 0
+      ? featured.slice(0, 5)
+      : offers.length >= 2
+        ? offers.slice(0, 8)
+        : bestSellers.slice(0, 8);
   const firstSectionTitle =
-    offers.length >= 2
-      ? "Ofertas para aproveitar"
-      : bestSellers.length > 0
-        ? "Mais procurados"
-        : "Destaques";
+    featured.length > 0
+      ? "Destaques"
+      : offers.length >= 2
+        ? "Ofertas para aproveitar"
+        : "Mais procurados";
 
   const brandCounts = new Map<string, number>();
   sellableProducts.forEach((product) => {
