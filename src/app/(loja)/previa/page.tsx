@@ -256,6 +256,14 @@ export default async function PreviewHomePage() {
         />
       )}
 
+      {featured.length > 0 && offers.length > 0 && (
+        <ProductSection
+          title="Ofertas para aproveitar"
+          eyebrow="Preços especiais"
+          products={offers.slice(0, 8)}
+        />
+      )}
+
       <HomeCategoryRail categories={categories} />
 
       <StoreLocationBar
