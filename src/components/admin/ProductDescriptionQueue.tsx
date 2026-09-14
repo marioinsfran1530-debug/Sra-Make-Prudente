@@ -28,10 +28,12 @@ type AiTracking = {
   promptVersion: string | null;
 };
 
+type QueueStatus = "all" | "missing" | "short";
+
 export function ProductDescriptionQueue({ products }: { products: ProductRow[] }) {
   const [rows, setRows] = useState(products);
   const [query, setQuery] = useState("");
-  const [status, setStatus] = useState<"all" | "missing" | "short">("all");
+  const [status, setStatus] = useState<QueueStatus>("all");
   const [savingId, setSavingId] = useState<string | null>(null);
   const [generatingId, setGeneratingId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Record<string, RowMessage>>({});
@@ -199,10 +201,25 @@ export function ProductDescriptionQueue({ products }: { products: ProductRow[] }
 
   return (
     <div>
-      <div className="mb-5 grid gap-3 md:grid-cols-3">
-        <Summary label="Pendentes" value={rows.length} />
-        <Summary label="Sem descrição" value={missingCount} />
-        <Summary label="Descrição curta" value={shortCount} />
+      <div className="mb-5 grid grid-cols-3 gap-2 sm:gap-3">
+        <Summary
+          label="Pendentes"
+          value={rows.length}
+          active={status === "all"}
+          onClick={() => setStatus("all")}
+        />
+        <Summary
+          label="Sem descrição"
+          value={missingCount}
+          active={status === "missing"}
+          onClick={() => setStatus("missing")}
+        />
+        <Summary
+          label="Descrição curta"
+          value={shortCount}
+          active={status === "short"}
+          onClick={() => setStatus("short")}
+        />
       </div>
 
       {dirtyIds.size > 0 ? (
@@ -228,7 +245,7 @@ export function ProductDescriptionQueue({ products }: { products: ProductRow[] }
               <button
                 key={value}
                 type="button"
-                onClick={() => setStatus(value as "all" | "missing" | "short")}
+                onClick={() => setStatus(value as QueueStatus)}
                 className={`rounded-xl border px-3 py-2 text-xs font-bold ${
                   status === value
                     ? "border-rosa-profundo bg-rosa-profundo text-white"
@@ -349,11 +366,31 @@ export function ProductDescriptionQueue({ products }: { products: ProductRow[] }
   );
 }
 
-function Summary({ label, value }: { label: string; value: number }) {
+function Summary({
+  label,
+  value,
+  active,
+  onClick,
+}: {
+  label: string;
+  value: number;
+  active: boolean;
+  onClick: () => void;
+}) {
   return (
-    <div className="rounded-2xl bg-white p-4 shadow-sm">
-      <p className="text-2xl font-extrabold text-texto">{value.toLocaleString("pt-BR")}</p>
-      <p className="mt-1 text-xs font-bold text-cinza">{label}</p>
-    </div>
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`group rounded-2xl border p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:p-4 ${
+        active
+          ? "border-rosa-profundo bg-rosa-profundo/5"
+          : "border-transparent bg-white hover:border-rosa/20"
+      }`}
+    >
+      <p className="text-xl font-extrabold text-texto sm:text-2xl">{value.toLocaleString("pt-BR")}</p>
+      <p className="mt-1 text-[10px] font-bold text-cinza sm:text-xs">{label}</p>
+      <p className="mt-2 hidden text-[10px] font-bold text-rosa-profundo group-hover:underline sm:block">Ver itens →</p>
+    </button>
   );
 }
