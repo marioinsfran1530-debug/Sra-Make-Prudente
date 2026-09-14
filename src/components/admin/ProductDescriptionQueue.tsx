@@ -2,23 +2,42 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { Sparkles } from "lucide-react";
 import { AdminNotice, UnsavedChangesGuard } from "@/components/admin/AdminUx";
 
 type ProductRow = {
   id: string;
   name: string;
   brand: string;
+  categoryId: string;
+  subcategoryId: string | null;
   categoryName: string;
   description: string;
   views30d: number;
 };
 
+type RowMessage = {
+  text: string;
+  tone: "error" | "success" | "info";
+};
+
+type AiTracking = {
+  suggestionId: string | null;
+  original: string;
+  model: string | null;
+  promptVersion: string | null;
+};
+
+type QueueStatus = "all" | "missing" | "short";
+
 export function ProductDescriptionQueue({ products }: { products: ProductRow[] }) {
   const [rows, setRows] = useState(products);
   const [query, setQuery] = useState("");
-  const [status, setStatus] = useState<"all" | "missing" | "short">("all");
+  const [status, setStatus] = useState<QueueStatus>("all");
   const [savingId, setSavingId] = useState<string | null>(null);
-  const [message, setMessage] = useState<Record<string, string>>({});
+  const [generatingId, setGeneratingId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<Record<string, RowMessage>>({});
+  const [aiTracking, setAiTracking] = useState<Record<string, AiTracking>>({});
   const [dirtyIds, setDirtyIds] = useState<Set<string>>(() => new Set());
 
   const filtered = useMemo(() => {
@@ -38,48 +57,138 @@ export function ProductDescriptionQueue({ products }: { products: ProductRow[] }
     });
   }, [query, rows, status]);
 
+  function setRowMessage(id: string, text: string, tone: RowMessage["tone"] = "info") {
+    setMessages((current) => ({ ...current, [id]: { text, tone } }));
+  }
+
+  function clearRowMessage(id: string) {
+    setMessages((current) => {
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
+  }
+
   function updateDescription(id: string, description: string) {
     setRows((current) =>
       current.map((row) => (row.id === id ? { ...row, description } : row))
     );
     setDirtyIds((current) => new Set(current).add(id));
-    setMessage((current) => ({ ...current, [id]: "" }));
+    clearRowMessage(id);
+  }
+
+  async function generateWithAi(row: ProductRow) {
+    if (generatingId || savingId) return;
+
+    if (!row.name.trim() || !row.brand.trim() || !row.categoryId) {
+      setRowMessage(
+        row.id,
+        "A IA precisa de nome, marca e categoria preenchidos no cadastro.",
+        "error"
+      );
+      return;
+    }
+
+    setGeneratingId(row.id);
+    setRowMessage(row.id, "Gerando uma sugestão com IA...", "info");
+
+    try {
+      const response = await fetch("/api/admin/ai/product-description", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          productId: row.id,
+          name: row.name,
+          brand: row.brand,
+          categoryId: row.categoryId,
+          subcategoryId: row.subcategoryId,
+        }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload.error || "Não foi possível gerar a descrição agora.");
+      }
+
+      const description = typeof payload.description === "string" ? payload.description.trim() : "";
+      if (!description) throw new Error("A IA não retornou uma descrição válida.");
+
+      setRows((current) =>
+        current.map((item) => (item.id === row.id ? { ...item, description } : item))
+      );
+      setDirtyIds((current) => new Set(current).add(row.id));
+      setAiTracking((current) => ({
+        ...current,
+        [row.id]: {
+          suggestionId: typeof payload.suggestionId === "string" ? payload.suggestionId : null,
+          original: description,
+          model: typeof payload.model === "string" ? payload.model : null,
+          promptVersion: typeof payload.promptVersion === "string" ? payload.promptVersion : null,
+        },
+      }));
+      setRowMessage(row.id, "Sugestão pronta. Revise o texto e salve quando estiver correto.", "success");
+    } catch (error) {
+      setRowMessage(
+        row.id,
+        error instanceof Error ? error.message : "Falha ao gerar a descrição.",
+        "error"
+      );
+    } finally {
+      setGeneratingId(null);
+    }
   }
 
   async function save(row: ProductRow) {
     const description = row.description.trim();
     if (description.length < 50) {
-      setMessage((current) => ({
-        ...current,
-        [row.id]: "Use pelo menos 50 caracteres para uma descrição realmente útil.",
-      }));
+      setRowMessage(
+        row.id,
+        "Use pelo menos 50 caracteres para uma descrição realmente útil.",
+        "error"
+      );
       return;
     }
 
     setSavingId(row.id);
-    setMessage((current) => ({ ...current, [row.id]: "Salvando..." }));
+    setRowMessage(row.id, "Salvando descrição...", "info");
 
     try {
+      const tracking = aiTracking[row.id];
       const response = await fetch(`/api/admin/products/${row.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ description }),
+        body: JSON.stringify({
+          description,
+          ...(tracking?.suggestionId
+            ? {
+                aiSuggestionId: tracking.suggestionId,
+                aiSuggestionEdited: description !== tracking.original.trim(),
+              }
+            : {}),
+        }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
         throw new Error(payload.error || "Não foi possível salvar a descrição.");
       }
+
       setDirtyIds((current) => {
         const next = new Set(current);
         next.delete(row.id);
         return next;
       });
       setRows((current) => current.filter((item) => item.id !== row.id));
+      setAiTracking((current) => {
+        const next = { ...current };
+        delete next[row.id];
+        return next;
+      });
     } catch (error) {
-      setMessage((current) => ({
-        ...current,
-        [row.id]: error instanceof Error ? error.message : "Falha ao salvar.",
-      }));
+      setRowMessage(
+        row.id,
+        error instanceof Error ? error.message : "Falha ao salvar.",
+        "error"
+      );
     } finally {
       setSavingId(null);
     }
@@ -92,10 +201,25 @@ export function ProductDescriptionQueue({ products }: { products: ProductRow[] }
 
   return (
     <div>
-      <div className="mb-5 grid gap-3 md:grid-cols-3">
-        <Summary label="Pendentes" value={rows.length} />
-        <Summary label="Sem descrição" value={missingCount} />
-        <Summary label="Descrição curta" value={shortCount} />
+      <div className="mb-5 grid grid-cols-3 gap-2 sm:gap-3">
+        <Summary
+          label="Pendentes"
+          value={rows.length}
+          active={status === "all"}
+          onClick={() => setStatus("all")}
+        />
+        <Summary
+          label="Sem descrição"
+          value={missingCount}
+          active={status === "missing"}
+          onClick={() => setStatus("missing")}
+        />
+        <Summary
+          label="Descrição curta"
+          value={shortCount}
+          active={status === "short"}
+          onClick={() => setStatus("short")}
+        />
       </div>
 
       {dirtyIds.size > 0 ? (
@@ -121,7 +245,7 @@ export function ProductDescriptionQueue({ products }: { products: ProductRow[] }
               <button
                 key={value}
                 type="button"
-                onClick={() => setStatus(value as "all" | "missing" | "short")}
+                onClick={() => setStatus(value as QueueStatus)}
                 className={`rounded-xl border px-3 py-2 text-xs font-bold ${
                   status === value
                     ? "border-rosa-profundo bg-rosa-profundo text-white"
@@ -138,24 +262,42 @@ export function ProductDescriptionQueue({ products }: { products: ProductRow[] }
       <div className="space-y-3">
         {filtered.map((row) => {
           const length = row.description.trim().length;
+          const rowMessage = messages[row.id];
+          const tracking = aiTracking[row.id];
+          const isGenerating = generatingId === row.id;
+          const isSaving = savingId === row.id;
+
           return (
             <article
               key={row.id}
               className="rounded-2xl border border-rosa/10 bg-white p-4 shadow-sm"
             >
-              <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+              <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                 <div className="min-w-0">
                   <p className="text-sm font-bold text-texto">{row.name}</p>
                   <p className="mt-0.5 text-[11px] text-cinza">
                     {row.brand} · {row.categoryName} · {row.views30d.toLocaleString("pt-BR")} visualizações em 30 dias
                   </p>
                 </div>
-                <Link
-                  href={`/admin/produtos/${row.id}`}
-                  className="text-xs font-bold text-rosa-profundo hover:underline"
-                >
-                  Abrir cadastro completo
-                </Link>
+
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void generateWithAi(row)}
+                    disabled={isGenerating || isSaving || Boolean(generatingId && !isGenerating)}
+                    className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-rosa-profundo/25 bg-white px-3 py-2 text-xs font-bold text-rosa-profundo disabled:cursor-not-allowed disabled:opacity-40"
+                    title="A IA apenas sugere. Revise antes de salvar."
+                  >
+                    <Sparkles size={14} />
+                    {isGenerating ? "Gerando..." : "Gerar com IA"}
+                  </button>
+                  <Link
+                    href={`/admin/produtos/${row.id}`}
+                    className="inline-flex items-center rounded-xl border border-rosa/15 px-3 py-2 text-xs font-bold text-cinza hover:text-rosa-profundo"
+                  >
+                    Cadastro completo
+                  </Link>
+                </div>
               </div>
 
               <textarea
@@ -166,7 +308,13 @@ export function ProductDescriptionQueue({ products }: { products: ProductRow[] }
                 className="w-full resize-y rounded-xl border border-rosa/20 px-3 py-2.5 text-sm leading-6 outline-none focus:border-rosa-profundo"
               />
 
-              <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              {tracking ? (
+                <p className="mt-1 text-[10px] leading-4 text-cinza">
+                  Sugestão criada por IA{tracking.model ? ` · ${tracking.model}` : ""}. Você pode editar livremente antes de salvar.
+                </p>
+              ) : null}
+
+              <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <p
                     className={`text-[11px] font-semibold ${
@@ -175,17 +323,27 @@ export function ProductDescriptionQueue({ products }: { products: ProductRow[] }
                   >
                     {length} caracteres {length >= 50 ? "· tamanho mínimo atendido" : "· mínimo recomendado: 50"}
                   </p>
-                  {message[row.id] ? (
-                    <p className="mt-1 text-[11px] text-red-700">{message[row.id]}</p>
+                  {rowMessage ? (
+                    <p
+                      className={`mt-1 text-[11px] font-semibold ${
+                        rowMessage.tone === "error"
+                          ? "text-red-700"
+                          : rowMessage.tone === "success"
+                            ? "text-green-700"
+                            : "text-cinza"
+                      }`}
+                    >
+                      {rowMessage.text}
+                    </p>
                   ) : null}
                 </div>
                 <button
                   type="button"
-                  disabled={savingId === row.id}
+                  disabled={isSaving || isGenerating}
                   onClick={() => void save(row)}
                   className="rounded-xl bg-rosa-profundo px-4 py-2.5 text-xs font-bold text-white disabled:opacity-50"
                 >
-                  {savingId === row.id ? "Salvando..." : "Salvar e retirar da fila"}
+                  {isSaving ? "Salvando..." : "Salvar e retirar da fila"}
                 </button>
               </div>
             </article>
@@ -208,11 +366,31 @@ export function ProductDescriptionQueue({ products }: { products: ProductRow[] }
   );
 }
 
-function Summary({ label, value }: { label: string; value: number }) {
+function Summary({
+  label,
+  value,
+  active,
+  onClick,
+}: {
+  label: string;
+  value: number;
+  active: boolean;
+  onClick: () => void;
+}) {
   return (
-    <div className="rounded-2xl bg-white p-4 shadow-sm">
-      <p className="text-2xl font-extrabold text-texto">{value.toLocaleString("pt-BR")}</p>
-      <p className="mt-1 text-xs font-bold text-cinza">{label}</p>
-    </div>
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`group rounded-2xl border p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:p-4 ${
+        active
+          ? "border-rosa-profundo bg-rosa-profundo/5"
+          : "border-transparent bg-white hover:border-rosa/20"
+      }`}
+    >
+      <p className="text-xl font-extrabold text-texto sm:text-2xl">{value.toLocaleString("pt-BR")}</p>
+      <p className="mt-1 text-[10px] font-bold text-cinza sm:text-xs">{label}</p>
+      <p className="mt-2 hidden text-[10px] font-bold text-rosa-profundo group-hover:underline sm:block">Ver itens →</p>
+    </button>
   );
 }
