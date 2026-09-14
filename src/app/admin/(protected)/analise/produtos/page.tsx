@@ -1,15 +1,16 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { getHomeProductOrderSettings } from "@/lib/home-merchandising";
+import { HomeFeaturedPicker } from "@/components/admin/HomeFeaturedPicker";
 
 export const dynamic = "force-dynamic";
 
-type Period = "7d" | "30d" | "month" | "all";
+type Period = "7d" | "30d" | "month";
 
 const PERIODS: { value: Period; label: string }[] = [
   { value: "7d", label: "7 dias" },
   { value: "30d", label: "30 dias" },
   { value: "month", label: "Este mês" },
-  { value: "all", label: "Todo período" },
 ];
 
 function getSaoPauloDateParts() {
@@ -28,47 +29,25 @@ function saoPauloMidnightUtc(year: number, month: number, day: number) {
 }
 
 function getPeriodRange(period: Period) {
-  if (period === "all") return undefined;
   const { year, month, day } = getSaoPauloDateParts();
   const today = saoPauloMidnightUtc(year, month, day);
   const tomorrow = new Date(today);
   tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
-  if (period === "month") return { gte: saoPauloMidnightUtc(year, month, 1), lt: tomorrow };
+
+  if (period === "month") {
+    return { gte: saoPauloMidnightUtc(year, month, 1), lt: tomorrow };
+  }
+
   const start = new Date(today);
   start.setUTCDate(start.getUTCDate() - (period === "7d" ? 6 : 29));
   return { gte: start, lt: tomorrow };
 }
 
-function pct(part: number, total: number) {
-  const value = total > 0 ? (part / total) * 100 : 0;
-  return `${value.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
-}
-
-function money(value: number) {
-  return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
-
-type ProductRow = {
-  id: string;
-  name: string;
-  brand: string;
-  active: boolean;
-  stockQty: number;
+type ProductStats = {
   views: number;
   carts: number;
-  finalizedOrders: number;
-  unitsSold: number;
-  revenue: number;
-  revenueWithCost: number;
-  knownCost: number;
+  orders: number;
 };
-
-function signal(row: ProductRow) {
-  if (row.finalizedOrders > 0) return { label: "Converte", tone: "text-green-700 bg-green-50 border-green-200" };
-  if (row.carts > 0) return { label: "Intenção sem venda", tone: "text-amber-700 bg-amber-50 border-amber-200" };
-  if (row.views >= 5) return { label: "Visto, sem carrinho", tone: "text-red-700 bg-red-50 border-red-200" };
-  return { label: "Coletando dados", tone: "text-cinza bg-creme border-rosa/10" };
-}
 
 export default async function ProductPerformancePage({
   searchParams,
@@ -79,16 +58,14 @@ export default async function ProductPerformancePage({
   const requested = params?.period;
   const period: Period = PERIODS.some((item) => item.value === requested)
     ? (requested as Period)
-    : "7d";
+    : "30d";
   const range = getPeriodRange(period);
-  const analyticsWhere = range ? { createdAt: range } : {};
-  const finalizedWhere = range ? { updatedAt: range } : {};
 
-  const [behaviorGroups, finalizedOrders] = await Promise.all([
+  const [behaviorGroups, finalizedOrders, products, merchandising] = await Promise.all([
     prisma.analyticsEvent.groupBy({
       by: ["productId", "event"],
       where: {
-        ...analyticsWhere,
+        createdAt: range,
         productId: { not: null },
         event: { in: ["product_view", "add_to_cart"] },
       },
@@ -96,119 +73,115 @@ export default async function ProductPerformancePage({
     }),
     prisma.order.findMany({
       where: {
-        ...finalizedWhere,
+        updatedAt: range,
         status: "FINALIZADO",
       },
       select: {
+        items: { select: { productId: true } },
+      },
+    }),
+    prisma.product.findMany({
+      where: { active: true },
+      orderBy: { updatedAt: "desc" },
+      select: {
         id: true,
-        items: {
-          select: {
-            productId: true,
-            qty: true,
-            subtotal: true,
-            unitCost: true,
-          },
+        name: true,
+        brand: true,
+        featured: true,
+        stockQty: true,
+        variants: {
+          where: { active: true },
+          select: { stockQty: true },
         },
       },
     }),
+    getHomeProductOrderSettings(),
   ]);
 
-  const stats = new Map<string, Omit<ProductRow, "id" | "name" | "brand" | "active" | "stockQty">>();
-
+  const stats = new Map<string, ProductStats>();
   function ensure(productId: string) {
     const current = stats.get(productId);
     if (current) return current;
-    const fresh = {
-      views: 0,
-      carts: 0,
-      finalizedOrders: 0,
-      unitsSold: 0,
-      revenue: 0,
-      revenueWithCost: 0,
-      knownCost: 0,
-    };
+    const fresh = { views: 0, carts: 0, orders: 0 };
     stats.set(productId, fresh);
     return fresh;
   }
 
-  for (const item of behaviorGroups) {
-    if (!item.productId) continue;
-    const current = ensure(item.productId);
-    if (item.event === "product_view") current.views = item._count._all;
-    if (item.event === "add_to_cart") current.carts = item._count._all;
+  for (const group of behaviorGroups) {
+    if (!group.productId) continue;
+    const current = ensure(group.productId);
+    if (group.event === "product_view") current.views = group._count._all;
+    if (group.event === "add_to_cart") current.carts = group._count._all;
   }
 
   for (const order of finalizedOrders) {
-    const productsInOrder = new Set<string>();
-    for (const item of order.items) {
-      const current = ensure(item.productId);
-      const subtotal = Number(item.subtotal);
-      current.unitsSold += item.qty;
-      current.revenue += subtotal;
-      if (item.unitCost !== null) {
-        current.revenueWithCost += subtotal;
-        current.knownCost += Number(item.unitCost) * item.qty;
-      }
-      productsInOrder.add(item.productId);
-    }
-    for (const productId of productsInOrder) {
-      ensure(productId).finalizedOrders += 1;
-    }
+    const productIds = new Set(order.items.map((item) => item.productId));
+    for (const productId of productIds) ensure(productId).orders += 1;
   }
 
-  const ids = Array.from(stats.keys());
-  const products = ids.length
-    ? await prisma.product.findMany({
-        where: { id: { in: ids } },
-        select: { id: true, name: true, brand: true, active: true, stockQty: true },
-      })
-    : [];
+  const options = products
+    .map((product) => {
+      const stockQty = product.variants.length > 0
+        ? product.variants.reduce((sum, variant) => sum + variant.stockQty, 0)
+        : product.stockQty;
+      const productStats = stats.get(product.id) ?? { views: 0, carts: 0, orders: 0 };
+      const score = productStats.orders * 100 + productStats.carts * 15 + productStats.views;
+      return {
+        id: product.id,
+        name: product.name,
+        brand: product.brand,
+        featured: product.featured,
+        stockQty,
+        views: productStats.views,
+        carts: productStats.carts,
+        orders: productStats.orders,
+        score,
+      };
+    })
+    .filter((product) => product.stockQty > 0)
+    .sort((a, b) => b.score - a.score || b.stockQty - a.stockQty || a.name.localeCompare(b.name, "pt-BR"));
 
-  const emptyStats = {
-    views: 0,
-    carts: 0,
-    finalizedOrders: 0,
-    unitsSold: 0,
-    revenue: 0,
-    revenueWithCost: 0,
-    knownCost: 0,
-  };
+  const featuredSet = new Set(options.filter((product) => product.featured).map((product) => product.id));
+  const orderedFeatured = merchandising.homeFeaturedOrder.filter((id) => featuredSet.has(id));
+  const remainingFeatured = options
+    .filter((product) => product.featured && !orderedFeatured.includes(product.id))
+    .map((product) => product.id);
+  const selectedIds = [...orderedFeatured, ...remainingFeatured].slice(0, 5);
 
-  const rows: ProductRow[] = products
-    .map((product) => ({ ...product, ...(stats.get(product.id) ?? emptyStats) }))
-    .sort((a, b) => b.views - a.views || b.carts - a.carts || b.revenue - a.revenue);
-
-  const totalViews = rows.reduce((sum, item) => sum + item.views, 0);
-  const totalCarts = rows.reduce((sum, item) => sum + item.carts, 0);
-  const totalUnits = rows.reduce((sum, item) => sum + item.unitsSold, 0);
-  const totalRevenue = rows.reduce((sum, item) => sum + item.revenue, 0);
-  const revenueWithCost = rows.reduce((sum, item) => sum + item.revenueWithCost, 0);
-  const totalKnownCost = rows.reduce((sum, item) => sum + item.knownCost, 0);
-  const knownGrossProfit = revenueWithCost - totalKnownCost;
+  const totalViews = options.reduce((sum, product) => sum + product.views, 0);
+  const totalCarts = options.reduce((sum, product) => sum + product.carts, 0);
+  const totalOrders = options.reduce((sum, product) => sum + product.orders, 0);
 
   return (
-    <div className="mx-auto max-w-7xl">
+    <div className="mx-auto max-w-4xl">
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-xs font-bold uppercase tracking-wider text-rosa-profundo">Inteligência comercial</p>
-          <h1 className="font-serif text-2xl font-bold text-texto">Desempenho dos produtos</h1>
-          <p className="mt-1 max-w-3xl text-sm text-cinza">
-            Cruza comportamento do catálogo com vendas realmente finalizadas. Quando o custo é informado, também calcula lucro bruto e margem sem expor esse valor ao cliente.
+          <p className="text-xs font-bold uppercase tracking-wider text-rosa-profundo">Desempenho</p>
+          <h1 className="font-serif text-2xl font-bold text-texto">Escolher destaques da Home</h1>
+          <p className="mt-1 max-w-2xl text-sm text-cinza">
+            Veja os sinais mais úteis e escolha 5 produtos. Sem tabela e sem excesso de filtros.
           </p>
         </div>
-        <Link href="/admin/analise" className="rounded-xl border border-rosa/20 bg-white px-4 py-2.5 text-xs font-bold text-rosa-profundo">
+        <Link
+          href="/admin/analise"
+          className="rounded-xl border border-rosa/20 bg-white px-4 py-2.5 text-xs font-bold text-rosa-profundo"
+        >
           Voltar para Análise
         </Link>
       </div>
 
-      <div className="mb-5 flex flex-wrap gap-2">
+      <div className="mb-4 flex flex-wrap gap-2">
         {PERIODS.map((item) => {
           const active = item.value === period;
           return (
             <Link
               key={item.value}
-              href={item.value === "7d" ? "/admin/analise/produtos" : `/admin/analise/produtos?period=${item.value}`}
-              className={`rounded-xl border px-3 py-2 text-xs font-bold ${active ? "border-rosa-profundo bg-rosa-profundo text-white" : "border-rosa/15 bg-white text-cinza"}`}
+              href={item.value === "30d" ? "/admin/analise/produtos" : `/admin/analise/produtos?period=${item.value}`}
+              className={`rounded-xl border px-3 py-2 text-xs font-bold ${
+                active
+                  ? "border-rosa-profundo bg-rosa-profundo text-white"
+                  : "border-rosa/15 bg-white text-cinza"
+              }`}
             >
               {item.label}
             </Link>
@@ -216,85 +189,22 @@ export default async function ProductPerformancePage({
         })}
       </div>
 
-      <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-        <Metric label="Visualizações" value={totalViews} />
-        <Metric label="Carrinhos" value={totalCarts} />
-        <Metric label="Unidades vendidas" value={totalUnits} />
-        <Metric label="Receita finalizada" value={money(totalRevenue)} />
-        <Metric label="Lucro bruto conhecido" value={money(knownGrossProfit)} />
-        <Metric label="Receita com custo informado" value={pct(revenueWithCost, totalRevenue)} />
+      <div className="mb-4 rounded-2xl border border-rosa/10 bg-creme/45 px-4 py-3 text-xs text-cinza">
+        Período usado nas sugestões: <strong className="text-texto">{totalViews} vistas</strong> · {totalCarts} carrinhos · {totalOrders} pedidos finalizados.
       </div>
 
-      <section className="overflow-hidden rounded-2xl bg-white shadow-sm">
-        <div className="border-b border-rosa/10 px-5 py-4">
-          <h2 className="font-bold text-texto">Produto por produto</h2>
-          <p className="mt-1 text-[11px] text-cinza">
-            Venda só considera pedidos FINALIZADOS. Custo e margem aparecem apenas nas vendas que possuem custo registrado.
-          </p>
-        </div>
-
-        {rows.length === 0 ? (
-          <p className="p-6 text-sm text-cinza">Ainda não há dados suficientes neste período.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-[1120px] w-full text-left text-xs">
-              <thead className="bg-creme/70 text-[10px] uppercase tracking-wide text-cinza">
-                <tr>
-                  <th className="px-4 py-3">Produto</th>
-                  <th className="px-3 py-3 text-right">Vistas</th>
-                  <th className="px-3 py-3 text-right">Carrinhos</th>
-                  <th className="px-3 py-3 text-right">Intenção</th>
-                  <th className="px-3 py-3 text-right">Pedidos finais</th>
-                  <th className="px-3 py-3 text-right">Unidades</th>
-                  <th className="px-3 py-3 text-right">Receita</th>
-                  <th className="px-3 py-3 text-right">Lucro bruto</th>
-                  <th className="px-3 py-3 text-right">Margem</th>
-                  <th className="px-4 py-3">Sinal</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-rosa/10">
-                {rows.map((row) => {
-                  const status = signal(row);
-                  const hasCost = row.revenueWithCost > 0;
-                  const grossProfit = row.revenueWithCost - row.knownCost;
-                  return (
-                    <tr key={row.id} className="align-middle">
-                      <td className="px-4 py-3">
-                        <p className="max-w-[300px] truncate font-bold text-texto">{row.name}</p>
-                        <p className="mt-0.5 text-[10px] text-cinza">{row.brand} · estoque {row.stockQty}{row.active ? "" : " · inativo"}</p>
-                      </td>
-                      <td className="px-3 py-3 text-right font-semibold text-texto">{row.views}</td>
-                      <td className="px-3 py-3 text-right font-semibold text-texto">{row.carts}</td>
-                      <td className="px-3 py-3 text-right font-bold text-rosa-profundo">{pct(row.carts, row.views)}</td>
-                      <td className="px-3 py-3 text-right font-semibold text-texto">{row.finalizedOrders}</td>
-                      <td className="px-3 py-3 text-right font-semibold text-texto">{row.unitsSold}</td>
-                      <td className="px-3 py-3 text-right font-bold text-texto">{money(row.revenue)}</td>
-                      <td className="px-3 py-3 text-right font-bold text-texto">{hasCost ? money(grossProfit) : "—"}</td>
-                      <td className="px-3 py-3 text-right font-bold text-texto">{hasCost ? pct(grossProfit, row.revenueWithCost) : "—"}</td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-bold ${status.tone}`}>{status.label}</span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-
-      <div className="mt-5 rounded-2xl border border-rosa/15 bg-white p-4 text-[11px] leading-5 text-cinza">
-        <strong className="text-texto">Como interpretar:</strong> muita visualização e pouco carrinho sugere revisar preço, foto, descrição ou oferta. Carrinhos sem venda indicam intenção que não chegou ao fechamento. O lucro bruto considera receita menos custo do produto e não desconta frete, taxas, impostos ou despesas operacionais. Vendas antigas sem custo registrado continuam sem margem calculada para não inventarmos histórico.
-      </div>
-    </div>
-  );
-}
-
-function Metric({ label, value }: { label: string; value: number | string }) {
-  return (
-    <div className="rounded-2xl bg-white p-4 shadow-sm">
-      <p className="text-2xl font-extrabold text-texto">{typeof value === "number" ? value.toLocaleString("pt-BR") : value}</p>
-      <p className="mt-1 text-[11px] text-cinza">{label}</p>
+      <HomeFeaturedPicker
+        products={options.map(({ id, name, brand, stockQty, views, carts, orders }) => ({
+          id,
+          name,
+          brand,
+          stockQty,
+          views,
+          carts,
+          orders,
+        }))}
+        selectedIds={selectedIds}
+      />
     </div>
   );
 }
