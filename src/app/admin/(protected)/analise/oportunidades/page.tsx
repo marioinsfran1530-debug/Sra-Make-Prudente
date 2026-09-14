@@ -7,6 +7,15 @@ export const dynamic = "force-dynamic";
 
 const CHECKOUT_SOURCE = "catalogo_checkout";
 
+type OpportunityFilter = "all" | "intent" | "seen" | "description";
+
+const FILTER_LABELS: Record<OpportunityFilter, string> = {
+  all: "Todos os sinais",
+  intent: "Intenção sem venda",
+  seen: "Vistos sem carrinho",
+  description: "Descrição fraca",
+};
+
 function pct(part: number, total: number) {
   const value = total > 0 ? (part / total) * 100 : 0;
   return `${value.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
@@ -31,18 +40,44 @@ type Row = {
   finalized: number;
 };
 
+function isHighIntent(row: Row) {
+  return row.carts > 0 && row.finalized === 0;
+}
+
+function isSeenNoCart(row: Row) {
+  return row.views >= 5 && row.carts === 0 && row.finalized === 0;
+}
+
+function hasWeakDescription(row: Row) {
+  return !row.description || row.description.trim().length < 50;
+}
+
+function matchesFilter(row: Row, filter: OpportunityFilter) {
+  if (filter === "intent") return isHighIntent(row);
+  if (filter === "seen") return isSeenNoCart(row);
+  if (filter === "description") return hasWeakDescription(row);
+  return true;
+}
+
 function priority(row: Row) {
-  if (row.carts > 0 && row.finalized === 0) return 100 + row.carts * 10 + row.views;
-  if (row.views >= 5 && row.finalized === 0) return 50 + row.views;
-  if (!row.description || row.description.trim().length < 50) return 20;
+  if (isHighIntent(row)) return 100 + row.carts * 10 + row.views;
+  if (isSeenNoCart(row)) return 50 + row.views;
+  if (hasWeakDescription(row)) return 20;
   return 0;
+}
+
+function signal(row: Row) {
+  if (isHighIntent(row)) return "Intenção sem venda";
+  if (isSeenNoCart(row)) return "Visto, sem carrinho";
+  if (hasWeakDescription(row)) return "Descrição fraca";
+  return "Acompanhar";
 }
 
 function action(row: Row) {
   if (row.stockQty <= 0) return "Revisar estoque antes de promover";
-  if (row.carts > 0 && row.finalized === 0) return "Revisar preço, oferta e fechamento";
-  if (row.views >= 5 && row.carts === 0) return "Revisar foto, título, descrição e preço";
-  if (!row.description || row.description.trim().length < 50) return "Melhorar descrição para SEO e conversão";
+  if (isHighIntent(row)) return "Revisar preço, oferta e fechamento";
+  if (isSeenNoCart(row)) return "Revisar foto, título, descrição e preço";
+  if (hasWeakDescription(row)) return "Melhorar descrição para SEO e conversão";
   return "Continuar coletando dados";
 }
 
@@ -69,11 +104,22 @@ function checkoutItemsSummary(metadata: unknown) {
   return names.length > 2 ? `${visible} · +${names.length - 2} itens` : visible;
 }
 
-export default async function OportunidadesPage() {
+export default async function OportunidadesPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ filter?: string }>;
+}) {
+  const params = searchParams ? await searchParams : undefined;
+  const requestedFilter = params?.filter;
+  const filter: OpportunityFilter =
+    requestedFilter === "intent" || requestedFilter === "seen" || requestedFilter === "description"
+      ? requestedFilter
+      : "all";
+
   const since = new Date();
   since.setDate(since.getDate() - 30);
 
-  const [behavior, finalizedOrders, checkoutRecoveries] = await Promise.all([
+  const [behavior, finalizedOrders, checkoutRecoveryCount, checkoutRecoveries] = await Promise.all([
     prisma.analyticsEvent.groupBy({
       by: ["productId", "event"],
       where: {
@@ -86,6 +132,12 @@ export default async function OportunidadesPage() {
     prisma.order.findMany({
       where: { status: "FINALIZADO", updatedAt: { gte: since } },
       select: { items: { select: { productId: true } } },
+    }),
+    prisma.crmLead.count({
+      where: {
+        source: CHECKOUT_SOURCE,
+        stage: "NOVO",
+      },
     }),
     prisma.crmLead.findMany({
       where: {
@@ -132,15 +184,19 @@ export default async function OportunidadesPage() {
     select: { id: true, name: true, brand: true, description: true, stockQty: true },
   });
 
-  const rows: Row[] = products
-    .map((product) => ({ ...product, ...(stats.get(product.id) ?? { views: 0, carts: 0, finalized: 0 }) }))
-    .filter((row) => row.carts > 0 || row.views >= 5 || !row.description || row.description.trim().length < 50)
-    .sort((a, b) => priority(b) - priority(a))
-    .slice(0, 50);
+  const allRows: Row[] = products
+    .map((product) => ({
+      ...product,
+      ...(stats.get(product.id) ?? { views: 0, carts: 0, finalized: 0 }),
+    }))
+    .filter((row) => isHighIntent(row) || isSeenNoCart(row) || hasWeakDescription(row))
+    .sort((a, b) => priority(b) - priority(a));
 
-  const highIntent = rows.filter((row) => row.carts > 0 && row.finalized === 0).length;
-  const seenNoCart = rows.filter((row) => row.views >= 5 && row.carts === 0).length;
-  const weakDescription = rows.filter((row) => !row.description || row.description.trim().length < 50).length;
+  const highIntent = allRows.filter(isHighIntent).length;
+  const seenNoCart = allRows.filter(isSeenNoCart).length;
+  const weakDescription = allRows.filter(hasWeakDescription).length;
+  const filteredRows = allRows.filter((row) => matchesFilter(row, filter));
+  const rows = filteredRows.slice(0, 50);
 
   return (
     <div className="mx-auto max-w-7xl">
@@ -148,26 +204,60 @@ export default async function OportunidadesPage() {
         <div>
           <p className="text-xs font-bold uppercase tracking-wider text-rosa-profundo">Próximas ações</p>
           <h1 className="font-serif text-2xl font-bold text-texto">Oportunidades dos produtos</h1>
-          <p className="mt-1 max-w-3xl text-sm text-cinza">Prioriza os produtos que merecem intervenção com base nos últimos 30 dias de comportamento real e também destaca checkouts que precisam de contato comercial.</p>
+          <p className="mt-1 max-w-3xl text-sm text-cinza">
+            Veja onde agir primeiro. Toque em um indicador para abrir somente os produtos daquele sinal nos últimos 30 dias.
+          </p>
         </div>
-        <Link href="/admin/analise/produtos" className="rounded-xl border border-rosa/20 bg-white px-4 py-2.5 text-xs font-bold text-rosa-profundo">Ver desempenho completo</Link>
+        <Link
+          href="/admin/analise/produtos"
+          className="rounded-xl border border-rosa/20 bg-white px-4 py-2.5 text-xs font-bold text-rosa-profundo"
+        >
+          Ver desempenho
+        </Link>
       </div>
 
       <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Metric label="Checkouts para recuperar" value={checkoutRecoveries.length} attention={checkoutRecoveries.length > 0} />
-        <Metric label="Intenção sem venda" value={highIntent} />
-        <Metric label="Vistos sem carrinho" value={seenNoCart} />
-        <Metric label="Descrição fraca" value={weakDescription} />
+        <Metric
+          label="Checkouts para recuperar"
+          value={checkoutRecoveryCount}
+          href="#recuperar-vendas"
+          attention={checkoutRecoveryCount > 0}
+        />
+        <Metric
+          label="Intenção sem venda"
+          value={highIntent}
+          href="/admin/analise/oportunidades?filter=intent"
+          active={filter === "intent"}
+        />
+        <Metric
+          label="Vistos sem carrinho"
+          value={seenNoCart}
+          href="/admin/analise/oportunidades?filter=seen"
+          active={filter === "seen"}
+        />
+        <Metric
+          label="Descrição fraca"
+          value={weakDescription}
+          href="/admin/analise/oportunidades?filter=description"
+          active={filter === "description"}
+        />
       </div>
 
       {checkoutRecoveries.length > 0 && (
-        <section className="mb-6 overflow-hidden rounded-2xl border border-amber-200 bg-amber-50 shadow-sm">
+        <section id="recuperar-vendas" className="mb-6 scroll-mt-40 overflow-hidden rounded-2xl border border-amber-200 bg-amber-50 shadow-sm">
           <div className="flex flex-col gap-2 border-b border-amber-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="font-bold text-amber-950">Recuperar vendas do checkout</h2>
-              <p className="mt-1 text-[11px] leading-relaxed text-amber-800">A cliente tocou em Registrar pedido, mas a venda não foi criada. O contato e o carrinho ficaram salvos.</p>
+              <p className="mt-1 text-[11px] leading-relaxed text-amber-800">
+                A cliente tocou em Registrar pedido, mas a venda não foi criada. O contato e o carrinho ficaram salvos.
+              </p>
             </div>
-            <Link href="/admin/crm/oportunidades" className="rounded-xl border border-amber-300 bg-white px-4 py-2.5 text-center text-xs font-extrabold text-amber-900">Ver no CRM</Link>
+            <Link
+              href="/admin/crm/oportunidades"
+              className="rounded-xl border border-amber-300 bg-white px-4 py-2.5 text-center text-xs font-extrabold text-amber-900"
+            >
+              Ver todos no CRM
+            </Link>
           </div>
           <div className="divide-y divide-amber-200">
             {checkoutRecoveries.slice(0, 5).map((lead) => {
@@ -182,8 +272,20 @@ export default async function OportunidadesPage() {
                     </p>
                   </div>
                   <div className="grid grid-cols-2 gap-2 sm:flex">
-                    <a href={whatsappUrl(lead.customer.phone, message)} target="_blank" rel="noopener noreferrer" className="rounded-xl bg-emerald-600 px-4 py-3 text-center text-[11px] font-extrabold text-white">WhatsApp</a>
-                    <Link href={`/admin/crm/${encodeURIComponent(lead.customer.phone)}`} className="rounded-xl border border-amber-300 bg-white px-4 py-3 text-center text-[11px] font-extrabold text-amber-900">Ver cliente</Link>
+                    <a
+                      href={whatsappUrl(lead.customer.phone, message)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="rounded-xl bg-emerald-600 px-4 py-3 text-center text-[11px] font-extrabold text-white"
+                    >
+                      WhatsApp
+                    </a>
+                    <Link
+                      href={`/admin/crm/${encodeURIComponent(lead.customer.phone)}`}
+                      className="rounded-xl border border-amber-300 bg-white px-4 py-3 text-center text-[11px] font-extrabold text-amber-900"
+                    >
+                      Ver cliente
+                    </Link>
                   </div>
                 </div>
               );
@@ -194,35 +296,95 @@ export default async function OportunidadesPage() {
 
       <section className="overflow-hidden rounded-2xl bg-white shadow-sm">
         <div className="border-b border-rosa/10 px-5 py-4">
-          <h2 className="font-bold text-texto">Fila de prioridade dos produtos</h2>
-          <p className="mt-1 text-[11px] text-cinza">A ordem privilegia intenção sem venda, depois produtos vistos sem carrinho e, por fim, cadastros fracos.</p>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-rosa-profundo">Filtro atual</p>
+              <h2 className="mt-1 font-bold text-texto">{FILTER_LABELS[filter]}</h2>
+              <p className="mt-1 text-[11px] text-cinza">
+                {filteredRows.length.toLocaleString("pt-BR")} produto{filteredRows.length === 1 ? "" : "s"} encontrado{filteredRows.length === 1 ? "" : "s"}.
+                {filteredRows.length > 50 ? " Mostrando os 50 mais prioritários." : ""}
+              </p>
+            </div>
+            {filter !== "all" ? (
+              <Link
+                href="/admin/analise/oportunidades"
+                className="w-fit rounded-xl border border-rosa/20 bg-white px-3 py-2 text-xs font-bold text-rosa-profundo"
+              >
+                Ver todos os sinais
+              </Link>
+            ) : null}
+          </div>
         </div>
 
         {rows.length === 0 ? (
-          <p className="p-6 text-sm text-cinza">Ainda não há oportunidades com amostra suficiente.</p>
+          <p className="p-6 text-sm text-cinza">Nenhum produto encontrado neste filtro.</p>
         ) : (
           <div className="divide-y divide-rosa/10">
             {rows.map((row, index) => (
               <div key={row.id} className="grid gap-3 px-5 py-4 lg:grid-cols-[48px_1fr_360px_110px] lg:items-center">
                 <div className="text-lg font-extrabold text-rosa-profundo">#{index + 1}</div>
-                <div>
-                  <p className="font-bold text-texto">{row.name}</p>
-                  <p className="mt-0.5 text-[11px] text-cinza">{row.brand} · estoque {row.stockQty} · {row.views} vistas · {row.carts} carrinhos · {row.finalized} vendas</p>
-                  <p className="mt-1 text-[11px] font-semibold text-rosa-profundo">Intenção: {pct(row.carts, row.views)}</p>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-bold text-texto">{row.name}</p>
+                    <span className="rounded-full bg-creme px-2 py-1 text-[10px] font-bold text-rosa-profundo">
+                      {signal(row)}
+                    </span>
+                  </div>
+                  <p className="mt-0.5 text-[11px] text-cinza">
+                    {row.brand} · estoque {row.stockQty} · {row.views} vistas · {row.carts} carrinhos · {row.finalized} vendas
+                  </p>
+                  {row.views > 0 ? (
+                    <p className="mt-1 text-[11px] font-semibold text-rosa-profundo">Intenção: {pct(row.carts, row.views)}</p>
+                  ) : null}
                 </div>
                 <div className="rounded-xl bg-creme/60 px-3 py-2 text-xs font-semibold text-texto">{action(row)}</div>
-                <Link href={`/admin/produtos/${row.id}`} className="rounded-xl border border-rosa/20 bg-white px-3 py-2 text-center text-xs font-bold text-rosa-profundo hover:bg-creme">Editar produto</Link>
+                <Link
+                  href={`/admin/produtos/${row.id}`}
+                  className="rounded-xl border border-rosa/20 bg-white px-3 py-2 text-center text-xs font-bold text-rosa-profundo hover:bg-creme"
+                >
+                  Editar produto
+                </Link>
               </div>
             ))}
           </div>
         )}
       </section>
 
-      <p className="mt-5 text-[11px] leading-5 text-cinza">Os sinais são apoio à decisão, não conclusões automáticas. Nos primeiros dias, a amostra de comportamento ainda é pequena; use a fila para priorizar revisão, não para alterar preço ou estoque sem conferência comercial.</p>
+      <p className="mt-5 text-[11px] leading-5 text-cinza">
+        Os sinais ajudam a decidir onde olhar primeiro. Eles não alteram preço, estoque ou cadastro automaticamente.
+      </p>
     </div>
   );
 }
 
-function Metric({ label, value, attention = false }: { label: string; value: number; attention?: boolean }) {
-  return <div className={`rounded-2xl border p-4 shadow-sm ${attention ? "border-amber-200 bg-amber-50" : "border-transparent bg-white"}`}><p className="text-2xl font-extrabold text-texto">{value.toLocaleString("pt-BR")}</p><p className="mt-1 text-[11px] text-cinza">{label}</p></div>;
+function Metric({
+  label,
+  value,
+  href,
+  active = false,
+  attention = false,
+}: {
+  label: string;
+  value: number;
+  href: string;
+  active?: boolean;
+  attention?: boolean;
+}) {
+  const className = `group rounded-2xl border p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+    active
+      ? "border-rosa-profundo bg-rosa-profundo/5"
+      : attention
+        ? "border-amber-200 bg-amber-50"
+        : "border-transparent bg-white hover:border-rosa/20"
+  }`;
+
+  return (
+    <Link href={href} className={className} aria-current={active ? "page" : undefined}>
+      <p className={`text-2xl font-extrabold ${active ? "text-rosa-profundo" : "text-texto"}`}>
+        {value.toLocaleString("pt-BR")}
+      </p>
+      <p className="mt-1 text-[11px] font-semibold text-cinza">{label}</p>
+      <p className="mt-2 text-[10px] font-bold text-rosa-profundo group-hover:underline">Ver itens →</p>
+    </Link>
+  );
 }
