@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { logCrmInteraction } from "@/lib/crm-activity";
+import { cancelReasonLabel } from "@/lib/order-cancellation";
 
 export function normalizeCrmPhone(value: string) {
   let digits = value.replace(/\D/g, "");
@@ -36,6 +37,14 @@ function sourceFromOrder(order: { origin: string | null; utmSource: string | nul
   return normalizeCrmSource(order.utmSource || order.origin, fallback);
 }
 
+function cancellationReason(order: {
+  cancelReasonCode: string | null;
+  cancelReasonText: string | null;
+}) {
+  const label = cancelReasonLabel(order.cancelReasonCode);
+  return order.cancelReasonText ? `${label}: ${order.cancelReasonText}` : label;
+}
+
 export async function syncOrderToCrm(orderId: string) {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
@@ -52,6 +61,8 @@ export async function syncOrderToCrm(orderId: string) {
       utmSource: true,
       utmCampaign: true,
       utmContent: true,
+      cancelReasonCode: true,
+      cancelReasonText: true,
       createdAt: true,
       items: { select: { productId: true } },
     },
@@ -89,13 +100,31 @@ export async function syncOrderToCrm(orderId: string) {
   const productIds = Array.from(new Set(order.items.map((item) => item.productId).filter(Boolean)));
   const openStages = ["NOVO", "ATENDIMENTO", "PRODUTO_INDICADO", "AGUARDANDO_PAGAMENTO", "RECOMPRA"] as const;
   const finalStage = order.status === "FINALIZADO" ? "VENDIDO" : order.status === "CANCELADO" ? "PERDIDO" : "AGUARDANDO_PAGAMENTO";
+  const lostReason = finalStage === "PERDIDO" ? cancellationReason(order) : null;
 
-  let lead = productIds.length
-    ? await prisma.crmLead.findFirst({
-        where: { customerId: customer.id, stage: { in: [...openStages] }, productId: { in: productIds } },
-        orderBy: { updatedAt: "desc" },
-      })
-    : null;
+  let lead = null;
+
+  // Quando uma venda já finalizada é cancelada, reutiliza exatamente a
+  // oportunidade ligada ao pedido, em vez de criar uma perda duplicada.
+  if (finalStage === "PERDIDO") {
+    const linked = await prisma.crmInteraction.findFirst({
+      where: { orderId: order.id, leadId: { not: null } },
+      orderBy: { createdAt: "desc" },
+      select: { leadId: true },
+    });
+    if (linked?.leadId) {
+      lead = await prisma.crmLead.findFirst({
+        where: { id: linked.leadId, customerId: customer.id },
+      });
+    }
+  }
+
+  if (!lead && productIds.length) {
+    lead = await prisma.crmLead.findFirst({
+      where: { customerId: customer.id, stage: { in: [...openStages] }, productId: { in: productIds } },
+      orderBy: { updatedAt: "desc" },
+    });
+  }
 
   if (!lead) {
     lead = await prisma.crmLead.findFirst({
@@ -114,7 +143,7 @@ export async function syncOrderToCrm(orderId: string) {
         source,
         lastContactAt: order.createdAt,
         closedAt: finalStage === "VENDIDO" || finalStage === "PERDIDO" ? new Date() : null,
-        lostReason: finalStage === "PERDIDO" ? "Pedido cancelado" : null,
+        lostReason,
       },
     });
   } else {
@@ -127,7 +156,7 @@ export async function syncOrderToCrm(orderId: string) {
         productId: lead.productId || (productIds.length === 1 ? productIds[0] : null),
         lastContactAt: new Date(),
         closedAt: finalStage === "VENDIDO" || finalStage === "PERDIDO" ? new Date() : null,
-        lostReason: finalStage === "PERDIDO" ? "Pedido cancelado" : null,
+        lostReason,
       },
     });
   }
@@ -149,7 +178,8 @@ export async function syncOrderToCrm(orderId: string) {
     });
   }
 
-  const body = `Pedido #${order.number} · ${order.status} · ${Number(order.total).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}`;
+  const reasonSuffix = finalStage === "PERDIDO" ? ` · Motivo: ${lostReason}` : "";
+  const body = `Pedido #${order.number} · ${order.status} · ${Number(order.total).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}${reasonSuffix}`;
   const alreadyLogged = await prisma.$queryRaw<Array<{ id: string }>>`
     SELECT "id" FROM "CrmInteraction"
     WHERE "orderId" = ${order.id} AND "body" = ${body}
@@ -162,9 +192,11 @@ export async function syncOrderToCrm(orderId: string) {
     `;
     const kind = finalStage === "VENDIDO"
       ? "ORDER_FINALIZED"
-      : anyOrderEvent[0]
-        ? "ORDER_STATUS_CHANGED"
-        : "ORDER_CREATED";
+      : finalStage === "PERDIDO"
+        ? "ORDER_CANCELLED"
+        : anyOrderEvent[0]
+          ? "ORDER_STATUS_CHANGED"
+          : "ORDER_CREATED";
     await logCrmInteraction({
       customerId: customer.id,
       leadId: lead.id,
@@ -173,7 +205,13 @@ export async function syncOrderToCrm(orderId: string) {
       kind,
       channel: order.channel.toLowerCase(),
       body,
-      metadata: { source, utmCampaign: order.utmCampaign, utmContent: order.utmContent },
+      metadata: {
+        source,
+        utmCampaign: order.utmCampaign,
+        utmContent: order.utmContent,
+        cancelReasonCode: order.cancelReasonCode,
+        cancelReasonText: order.cancelReasonText,
+      },
     });
   }
 

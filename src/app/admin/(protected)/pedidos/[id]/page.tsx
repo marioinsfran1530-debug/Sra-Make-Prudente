@@ -44,6 +44,7 @@ export default async function AdminPedidoDetailPage({ params }: { params: Promis
       items: true,
       payments: true,
       createdBy: { select: { name: true, email: true } },
+      cancelledBy: { select: { name: true, email: true } },
     },
   });
 
@@ -71,6 +72,7 @@ export default async function AdminPedidoDetailPage({ params }: { params: Promis
   const canTakeToSale =
     order.channel !== "LOJA_FISICA" && order.status !== "FINALIZADO" && order.status !== "CANCELADO";
   const reviewMessage = `Maravilhosa, obrigada por escolher a Sra Make. 💗\n\nSe você saiu satisfeita, deixe sua experiência registrada e ajude outra pessoa a escolher com mais confiança:\n${GOOGLE_REVIEW_URL}`;
+  const paymentMethods = order.payments.length > 0 ? order.payments.map((payment) => payment.method) : [order.payment];
 
   return (
     <div className="max-w-lg">
@@ -131,17 +133,9 @@ export default async function AdminPedidoDetailPage({ params }: { params: Promis
               <div key={item.id} className="flex gap-3 py-3 first:pt-1">
                 <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-rosa/10 bg-creme">
                   {image ? (
-                    <Image
-                      src={image.url}
-                      alt={image.alt || item.name}
-                      width={64}
-                      height={64}
-                      className="h-full w-full object-cover"
-                    />
+                    <Image src={image.url} alt={image.alt || item.name} width={64} height={64} className="h-full w-full object-cover" />
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center px-1 text-center text-[9px] font-semibold text-cinza">
-                      Sem foto
-                    </div>
+                    <div className="flex h-full w-full items-center justify-center px-1 text-center text-[9px] font-semibold text-cinza">Sem foto</div>
                   )}
                 </div>
 
@@ -150,25 +144,14 @@ export default async function AdminPedidoDetailPage({ params }: { params: Promis
                     <p className="min-w-0 font-bold leading-snug text-texto">{item.name}</p>
                     <span className="shrink-0 text-sm font-bold text-rosa-profundo">{money(Number(item.subtotal))}</span>
                   </div>
-
                   {brand && <p className="mt-0.5 text-[11px] font-semibold text-cinza">{brand}</p>}
-                  {item.variantName && (
-                    <p className="mt-1 text-xs font-bold text-texto">Opção: {item.variantName}</p>
-                  )}
-
+                  {item.variantName && <p className="mt-1 text-xs font-bold text-texto">Opção: {item.variantName}</p>}
                   <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-cinza">
                     <span>{item.qty} un. × {money(Number(item.unitPrice))}</span>
                     {sku && <span>SKU: {sku}</span>}
                   </div>
-
                   {product && (
-                    <Link
-                      href={`/produto/${item.productId}`}
-                      target="_blank"
-                      className="mt-1 inline-flex text-[10px] font-bold text-rosa-profundo hover:underline"
-                    >
-                      Ver produto →
-                    </Link>
+                    <Link href={`/produto/${item.productId}`} target="_blank" className="mt-1 inline-flex text-[10px] font-bold text-rosa-profundo hover:underline">Ver produto →</Link>
                   )}
                 </div>
               </div>
@@ -178,9 +161,7 @@ export default async function AdminPedidoDetailPage({ params }: { params: Promis
 
         {order.notes && (
           <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
-            <p className="text-[10px] font-extrabold uppercase tracking-wide text-amber-800">
-              Atenção · observação da cliente
-            </p>
+            <p className="text-[10px] font-extrabold uppercase tracking-wide text-amber-800">Atenção · observação da cliente</p>
             <p className="mt-1 text-sm font-bold leading-relaxed text-amber-950">{order.notes}</p>
           </div>
         )}
@@ -205,7 +186,17 @@ export default async function AdminPedidoDetailPage({ params }: { params: Promis
       </div>
 
       <div className="rounded-2xl bg-white p-4" style={{ boxShadow: "0 2px 10px rgba(35,20,42,0.06)" }}>
-        <OrderStatusControl orderId={order.id} status={order.status} deliveryType={order.deliveryType} />
+        <OrderStatusControl
+          orderId={order.id}
+          status={order.status}
+          deliveryType={order.deliveryType}
+          paymentMethods={paymentMethods}
+          cancelReasonCode={order.cancelReasonCode}
+          cancelReasonText={order.cancelReasonText}
+          cancelledAt={order.cancelledAt?.toISOString() ?? null}
+          cancelledBy={order.cancelledBy?.name || order.cancelledBy?.email || null}
+          refundStatus={order.refundStatus}
+        />
       </div>
     </div>
   );
