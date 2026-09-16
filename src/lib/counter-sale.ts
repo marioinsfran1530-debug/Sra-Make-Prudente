@@ -23,6 +23,8 @@ type CreateCounterSaleInput = {
   payments: CounterSalePaymentInput[];
   discount?: number;
   deliveryFee?: number;
+  miscDescription?: string;
+  miscAmount?: number;
   customerName?: string;
   customerPhone?: string;
   notes?: string;
@@ -90,6 +92,11 @@ export async function createCounterSale(input: CreateCounterSaleInput) {
   if (!Number.isFinite(deliveryFee) || deliveryFee < 0) {
     throw new CounterSaleError("Taxa de entrega inválida.");
   }
+  const miscAmount = cents(Number(input.miscAmount ?? 0));
+  if (!Number.isFinite(miscAmount) || miscAmount < 0 || miscAmount > 99999.99) {
+    throw new CounterSaleError("Valor de diversos inválido.");
+  }
+  const miscDescription = input.miscDescription?.trim().slice(0, 120) || "Diversos";
 
   return prisma.$transaction(async (tx) => {
     await tx.$queryRaw<Array<{ locked: number }>>`
@@ -230,7 +237,8 @@ export async function createCounterSale(input: CreateCounterSaleInput) {
       subtotal: cents(unitPrice * qty),
     }));
 
-    const subtotal = cents(orderItems.reduce((sum, item) => sum + item.subtotal, 0));
+    const productSubtotal = cents(orderItems.reduce((sum, item) => sum + item.subtotal, 0));
+    const subtotal = cents(productSubtotal + miscAmount);
     if (discount > subtotal) throw new CounterSaleError("O desconto não pode ser maior que o subtotal.");
     const total = cents(subtotal - discount + deliveryFee);
 
@@ -383,6 +391,22 @@ export async function createCounterSale(input: CreateCounterSaleInput) {
           },
           include: { items: true, payments: true },
         });
+
+    await tx.$executeRaw`
+      DELETE FROM app_security."OrderMiscCharge"
+      WHERE "orderId" = ${order.id}
+    `;
+
+    if (miscAmount > 0) {
+      await tx.$executeRaw`
+        INSERT INTO app_security."OrderMiscCharge" ("orderId", "description", "amount", "createdAt", "updatedAt")
+        VALUES (${order.id}, ${miscDescription}, ${miscAmount}, NOW(), NOW())
+        ON CONFLICT ("orderId") DO UPDATE
+        SET "description" = EXCLUDED."description",
+            "amount" = EXCLUDED."amount",
+            "updatedAt" = NOW()
+      `;
+    }
 
     for (let index = 0; index < payments.length; index += 1) {
       const financial = payments[index].financial;

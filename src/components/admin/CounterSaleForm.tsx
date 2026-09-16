@@ -116,20 +116,18 @@ function buildInitialCart(products: Product[], initialSale?: InitialCounterSale 
     const qty = Math.min(Math.max(0, stockQty), Math.max(1, item.qty));
     if (qty <= 0) return [];
 
-    return [
-      {
-        key: `${product.id}:${variant?.id ?? "base"}`,
-        productId: product.id,
-        variantId: variant?.id ?? null,
-        name: product.name,
-        variantName: variant?.name ?? null,
-        sku: variant?.sku ?? product.sku,
-        qty,
-        stockQty,
-        unitPrice: productPrice(product),
-        imageUrl: product.imageUrl,
-      },
-    ];
+    return [{
+      key: `${product.id}:${variant?.id ?? "base"}`,
+      productId: product.id,
+      variantId: variant?.id ?? null,
+      name: product.name,
+      variantName: variant?.name ?? null,
+      sku: variant?.sku ?? product.sku,
+      qty,
+      stockQty,
+      unitPrice: productPrice(product),
+      imageUrl: product.imageUrl,
+    }];
   });
 }
 
@@ -150,9 +148,12 @@ export function CounterSaleForm({
   const router = useRouter();
   const searchRef = useRef<HTMLInputElement>(null);
   const providers = useMemo(() => activePaymentProviders(paymentSettings), [paymentSettings]);
+
   const [query, setQuery] = useState("");
   const [cart, setCart] = useState<CartLine[]>(() => buildInitialCart(products, initialSale));
   const [discount, setDiscount] = useState("0");
+  const [miscDescription, setMiscDescription] = useState("");
+  const [miscAmount, setMiscAmount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("PIX");
   const [selectedProviderId, setSelectedProviderId] = useState(() => providers[0]?.id ?? "");
   const [installments, setInstallments] = useState(1);
@@ -182,7 +183,7 @@ export function CounterSaleForm({
         if (valid.length > 0) setActiveTab("FAVORITOS");
       }
     } catch {
-      // Favoritos são conveniência local; falha de storage não bloqueia a venda.
+      // Favoritos são apenas uma conveniência local.
     }
   }, [products]);
 
@@ -245,7 +246,9 @@ export function CounterSaleForm({
   }, [activeTab, favoriteIds, products, query]);
 
   const visibleProducts = filtered.slice(0, visibleCount);
-  const subtotal = cart.reduce((sum, item) => sum + item.unitPrice * item.qty, 0);
+  const productsSubtotal = cart.reduce((sum, item) => sum + item.unitPrice * item.qty, 0);
+  const miscValue = Math.max(0, parseMoney(miscAmount));
+  const subtotal = productsSubtotal + miscValue;
   const discountValue = Math.max(0, parseMoney(discount));
   const total = Math.max(0, subtotal - discountValue);
   const itemCount = cart.reduce((sum, item) => sum + item.qty, 0);
@@ -326,7 +329,6 @@ export function CounterSaleForm({
 
     const key = `${product.id}:${variant?.id ?? "base"}`;
     const existing = cart.find((item) => item.key === key);
-
     if (existing && existing.qty >= stockQty) {
       setError("A quantidade já atingiu o estoque disponível.");
       if (options.focusAfter) focusSearch(options.selectSearch);
@@ -337,29 +339,22 @@ export function CounterSaleForm({
     setCart((current) => {
       const currentLine = current.find((item) => item.key === key);
       if (currentLine) {
-        return current.map((item) =>
-          item.key === key ? { ...item, qty: item.qty + 1 } : item
-        );
+        return current.map((item) => item.key === key ? { ...item, qty: item.qty + 1 } : item);
       }
-      return [
-        ...current,
-        {
-          key,
-          productId: product.id,
-          variantId: variant?.id ?? null,
-          name: product.name,
-          variantName: variant?.name ?? null,
-          sku: variant?.sku ?? product.sku,
-          qty: 1,
-          stockQty,
-          unitPrice: productPrice(product),
-          imageUrl: product.imageUrl,
-        },
-      ];
+      return [...current, {
+        key,
+        productId: product.id,
+        variantId: variant?.id ?? null,
+        name: product.name,
+        variantName: variant?.name ?? null,
+        sku: variant?.sku ?? product.sku,
+        qty: 1,
+        stockQty,
+        unitPrice: productPrice(product),
+        imageUrl: product.imageUrl,
+      }];
     });
 
-    // Mantém a pesquisa atual para permitir incluir o mesmo produto várias vezes
-    // sem ter que procurá-lo novamente.
     setError("");
     setVariantPicker(null);
     if (options.focusAfter) focusSearch(options.selectSearch);
@@ -384,26 +379,16 @@ export function CounterSaleForm({
 
   function updateQty(key: string, next: number) {
     setLastAddition(null);
-    setCart((current) =>
-      current
-        .map((item) =>
-          item.key === key
-            ? { ...item, qty: Math.min(item.stockQty, Math.max(0, next)) }
-            : item
-        )
-        .filter((item) => item.qty > 0)
-    );
+    setCart((current) => current
+      .map((item) => item.key === key ? { ...item, qty: Math.min(item.stockQty, Math.max(0, next)) } : item)
+      .filter((item) => item.qty > 0));
   }
 
   function undoLastAddition() {
     if (!lastAddition) return;
     setCart((current) => {
-      if (lastAddition.previousQty <= 0) {
-        return current.filter((item) => item.key !== lastAddition.key);
-      }
-      return current.map((item) =>
-        item.key === lastAddition.key ? { ...item, qty: lastAddition.previousQty } : item
-      );
+      if (lastAddition.previousQty <= 0) return current.filter((item) => item.key !== lastAddition.key);
+      return current.map((item) => item.key === lastAddition.key ? { ...item, qty: lastAddition.previousQty } : item);
     });
     setLastAddition(null);
     setError("");
@@ -449,8 +434,13 @@ export function CounterSaleForm({
   async function finalize() {
     if (saving) return;
     setError("");
+
     if (cart.length === 0) {
       setError("Adicione produtos antes de finalizar.");
+      return;
+    }
+    if (miscValue > 99999.99) {
+      setError("O valor de diversos é muito alto.");
       return;
     }
     if (discountValue > subtotal) {
@@ -487,6 +477,7 @@ export function CounterSaleForm({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           idempotencyKey: saleToken,
+          sourceOrderId: initialSale?.orderId,
           items: cart.map((item) => ({
             productId: item.productId,
             variantId: item.variantId,
@@ -494,6 +485,8 @@ export function CounterSaleForm({
           })),
           payments: [cardPayment],
           discount: Number(discountValue.toFixed(2)),
+          miscDescription: miscDescription.trim(),
+          miscAmount: Number(miscValue.toFixed(2)),
           customerName,
           customerPhone,
           notes,
@@ -504,6 +497,8 @@ export function CounterSaleForm({
 
       setCart([]);
       setDiscount("0");
+      setMiscDescription("");
+      setMiscAmount("");
       setPaymentMethod("PIX");
       setInstallments(1);
       setCashReceived("");
@@ -520,6 +515,45 @@ export function CounterSaleForm({
     } finally {
       setSaving(false);
     }
+  }
+
+  function renderCartLines() {
+    if (cart.length === 0) {
+      return <p className="py-6 text-center text-xs text-cinza">Nenhum produto adicionado.</p>;
+    }
+
+    return cart.map((item) => (
+      <div key={item.key} className="flex gap-3 py-3">
+        <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-creme">
+          {item.imageUrl ? (
+            <img src={item.imageUrl} alt="" className="h-full w-full object-contain p-1" loading="lazy" />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-[9px] font-bold text-cinza">Sem foto</div>
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex justify-between gap-2">
+            <div className="min-w-0">
+              <p className="line-clamp-2 text-xs font-bold text-texto">{item.name}</p>
+              {item.variantName && <p className="mt-0.5 text-[10px] text-cinza">{item.variantName}</p>}
+              <p className="mt-1 text-[10px] font-bold text-rosa-profundo">{money(item.unitPrice)}</p>
+            </div>
+            <p className="shrink-0 text-xs font-extrabold text-texto">{money(item.unitPrice * item.qty)}</p>
+          </div>
+          <div className="mt-2 flex items-center gap-1.5">
+            <button type="button" onClick={() => updateQty(item.key, item.qty - 1)} className="h-8 w-8 rounded-lg border border-rosa/15 font-bold">−</button>
+            <input
+              value={item.qty}
+              onChange={(event) => updateQty(item.key, Number(event.target.value))}
+              inputMode="numeric"
+              className="h-8 w-12 rounded-lg border border-rosa/15 text-center text-xs font-bold"
+            />
+            <button type="button" onClick={() => updateQty(item.key, item.qty + 1)} className="h-8 w-8 rounded-lg border border-rosa/15 font-bold">+</button>
+            <button type="button" onClick={() => updateQty(item.key, 0)} className="ml-auto px-1 text-[10px] font-bold text-red-600">Remover</button>
+          </div>
+        </div>
+      </div>
+    ));
   }
 
   function renderSalePanel(mobile = false) {
@@ -540,115 +574,53 @@ export function CounterSaleForm({
               ↶ Desfazer último
             </button>
             {mobile && (
-              <button
-                type="button"
-                onClick={() => setCartOpen(false)}
-                aria-label="Fechar venda atual"
-                className="flex h-9 w-9 items-center justify-center rounded-full border border-rosa/10 text-lg text-cinza"
-              >
-                ×
-              </button>
+              <button type="button" onClick={() => setCartOpen(false)} aria-label="Fechar venda atual" className="flex h-9 w-9 items-center justify-center rounded-full border border-rosa/10 text-lg text-cinza">×</button>
             )}
           </div>
         </div>
 
-        <div
-          className={`${mobile ? "max-h-[34dvh]" : "max-h-[34vh] lg:max-h-[36vh]"} mt-3 divide-y divide-rosa/10 overflow-y-auto pr-1`}
-        >
-          {cart.length === 0 ? (
-            <p className="py-6 text-center text-xs text-cinza">Nenhum produto adicionado.</p>
-          ) : (
-            cart.map((item) => (
-              <div key={item.key} className="flex gap-3 py-3">
-                <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-creme">
-                  {item.imageUrl ? (
-                    <img
-                      src={item.imageUrl}
-                      alt=""
-                      className="h-full w-full object-contain p-1"
-                      loading="lazy"
-                    />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center text-[9px] font-bold text-cinza">
-                      Sem foto
-                    </div>
-                  )}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="line-clamp-2 text-xs font-bold text-texto">{item.name}</p>
-                      {item.variantName && (
-                        <p className="mt-0.5 text-[10px] text-cinza">{item.variantName}</p>
-                      )}
-                      <p className="mt-1 text-[10px] font-bold text-rosa-profundo">
-                        {money(item.unitPrice)}
-                      </p>
-                    </div>
-                    <p className="shrink-0 text-xs font-extrabold text-texto">
-                      {money(item.unitPrice * item.qty)}
-                    </p>
-                  </div>
-                  <div className="mt-2 flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => updateQty(item.key, item.qty - 1)}
-                      className="h-8 w-8 rounded-lg border border-rosa/15 font-bold"
-                    >
-                      −
-                    </button>
-                    <input
-                      value={item.qty}
-                      onChange={(event) => updateQty(item.key, Number(event.target.value))}
-                      inputMode="numeric"
-                      className="h-8 w-12 rounded-lg border border-rosa/15 text-center text-xs font-bold"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => updateQty(item.key, item.qty + 1)}
-                      className="h-8 w-8 rounded-lg border border-rosa/15 font-bold"
-                    >
-                      +
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => updateQty(item.key, 0)}
-                      className="ml-auto px-1 text-[10px] font-bold text-red-600"
-                    >
-                      Remover
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))
-          )}
+        <div className={`${mobile ? "max-h-[34dvh]" : "max-h-[34vh] lg:max-h-[36vh]"} mt-3 divide-y divide-rosa/10 overflow-y-auto pr-1`}>
+          {renderCartLines()}
+        </div>
+
+        <div className="mt-3 rounded-xl border border-rosa/15 bg-creme/30 p-3">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-extrabold text-texto">Diversos</p>
+              <p className="mt-0.5 text-[10px] leading-4 text-cinza">Para caixa, embalagem, laço ou outro adicional que não deve aparecer no catálogo.</p>
+            </div>
+            {miscValue > 0 && <span className="shrink-0 rounded-full bg-rosa/10 px-2 py-1 text-[10px] font-bold text-rosa-profundo">{money(miscValue)}</span>}
+          </div>
+          <div className="mt-2 grid gap-2 sm:grid-cols-[minmax(0,1fr)_110px]">
+            <input
+              value={miscDescription}
+              onChange={(event) => setMiscDescription(event.target.value)}
+              maxLength={120}
+              placeholder="Ex.: Caixa + embalagem"
+              className="min-w-0 rounded-xl border border-rosa/15 bg-white px-3 py-2 text-xs"
+            />
+            <input
+              value={miscAmount}
+              onChange={(event) => setMiscAmount(event.target.value)}
+              inputMode="decimal"
+              placeholder="R$ 0,00"
+              className="rounded-xl border border-rosa/15 bg-white px-3 py-2 text-xs font-bold"
+            />
+          </div>
+          <p className="mt-1.5 text-[9px] text-cinza">Esse valor entra no total da venda, mas não cria produto nem movimenta estoque.</p>
         </div>
 
         <div className="mt-3 border-t border-rosa/10 pt-3">
           <label className="text-[10px] font-bold uppercase text-cinza">Desconto em R$</label>
-          <input
-            value={discount}
-            onChange={(event) => setDiscount(event.target.value)}
-            inputMode="decimal"
-            className="mt-1 w-full rounded-xl border border-rosa/15 px-3 py-2 text-sm"
-          />
+          <input value={discount} onChange={(event) => setDiscount(event.target.value)} inputMode="decimal" className="mt-1 w-full rounded-xl border border-rosa/15 px-3 py-2 text-sm" />
         </div>
 
         <div className="mt-3 rounded-xl bg-creme/60 p-3 text-sm">
-          <div className="flex justify-between">
-            <span className="text-cinza">Subtotal</span>
-            <strong>{money(subtotal)}</strong>
-          </div>
-          {discountValue > 0 && (
-            <div className="mt-1 flex justify-between">
-              <span className="text-cinza">Desconto</span>
-              <strong>- {money(discountValue)}</strong>
-            </div>
-          )}
-          <div className="mt-2 flex justify-between border-t border-rosa/10 pt-2 text-lg">
-            <span className="font-bold">Total</span>
-            <strong className="text-rosa-profundo">{money(total)}</strong>
-          </div>
+          <div className="flex justify-between"><span className="text-cinza">Produtos</span><strong>{money(productsSubtotal)}</strong></div>
+          {miscValue > 0 && <div className="mt-1 flex justify-between"><span className="text-cinza">Diversos</span><strong>+ {money(miscValue)}</strong></div>}
+          {miscValue > 0 && <div className="mt-1 flex justify-between border-t border-rosa/10 pt-1"><span className="text-cinza">Subtotal</span><strong>{money(subtotal)}</strong></div>}
+          {discountValue > 0 && <div className="mt-1 flex justify-between"><span className="text-cinza">Desconto</span><strong>- {money(discountValue)}</strong></div>}
+          <div className="mt-2 flex justify-between border-t border-rosa/10 pt-2 text-lg"><span className="font-bold">Total</span><strong className="text-rosa-profundo">{money(total)}</strong></div>
         </div>
 
         <div className="mt-3">
@@ -659,21 +631,9 @@ export function CounterSaleForm({
                 key={method}
                 type="button"
                 onClick={() => setPayment(method)}
-                className={`rounded-xl border px-3 py-2.5 text-xs font-bold ${
-                  paymentMethod === method
-                    ? "border-rosa-profundo bg-rosa-profundo text-white"
-                    : "border-rosa/15 text-cinza"
-                }`}
+                className={`rounded-xl border px-3 py-2.5 text-xs font-bold ${paymentMethod === method ? "border-rosa-profundo bg-rosa-profundo text-white" : "border-rosa/15 text-cinza"}`}
               >
-                {method === "DEBITO"
-                  ? "Débito"
-                  : method === "CREDITO"
-                    ? "Crédito"
-                    : method === "DINHEIRO"
-                      ? "Dinheiro"
-                      : method === "LINK"
-                        ? "Link de pagamento"
-                        : "Pix"}
+                {method === "DEBITO" ? "Débito" : method === "CREDITO" ? "Crédito" : method === "DINHEIRO" ? "Dinheiro" : method === "LINK" ? "Link de pagamento" : "Pix"}
               </button>
             ))}
           </div>
@@ -682,44 +642,16 @@ export function CounterSaleForm({
         {paymentMethod === "DINHEIRO" && (
           <div className="mt-3 rounded-xl border border-rosa/15 p-3">
             <label className="text-[10px] font-bold uppercase text-cinza">Valor recebido</label>
-            <input
-              value={cashReceived}
-              onChange={(event) => setCashReceived(event.target.value)}
-              inputMode="decimal"
-              placeholder="0,00"
-              className="mt-1 w-full rounded-xl border border-rosa/15 px-3 py-2.5 text-base font-bold"
-            />
+            <input value={cashReceived} onChange={(event) => setCashReceived(event.target.value)} inputMode="decimal" placeholder="0,00" className="mt-1 w-full rounded-xl border border-rosa/15 px-3 py-2.5 text-base font-bold" />
             <div className="mt-2 flex flex-wrap gap-1.5">
-              <button
-                type="button"
-                onClick={() => setReceivedPreset(total)}
-                className="rounded-lg bg-creme px-2 py-1.5 text-[10px] font-bold"
-              >
-                Valor exato
-              </button>
+              <button type="button" onClick={() => setReceivedPreset(total)} className="rounded-lg bg-creme px-2 py-1.5 text-[10px] font-bold">Valor exato</button>
               {[5, 10, 20].map((extra) => (
-                <button
-                  key={extra}
-                  type="button"
-                  onClick={() => setReceivedPreset(total + extra)}
-                  className="rounded-lg bg-creme px-2 py-1.5 text-[10px] font-bold"
-                >
-                  + R$ {extra}
-                </button>
+                <button key={extra} type="button" onClick={() => setReceivedPreset(total + extra)} className="rounded-lg bg-creme px-2 py-1.5 text-[10px] font-bold">+ R$ {extra}</button>
               ))}
             </div>
-            <div
-              className={`mt-3 rounded-lg px-3 py-2 ${
-                cashShort ? "bg-red-50 text-red-700" : "bg-green-50 text-green-700"
-              }`}
-            >
-              {cashShort ? (
-                <p className="text-xs font-bold">Faltam {money(Math.max(0, total - receivedValue))}</p>
-              ) : (
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold">Troco</span>
-                  <strong className="text-lg">{money(change)}</strong>
-                </div>
+            <div className={`mt-3 rounded-lg px-3 py-2 ${cashShort ? "bg-red-50 text-red-700" : "bg-green-50 text-green-700"}`}>
+              {cashShort ? <p className="text-xs font-bold">Faltam {money(Math.max(0, total - receivedValue))}</p> : (
+                <div className="flex items-center justify-between"><span className="text-xs font-bold">Troco</span><strong className="text-lg">{money(change)}</strong></div>
               )}
             </div>
           </div>
@@ -728,38 +660,23 @@ export function CounterSaleForm({
         {paymentNeedsProvider && (
           <div className="mt-3 rounded-xl border border-rosa/15 p-3">
             {providers.length === 0 ? (
-              <div className="rounded-lg bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
-                Nenhuma operadora ativa. <a href="/admin/loja" className="font-bold underline">Configure em Loja → Pagamentos e taxas</a> antes de finalizar no cartão.
-              </div>
+              <div className="rounded-lg bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">Nenhuma operadora ativa. <a href="/admin/loja" className="font-bold underline">Configure em Loja → Pagamentos e taxas</a> antes de finalizar no cartão.</div>
             ) : (
               <>
                 <label className="text-[10px] font-bold uppercase text-cinza">Operadora / banco</label>
                 <select
                   value={selectedProviderId}
-                  onChange={(event) => {
-                    setSelectedProviderId(event.target.value);
-                    setInstallments(1);
-                  }}
+                  onChange={(event) => { setSelectedProviderId(event.target.value); setInstallments(1); }}
                   className="mt-1 w-full rounded-xl border border-rosa/15 bg-white px-3 py-2.5 text-sm font-bold text-texto"
                 >
-                  {providers.map((provider) => (
-                    <option key={provider.id} value={provider.id}>{provider.name}</option>
-                  ))}
+                  {providers.map((provider) => <option key={provider.id} value={provider.id}>{provider.name}</option>)}
                 </select>
 
                 {(paymentMethod === "CREDITO" || paymentMethod === "LINK") && (
                   <div className="mt-3">
                     <label className="text-[10px] font-bold uppercase text-cinza">Parcelas</label>
-                    <select
-                      value={installments}
-                      onChange={(event) => setInstallments(Number(event.target.value))}
-                      className="mt-1 w-full rounded-xl border border-rosa/15 bg-white px-3 py-2.5 text-sm font-bold text-texto"
-                    >
-                      {installmentOptions.map((value) => (
-                        <option key={value} value={value}>
-                          {value}x de {money(total / value)}
-                        </option>
-                      ))}
+                    <select value={installments} onChange={(event) => setInstallments(Number(event.target.value))} className="mt-1 w-full rounded-xl border border-rosa/15 bg-white px-3 py-2.5 text-sm font-bold text-texto">
+                      {installmentOptions.map((value) => <option key={value} value={value}>{value}x de {money(total / value)}</option>)}
                     </select>
                   </div>
                 )}
@@ -771,9 +688,7 @@ export function CounterSaleForm({
                   <div className="mt-2 border-t border-rosa/10 pt-2 text-[10px] font-bold">
                     {paymentMethod === "LINK"
                       ? `A receber${paymentRule.settlementDays > 0 ? ` · previsão em ${paymentRule.settlementDays} dia(s)` : ""}`
-                      : paymentRule.settlementDays > 0
-                        ? `A receber em ${paymentRule.settlementDays} dia(s)`
-                        : "Recebido na hora"}
+                      : paymentRule.settlementDays > 0 ? `A receber em ${paymentRule.settlementDays} dia(s)` : "Recebido na hora"}
                   </div>
                 </div>
               </>
@@ -782,46 +697,17 @@ export function CounterSaleForm({
         )}
 
         <details className="mt-3 rounded-xl border border-rosa/10 p-3" open={Boolean(initialSale)}>
-          <summary className="cursor-pointer text-xs font-bold text-texto">
-            Cliente e observações (opcional)
-          </summary>
+          <summary className="cursor-pointer text-xs font-bold text-texto">Cliente e observações (opcional)</summary>
           <div className="mt-3 grid gap-2">
-            <input
-              value={customerName}
-              onChange={(event) => setCustomerName(event.target.value)}
-              placeholder="Nome do cliente"
-              className="rounded-xl border border-rosa/15 px-3 py-2 text-xs"
-            />
-            <input
-              value={customerPhone}
-              onChange={(event) => setCustomerPhone(event.target.value)}
-              placeholder="Telefone/WhatsApp"
-              inputMode="tel"
-              className="rounded-xl border border-rosa/15 px-3 py-2 text-xs"
-            />
-            <textarea
-              value={notes}
-              onChange={(event) => setNotes(event.target.value)}
-              placeholder="Observações da venda"
-              rows={2}
-              className="rounded-xl border border-rosa/15 px-3 py-2 text-xs"
-            />
+            <input value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder="Nome do cliente" className="rounded-xl border border-rosa/15 px-3 py-2 text-xs" />
+            <input value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} placeholder="Telefone/WhatsApp" inputMode="tel" className="rounded-xl border border-rosa/15 px-3 py-2 text-xs" />
+            <textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Observações da venda" rows={2} className="rounded-xl border border-rosa/15 px-3 py-2 text-xs" />
           </div>
         </details>
 
-        {error && (
-          <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">
-            {error}
-          </p>
-        )}
+        {error && <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{error}</p>}
 
-        <div
-          className={
-            mobile
-              ? "sticky bottom-0 -mx-4 mt-4 border-t border-rosa/10 bg-white px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3"
-              : ""
-          }
-        >
+        <div className={mobile ? "sticky bottom-0 -mx-4 mt-4 border-t border-rosa/10 bg-white px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3" : ""}>
           <button
             type="button"
             disabled={saving || cart.length === 0 || cashShort || (paymentNeedsProvider && providers.length === 0)}
@@ -830,9 +716,7 @@ export function CounterSaleForm({
           >
             {saving ? "Finalizando..." : `Finalizar venda · ${money(total)}`}
           </button>
-          <p className="mt-2 text-center text-[10px] text-cinza">
-            Estoque baixado e venda registrada ao finalizar.
-          </p>
+          <p className="mt-2 text-center text-[10px] text-cinza">Estoque baixado e venda registrada ao finalizar.</p>
         </div>
       </div>
     );
@@ -843,9 +727,7 @@ export function CounterSaleForm({
       {initialSale && (
         <div className="mb-4 rounded-2xl border border-rosa/20 bg-white p-4 shadow-sm">
           <p className="text-xs font-extrabold text-rosa-profundo">Pedido #{initialSale.orderNumber} carregado na venda</p>
-          <p className="mt-1 text-[11px] leading-5 text-cinza">
-            Revise os itens, acrescente o que foi combinado no WhatsApp e escolha o pagamento antes de finalizar. O pedido original permanece no histórico.
-          </p>
+          <p className="mt-1 text-[11px] leading-5 text-cinza">Revise os itens, acrescente o que foi combinado no WhatsApp e escolha o pagamento antes de finalizar. O pedido original permanece no histórico.</p>
         </div>
       )}
 
@@ -854,9 +736,7 @@ export function CounterSaleForm({
           <div className="sticky top-0 z-20 rounded-t-2xl border-b border-rosa/10 bg-white/95 p-3 backdrop-blur sm:p-4">
             <label className="sr-only">Buscar produto, marca, SKU ou EAN</label>
             <div className="relative">
-              <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-cinza">
-                ⌕
-              </span>
+              <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-cinza">⌕</span>
               <input
                 ref={searchRef}
                 autoFocus
@@ -871,53 +751,17 @@ export function CounterSaleForm({
                 placeholder="Buscar produto, marca, SKU ou EAN"
                 className="w-full rounded-xl border border-rosa/20 py-3 pl-9 pr-10 text-sm outline-none focus:border-rosa-profundo"
               />
-              {query && (
-                <button
-                  type="button"
-                  onClick={clearSearch}
-                  aria-label="Limpar busca"
-                  className="absolute inset-y-0 right-2 my-auto flex h-8 w-8 items-center justify-center rounded-full text-lg text-cinza hover:bg-creme"
-                >
-                  ×
-                </button>
-              )}
+              {query && <button type="button" onClick={clearSearch} aria-label="Limpar busca" className="absolute inset-y-0 right-2 my-auto flex h-8 w-8 items-center justify-center rounded-full text-lg text-cinza hover:bg-creme">×</button>}
             </div>
-            <p className="mt-1 hidden text-[10px] text-cinza sm:block">
-              EAN/SKU exato + Enter adiciona. A busca permanece para incluir novamente sem pesquisar de novo.
-            </p>
+            <p className="mt-1 hidden text-[10px] text-cinza sm:block">EAN/SKU exato + Enter adiciona. A busca permanece para incluir novamente sem pesquisar de novo.</p>
 
             <div className="mt-2 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {favoriteIds.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("FAVORITOS")}
-                  className={`whitespace-nowrap rounded-full px-3 py-2 text-[11px] font-bold ${
-                    activeTab === "FAVORITOS" ? "bg-rosa-profundo text-white" : "bg-creme text-cinza"
-                  }`}
-                >
-                  ★ Favoritos
-                </button>
+                <button type="button" onClick={() => setActiveTab("FAVORITOS")} className={`whitespace-nowrap rounded-full px-3 py-2 text-[11px] font-bold ${activeTab === "FAVORITOS" ? "bg-rosa-profundo text-white" : "bg-creme text-cinza"}`}>★ Favoritos</button>
               )}
-              <button
-                type="button"
-                onClick={() => setActiveTab("TODOS")}
-                className={`whitespace-nowrap rounded-full px-3 py-2 text-[11px] font-bold ${
-                  activeTab === "TODOS" ? "bg-rosa-profundo text-white" : "bg-creme text-cinza"
-                }`}
-              >
-                Todos
-              </button>
+              <button type="button" onClick={() => setActiveTab("TODOS")} className={`whitespace-nowrap rounded-full px-3 py-2 text-[11px] font-bold ${activeTab === "TODOS" ? "bg-rosa-profundo text-white" : "bg-creme text-cinza"}`}>Todos</button>
               {categories.map((category) => (
-                <button
-                  key={category.id}
-                  type="button"
-                  onClick={() => setActiveTab(category.id)}
-                  className={`whitespace-nowrap rounded-full px-3 py-2 text-[11px] font-bold ${
-                    activeTab === category.id ? "bg-rosa-profundo text-white" : "bg-creme text-cinza"
-                  }`}
-                >
-                  {category.name}
-                </button>
+                <button key={category.id} type="button" onClick={() => setActiveTab(category.id)} className={`whitespace-nowrap rounded-full px-3 py-2 text-[11px] font-bold ${activeTab === category.id ? "bg-rosa-profundo text-white" : "bg-creme text-cinza"}`}>{category.name}</button>
               ))}
             </div>
           </div>
@@ -925,11 +769,7 @@ export function CounterSaleForm({
           <div className="p-3 sm:p-4">
             <div className="mb-2 flex items-center justify-between gap-3">
               <p className="text-xs font-bold text-texto">
-                {activeTab === "FAVORITOS"
-                  ? "Favoritos"
-                  : activeTab === "TODOS"
-                    ? "Todos os produtos"
-                    : categories.find((category) => category.id === activeTab)?.name ?? "Produtos"}
+                {activeTab === "FAVORITOS" ? "Favoritos" : activeTab === "TODOS" ? "Todos os produtos" : categories.find((category) => category.id === activeTab)?.name ?? "Produtos"}
               </p>
               <span className="text-[10px] text-cinza">{filtered.length} encontrado(s)</span>
             </div>
@@ -941,84 +781,29 @@ export function CounterSaleForm({
                 const quantityInSale = cartQtyByProduct.get(product.id) ?? 0;
 
                 return (
-                  <article
-                    key={product.id}
-                    className={`relative overflow-hidden rounded-xl border bg-white ${
-                      available > 0 ? "border-rosa/10" : "border-gray-200 opacity-60"
-                    }`}
-                  >
-                    <button
-                      type="button"
-                      disabled={available <= 0}
-                      onClick={() => chooseProduct(product)}
-                      aria-label={`Selecionar ${product.name}`}
-                      className="absolute inset-0 z-0 disabled:cursor-not-allowed"
-                    />
-
-                    <button
-                      type="button"
-                      onClick={() => toggleFavorite(product.id)}
-                      aria-label={isFavorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}
-                      className="absolute right-2 top-2 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-white/95 text-base text-rosa-profundo shadow"
-                    >
-                      {isFavorite ? "★" : "☆"}
-                    </button>
+                  <article key={product.id} className={`relative overflow-hidden rounded-xl border bg-white ${available > 0 ? "border-rosa/10" : "border-gray-200 opacity-60"}`}>
+                    <button type="button" disabled={available <= 0} onClick={() => chooseProduct(product)} aria-label={`Selecionar ${product.name}`} className="absolute inset-0 z-0 disabled:cursor-not-allowed" />
+                    <button type="button" onClick={() => toggleFavorite(product.id)} aria-label={isFavorite ? "Remover dos favoritos" : "Adicionar aos favoritos"} className="absolute right-2 top-2 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-white/95 text-base text-rosa-profundo shadow">{isFavorite ? "★" : "☆"}</button>
 
                     <div className="pointer-events-none relative z-[1]">
                       <div className="aspect-[4/3] w-full bg-creme/70">
-                        {product.imageUrl ? (
-                          <img
-                            src={product.imageUrl}
-                            alt={product.name}
-                            loading="lazy"
-                            className="h-full w-full object-contain p-2"
-                          />
-                        ) : (
-                          <div className="flex h-full items-center justify-center text-[10px] font-semibold text-cinza">
-                            Sem foto
-                          </div>
-                        )}
+                        {product.imageUrl ? <img src={product.imageUrl} alt={product.name} loading="lazy" className="h-full w-full object-contain p-2" /> : <div className="flex h-full items-center justify-center text-[10px] font-semibold text-cinza">Sem foto</div>}
                       </div>
                       <div className="p-2.5 pb-12">
-                        <p className="line-clamp-2 min-h-9 text-xs font-bold leading-4 text-texto">
-                          {product.name}
-                        </p>
+                        <p className="line-clamp-2 min-h-9 text-xs font-bold leading-4 text-texto">{product.name}</p>
                         <p className="mt-0.5 truncate text-[10px] text-cinza">{product.brand}</p>
                         <div className="mt-2 flex items-end justify-between gap-1">
-                          <span className="text-sm font-extrabold text-rosa-profundo">
-                            {money(productPrice(product))}
-                          </span>
-                          <span
-                            className={`text-[9px] font-bold ${
-                              available > 0 ? "text-green-700" : "text-red-600"
-                            }`}
-                          >
-                            {available > 0 ? `Est. ${available}` : "Sem estoque"}
-                          </span>
+                          <span className="text-sm font-extrabold text-rosa-profundo">{money(productPrice(product))}</span>
+                          <span className={`text-[9px] font-bold ${available > 0 ? "text-green-700" : "text-red-600"}`}>{available > 0 ? `Est. ${available}` : "Sem estoque"}</span>
                         </div>
-                        {product.variants.length > 1 && available > 0 && (
-                          <p className="mt-1.5 text-[9px] font-bold text-rosa-profundo">
-                            Escolher entre {product.variants.length} opções
-                          </p>
-                        )}
+                        {product.variants.length > 1 && available > 0 && <p className="mt-1.5 text-[9px] font-bold text-rosa-profundo">Escolher entre {product.variants.length} opções</p>}
                       </div>
                     </div>
 
                     {available > 0 && (
                       <>
-                        {quantityInSale > 0 && (
-                          <span className="absolute bottom-3 left-2.5 z-20 rounded-full bg-rosa/10 px-2 py-1 text-[9px] font-extrabold text-rosa-profundo">
-                            {quantityInSale} na venda
-                          </span>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => chooseProduct(product)}
-                          aria-label={`Adicionar mais uma unidade de ${product.name}`}
-                          className="absolute bottom-2 right-2 z-20 flex h-9 w-9 items-center justify-center rounded-full bg-rosa-profundo text-xl font-bold leading-none text-white shadow-md active:scale-95"
-                        >
-                          +
-                        </button>
+                        {quantityInSale > 0 && <span className="absolute bottom-3 left-2.5 z-20 rounded-full bg-rosa/10 px-2 py-1 text-[9px] font-extrabold text-rosa-profundo">{quantityInSale} na venda</span>}
+                        <button type="button" onClick={() => chooseProduct(product)} aria-label={`Adicionar mais uma unidade de ${product.name}`} className="absolute bottom-2 right-2 z-20 flex h-9 w-9 items-center justify-center rounded-full bg-rosa-profundo text-xl font-bold leading-none text-white shadow-md active:scale-95">+</button>
                       </>
                     )}
                   </article>
@@ -1026,69 +811,35 @@ export function CounterSaleForm({
               })}
             </div>
 
-            {filtered.length === 0 && (
-              <div className="rounded-xl border border-dashed border-rosa/20 p-8 text-center text-xs text-cinza">
-                Nenhum produto encontrado nesta seção.
-              </div>
-            )}
+            {filtered.length === 0 && <div className="rounded-xl border border-dashed border-rosa/20 p-8 text-center text-xs text-cinza">Nenhum produto encontrado nesta seção.</div>}
 
             {visibleCount < filtered.length && (
               <div className="mt-4 flex justify-center">
-                <button
-                  type="button"
-                  onClick={() => setVisibleCount((current) => current + PAGE_SIZE)}
-                  className="rounded-full border border-rosa-profundo/20 bg-white px-5 py-2.5 text-xs font-bold text-rosa-profundo"
-                >
-                  Carregar mais produtos
-                </button>
+                <button type="button" onClick={() => setVisibleCount((current) => current + PAGE_SIZE)} className="rounded-full border border-rosa-profundo/20 bg-white px-5 py-2.5 text-xs font-bold text-rosa-profundo">Carregar mais produtos</button>
               </div>
             )}
           </div>
         </section>
 
-        <aside className="hidden h-fit rounded-2xl bg-white p-4 shadow-sm lg:sticky lg:top-4 lg:block">
-          {renderSalePanel(false)}
-        </aside>
+        <aside className="hidden h-fit rounded-2xl bg-white p-4 shadow-sm lg:sticky lg:top-4 lg:block">{renderSalePanel(false)}</aside>
       </div>
 
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-rosa/15 bg-white/95 px-3 pb-[calc(0.65rem+env(safe-area-inset-bottom))] pt-2.5 shadow-[0_-8px_24px_rgba(35,20,42,0.08)] backdrop-blur lg:hidden">
         <div className="mx-auto flex max-w-lg items-center gap-3">
-          <button
-            type="button"
-            onClick={() => setCartOpen(true)}
-            className="flex min-w-0 flex-1 items-center gap-3 text-left"
-          >
+          <button type="button" onClick={() => setCartOpen(true)} className="flex min-w-0 flex-1 items-center gap-3 text-left">
             <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-creme text-lg">
               🛍️
-              {itemCount > 0 && (
-                <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-rosa-profundo px-1 text-[9px] font-bold text-white">
-                  {itemCount}
-                </span>
-              )}
+              {itemCount > 0 && <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-rosa-profundo px-1 text-[9px] font-bold text-white">{itemCount}</span>}
             </div>
-            <div className="min-w-0">
-              <p className="text-[10px] text-cinza">{itemCount} item(ns)</p>
-              <p className="truncate text-sm font-extrabold text-rosa-profundo">{money(total)}</p>
-            </div>
+            <div className="min-w-0"><p className="text-[10px] text-cinza">{itemCount} item(ns)</p><p className="truncate text-sm font-extrabold text-rosa-profundo">{money(total)}</p></div>
           </button>
-          <button
-            type="button"
-            onClick={() => setCartOpen(true)}
-            className="shrink-0 rounded-xl bg-rosa-profundo px-5 py-3 text-xs font-bold text-white"
-          >
-            Ver venda
-          </button>
+          <button type="button" onClick={() => setCartOpen(true)} className="shrink-0 rounded-xl bg-rosa-profundo px-5 py-3 text-xs font-bold text-white">Ver venda</button>
         </div>
       </div>
 
       {cartOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
-          <button
-            type="button"
-            aria-label="Fechar venda atual"
-            onClick={() => setCartOpen(false)}
-            className="absolute inset-0 bg-black/35"
-          />
+          <button type="button" aria-label="Fechar venda atual" onClick={() => setCartOpen(false)} className="absolute inset-0 bg-black/35" />
           <section className="absolute inset-x-0 bottom-0 flex max-h-[90dvh] flex-col rounded-t-3xl bg-white p-4 shadow-2xl">
             <div className="mx-auto mb-3 h-1 w-12 rounded-full bg-gray-300" />
             <div className="min-h-0 overflow-y-auto">{renderSalePanel(true)}</div>
@@ -1098,42 +849,20 @@ export function CounterSaleForm({
 
       {variantPicker && (
         <div className="fixed inset-0 z-[60]">
-          <button
-            type="button"
-            aria-label="Fechar seleção de variação"
-            onClick={() => setVariantPicker(null)}
-            className="absolute inset-0 bg-black/35"
-          />
+          <button type="button" aria-label="Fechar seleção de variação" onClick={() => setVariantPicker(null)} className="absolute inset-0 bg-black/35" />
           <section className="absolute inset-x-0 bottom-0 mx-auto max-h-[80dvh] max-w-lg overflow-y-auto rounded-t-3xl bg-white p-4 shadow-2xl sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:w-[min(92vw,520px)] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl">
             <div className="flex items-start gap-3">
               <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-creme">
-                {variantPicker.imageUrl ? (
-                  <img
-                    src={variantPicker.imageUrl}
-                    alt={variantPicker.name}
-                    className="h-full w-full object-contain p-1.5"
-                  />
-                ) : (
-                  <div className="flex h-full items-center justify-center text-[9px] text-cinza">
-                    Sem foto
-                  </div>
-                )}
+                {variantPicker.imageUrl ? <img src={variantPicker.imageUrl} alt={variantPicker.name} className="h-full w-full object-contain p-1.5" /> : <div className="flex h-full items-center justify-center text-[9px] text-cinza">Sem foto</div>}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-[10px] font-bold uppercase tracking-wide text-rosa-profundo">
-                  Escolha a opção
-                </p>
+                <p className="text-[10px] font-bold uppercase tracking-wide text-rosa-profundo">Escolha a opção</p>
                 <h3 className="mt-1 text-sm font-bold text-texto">{variantPicker.name}</h3>
                 <p className="mt-0.5 text-[10px] text-cinza">{variantPicker.brand}</p>
               </div>
-              <button
-                type="button"
-                onClick={() => setVariantPicker(null)}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-rosa/10 text-lg text-cinza"
-              >
-                ×
-              </button>
+              <button type="button" onClick={() => setVariantPicker(null)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-rosa/10 text-lg text-cinza">×</button>
             </div>
+
             <div className="mt-4 grid gap-2 sm:grid-cols-2">
               {variantPicker.variants.map((variant) => {
                 const lineKey = `${variantPicker.id}:${variant.id}`;
@@ -1146,21 +875,8 @@ export function CounterSaleForm({
                     onClick={() => addLine(variantPicker, variant)}
                     className="flex items-center justify-between gap-3 rounded-xl border border-rosa/15 px-3 py-3 text-left disabled:cursor-not-allowed disabled:bg-gray-50 disabled:opacity-50"
                   >
-                    <div className="min-w-0">
-                      <p className="truncate text-xs font-bold text-texto">{variant.name}</p>
-                      <p className="mt-0.5 text-[10px] text-cinza">
-                        Estoque {variant.stockQty}
-                        {currentQty > 0 ? ` · ${currentQty} na venda` : ""}
-                      </p>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      <strong className="text-xs text-rosa-profundo">
-                        {money(productPrice(variantPicker))}
-                      </strong>
-                      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-rosa-profundo text-base font-bold text-white">
-                        +
-                      </span>
-                    </div>
+                    <div className="min-w-0"><p className="truncate text-xs font-bold text-texto">{variant.name}</p><p className="mt-0.5 text-[10px] text-cinza">Estoque {variant.stockQty}{currentQty > 0 ? ` · ${currentQty} na venda` : ""}</p></div>
+                    <div className="flex shrink-0 items-center gap-2"><strong className="text-xs text-rosa-profundo">{money(productPrice(variantPicker))}</strong><span className="flex h-7 w-7 items-center justify-center rounded-full bg-rosa-profundo text-base font-bold text-white">+</span></div>
                   </button>
                 );
               })}
