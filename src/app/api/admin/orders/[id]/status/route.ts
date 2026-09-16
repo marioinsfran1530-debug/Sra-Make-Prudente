@@ -2,7 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin-auth";
 import { confirmOrder, cancelOrder, OrderError } from "@/lib/order-transactions";
-import { canTransitionOrder, isClosedOrderStatus, isValidOrderStatus } from "@/lib/order-rules";
+import { canTransitionOrder, isValidOrderStatus } from "@/lib/order-rules";
+import {
+  cancelReasonLabel,
+  isOrderCancelReasonCode,
+  isRefundStatus,
+  type RefundStatus,
+} from "@/lib/order-cancellation";
 import { notifyOrderStatus } from "@/lib/order-push";
 import { syncCrmFromOrderStatus } from "@/lib/crm-order-sync";
 
@@ -33,9 +39,7 @@ async function snapshotOrderCosts(orderId: string) {
     })
     .filter((update): update is NonNullable<typeof update> => Boolean(update));
 
-  if (updates.length > 0) {
-    await prisma.$transaction(updates);
-  }
+  if (updates.length > 0) await prisma.$transaction(updates);
 }
 
 export async function PATCH(
@@ -43,27 +47,44 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { error, status } = await requireAdmin("EDITOR");
+  const { session, error, status } = await requireAdmin("EDITOR");
+  if (error || !session) return NextResponse.json({ error }, { status });
 
-  if (error) return NextResponse.json({ error }, { status });
+  let body: Record<string, unknown>;
+  try {
+    body = (await request.json()) as Record<string, unknown>;
+  } catch {
+    return NextResponse.json({ error: "Dados inválidos." }, { status: 400 });
+  }
 
   const currentOrder = await prisma.order.findUnique({
     where: { id },
-    select: { status: true },
+    select: { status: true, total: true, refundStatus: true },
   });
 
   if (!currentOrder) {
     return NextResponse.json({ error: "Pedido não encontrado." }, { status: 404 });
   }
 
-  if (isClosedOrderStatus(currentOrder.status)) {
-    return NextResponse.json(
-      { error: "Este pedido já foi encerrado e não pode mais ser alterado." },
-      { status: 409 }
-    );
-  }
+  // Atualização posterior do controle de estorno/devolução.
+  if (body.action === "refund") {
+    if (currentOrder.status !== "CANCELADO") {
+      return NextResponse.json({ error: "O estorno só pode ser atualizado em uma venda cancelada." }, { status: 409 });
+    }
+    if (!isRefundStatus(body.refundStatus)) {
+      return NextResponse.json({ error: "Status de estorno inválido." }, { status: 400 });
+    }
 
-  const body = await request.json();
+    const refundStatus = body.refundStatus as RefundStatus;
+    const order = await prisma.order.update({
+      where: { id },
+      data: {
+        refundStatus,
+        refundUpdatedAt: refundStatus === "REFUNDED" ? new Date() : null,
+      },
+    });
+    return NextResponse.json({ order });
+  }
 
   if (!isValidOrderStatus(body.status)) {
     return NextResponse.json({ error: "Status inválido." }, { status: 400 });
@@ -73,7 +94,20 @@ export async function PATCH(
     return NextResponse.json({ error: "O pedido já está neste status." }, { status: 409 });
   }
 
-  if (!canTransitionOrder(currentOrder.status, body.status)) {
+  const cancellingFinalized = currentOrder.status === "FINALIZADO" && body.status === "CANCELADO";
+
+  if (currentOrder.status === "CANCELADO") {
+    return NextResponse.json({ error: "Este pedido já foi cancelado e não pode mais ser alterado." }, { status: 409 });
+  }
+
+  if (currentOrder.status === "FINALIZADO" && !cancellingFinalized) {
+    return NextResponse.json(
+      { error: "Uma venda finalizada só pode ser revertida por cancelamento auditado." },
+      { status: 409 }
+    );
+  }
+
+  if (!cancellingFinalized && !canTransitionOrder(currentOrder.status, body.status)) {
     return NextResponse.json({ error: "Esta mudança de status não é permitida." }, { status: 409 });
   }
 
@@ -82,14 +116,50 @@ export async function PATCH(
     if (body.status === "CONFIRMADO") {
       order = await confirmOrder(id);
     } else if (body.status === "CANCELADO") {
-      order = await cancelOrder(id);
+      if (!isOrderCancelReasonCode(body.cancelReasonCode)) {
+        return NextResponse.json({ error: "Informe o motivo do cancelamento." }, { status: 400 });
+      }
+
+      const reasonText = typeof body.cancelReasonText === "string"
+        ? body.cancelReasonText.trim().slice(0, 500)
+        : "";
+      if (body.cancelReasonCode === "OTHER" && reasonText.length < 3) {
+        return NextResponse.json({ error: "Descreva o motivo do cancelamento." }, { status: 400 });
+      }
+
+      const refundStatus: RefundStatus = cancellingFinalized
+        ? (isRefundStatus(body.refundStatus) ? body.refundStatus : "PENDING")
+        : "NOT_REQUIRED";
+
+      order = await cancelOrder(id, {
+        reasonCode: body.cancelReasonCode,
+        reasonText,
+        cancelledById: session.id,
+        refundStatus,
+      });
+
+      if (cancellingFinalized) {
+        await prisma.analyticsEvent.create({
+          data: {
+            event: "order_cancelled",
+            sessionId: order.sessionId ?? `order:${order.id}`,
+            value: order.total,
+            context: `pedido:${order.number};motivo:${cancelReasonLabel(body.cancelReasonCode)}`,
+            origin: order.origin,
+            landingPage: order.landingPage,
+            utmSource: order.utmSource,
+            utmMedium: order.utmMedium,
+            utmCampaign: order.utmCampaign,
+            utmContent: order.utmContent,
+          },
+        });
+      }
     } else {
       order = await prisma.order.update({ where: { id }, data: { status: body.status } });
     }
 
     if (body.status === "FINALIZADO") {
       await snapshotOrderCosts(id);
-
       await prisma.analyticsEvent.create({
         data: {
           event: "order_finalized",

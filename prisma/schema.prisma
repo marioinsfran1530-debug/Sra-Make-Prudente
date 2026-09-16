@@ -175,15 +175,15 @@ model Customer {
   phone            String           @unique
   marketingConsent Boolean          @default(false)
   source           String?
-  notes            String?
-  lastContactAt    DateTime?
-  orders           Order[]
-  leads            CrmLead[]
-  followUps        CrmFollowUp[]
-  tags             CustomerTag[]
-  interactions     CrmInteraction[]
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+  notes             String?
+  lastContactAt     DateTime?
+  orders            Order[]
+  leads             CrmLead[]
+  followUps         CrmFollowUp[]
+  tags              CustomerTag[]
+  interactions      CrmInteraction[]
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
 
   @@index([lastContactAt])
 }
@@ -321,41 +321,50 @@ enum order_status {
 }
 
 model Order {
-  id              String @id @default(cuid())
-  number          Int    @unique @default(autoincrement())
-  customerName    String
-  customerPhone   String
-  customerId      String?
-  customer        Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  subtotal        Decimal @db.Decimal(10, 2)
-  discount        Decimal @default(0) @db.Decimal(10, 2)
-  deliveryFee     Decimal @default(0) @db.Decimal(10, 2)
-  total           Decimal @db.Decimal(10, 2)
-  deliveryType    delivery_type
-  address         String?
-  payment         payment_method
-  payments        OrderPayment[]
-  channel         order_channel @default(CATALOGO)
-  createdById     String?
-  createdBy       AdminProfile? @relation(fields: [createdById], references: [id], onDelete: SetNull)
-  notes           String?
-  origin          String?
-  referrer        String?
-  landingPage     String?
-  utmSource       String?
-  utmMedium       String?
-  utmCampaign     String?
-  utmContent      String?
-  sessionId       String?
-  status          order_status @default(NOVO)
-  items           OrderItem[]
-  crmInteractions CrmInteraction[]
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id               String @id @default(cuid())
+  number           Int    @unique @default(autoincrement())
+  customerName     String
+  customerPhone    String
+  customerId       String?
+  customer         Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  subtotal         Decimal @db.Decimal(10, 2)
+  discount         Decimal @default(0) @db.Decimal(10, 2)
+  deliveryFee      Decimal @default(0) @db.Decimal(10, 2)
+  total            Decimal @db.Decimal(10, 2)
+  deliveryType     delivery_type
+  address          String?
+  payment          payment_method
+  payments         OrderPayment[]
+  channel          order_channel @default(CATALOGO)
+  createdById      String?
+  createdBy        AdminProfile? @relation("OrderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  cancelReasonCode String?
+  cancelReasonText String?
+  cancelledAt      DateTime?
+  cancelledById    String?
+  cancelledBy      AdminProfile? @relation("OrderCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
+  refundStatus     String?
+  refundUpdatedAt  DateTime?
+  notes            String?
+  origin           String?
+  referrer         String?
+  landingPage      String?
+  utmSource        String?
+  utmMedium        String?
+  utmCampaign      String?
+  utmContent       String?
+  sessionId        String?
+  status           order_status @default(NOVO)
+  items            OrderItem[]
+  crmInteractions  CrmInteraction[]
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   @@index([channel, createdAt])
   @@index([createdById, createdAt])
   @@index([customerId, createdAt])
+  @@index([cancelledAt])
+  @@index([refundStatus])
 }
 
 model OrderPayment {
@@ -429,7 +438,8 @@ model AdminProfile {
   name                   String?
   role                   admin_role       @default(EDITOR)
   active                 Boolean          @default(true)
-  orders                 Order[]
+  orders                 Order[]          @relation("OrderCreatedBy")
+  ordersCancelled        Order[]          @relation("OrderCancelledBy")
   crmLeadsAssigned       CrmLead[]        @relation("CrmLeadAssignee")
   crmFollowUpsCreated    CrmFollowUp[]    @relation("CrmFollowUpCreator")
   crmInteractionsCreated CrmInteraction[]

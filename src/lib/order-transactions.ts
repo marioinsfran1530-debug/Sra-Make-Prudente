@@ -1,9 +1,17 @@
 import { prisma } from "@/lib/prisma";
 import { stockWasDecremented } from "@/lib/order-rules";
+import type { OrderCancelReasonCode, RefundStatus } from "@/lib/order-cancellation";
 
 export class OrderError extends Error {}
 
 type StockRow = { id: string; stockQty: number };
+
+type CancelOrderAudit = {
+  reasonCode: OrderCancelReasonCode;
+  reasonText?: string | null;
+  cancelledById: string;
+  refundStatus: RefundStatus;
+};
 
 // Confirmação transacional (plano seção 7): verifica e desconta estoque de
 // cada item numa única transação, com lock de linha (`FOR UPDATE`), para
@@ -71,10 +79,9 @@ export async function confirmOrder(orderId: string) {
   });
 }
 
-// Cancelamento: se o estoque já tinha sido descontado (pedido estava
-// CONFIRMADO ou além), devolve a quantidade — também dentro de uma
-// transação única.
-export async function cancelOrder(orderId: string) {
+// Cancelamento: se o estoque já tinha sido descontado (inclusive venda
+// FINALIZADA), devolve a quantidade e grava a auditoria na mesma transação.
+export async function cancelOrder(orderId: string, audit?: CancelOrderAudit) {
   return prisma.$transaction(async (tx) => {
     const order = await tx.order.findUnique({
       where: { id: orderId },
@@ -82,6 +89,7 @@ export async function cancelOrder(orderId: string) {
     });
 
     if (!order) throw new OrderError("Pedido não encontrado.");
+    if (order.status === "CANCELADO") throw new OrderError("Este pedido já foi cancelado.");
 
     const needsRestock = stockWasDecremented(order.status);
 
@@ -101,9 +109,18 @@ export async function cancelOrder(orderId: string) {
       }
     }
 
+    const now = new Date();
     return tx.order.update({
       where: { id: orderId },
-      data: { status: "CANCELADO" },
+      data: {
+        status: "CANCELADO",
+        cancelReasonCode: audit?.reasonCode ?? null,
+        cancelReasonText: audit?.reasonText?.trim() || null,
+        cancelledAt: now,
+        cancelledById: audit?.cancelledById ?? null,
+        refundStatus: audit?.refundStatus ?? "NOT_REQUIRED",
+        refundUpdatedAt: audit?.refundStatus === "REFUNDED" ? now : null,
+      },
     });
   });
 }
