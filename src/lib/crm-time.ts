@@ -55,7 +55,7 @@ function timeZoneOffsetMs(date: Date, timeZone = CRM_TIME_ZONE) {
 function wallClockToUtc(year: number, month: number, day: number, hour: number, minute: number) {
   const wallClockUtc = Date.UTC(year, month - 1, day, hour, minute, 0);
   let candidate = new Date(wallClockUtc);
-  let offset = timeZoneOffsetMs(candidate);
+  const offset = timeZoneOffsetMs(candidate);
   candidate = new Date(wallClockUtc - offset);
 
   const correctedOffset = timeZoneOffsetMs(candidate);
