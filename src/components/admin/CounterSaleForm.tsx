@@ -256,7 +256,10 @@ export function CounterSaleForm({
   const cashShort = paymentMethod === "DINHEIRO" && receivedValue + 0.0001 < total;
   const change = paymentMethod === "DINHEIRO" ? Math.max(0, receivedValue - total) : 0;
 
-  const selectedProvider = providers.find((provider) => provider.id === selectedProviderId);
+  const selectedProvider = useMemo(
+    () => providers.find((provider) => provider.id === selectedProviderId),
+    [providers, selectedProviderId]
+  );
   const paymentNeedsProvider = paymentMethod === "DEBITO" || paymentMethod === "CREDITO" || paymentMethod === "LINK";
   const paymentRule = paymentNeedsProvider
     ? findPaymentRule(
