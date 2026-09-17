@@ -16,6 +16,8 @@ type Body = {
   }>;
   discount?: number;
   deliveryFee?: number;
+  miscDescription?: string;
+  miscAmount?: number;
   customerName?: string;
   customerPhone?: string;
   notes?: string;
@@ -67,6 +69,8 @@ export async function POST(request: NextRequest) {
       })),
       discount: Number(body.discount ?? 0),
       deliveryFee: Number(body.deliveryFee ?? 0),
+      miscDescription: typeof body.miscDescription === "string" ? body.miscDescription : "",
+      miscAmount: Number(body.miscAmount ?? 0),
       customerName: typeof body.customerName === "string" ? body.customerName : "",
       customerPhone: typeof body.customerPhone === "string" ? body.customerPhone : "",
       notes: typeof body.notes === "string" ? body.notes : "",

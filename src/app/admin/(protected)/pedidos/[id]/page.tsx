@@ -9,6 +9,11 @@ import { OrderStatusControl } from "@/components/admin/OrderStatusControl";
 
 const GOOGLE_REVIEW_URL = "https://g.page/r/Cd60IkMVKKNtEBI/review";
 
+type MiscChargeRow = {
+  description: string;
+  amount: unknown;
+};
+
 const STATUS_LABEL: Record<string, string> = {
   NOVO: "Novo",
   EM_CONFIRMACAO: "Em confirmação",
@@ -49,6 +54,16 @@ export default async function AdminPedidoDetailPage({ params }: { params: Promis
   });
 
   if (!order) notFound();
+
+  const miscRows = await prisma.$queryRaw<MiscChargeRow[]>`
+    SELECT "description", "amount"
+    FROM app_security."OrderMiscCharge"
+    WHERE "orderId" = ${order.id}
+    LIMIT 1
+  `;
+  const miscCharge = miscRows[0]
+    ? { description: miscRows[0].description, amount: Number(miscRows[0].amount) }
+    : null;
 
   const productIds = [...new Set(order.items.map((item) => item.productId))];
   const products = productIds.length
@@ -119,7 +134,7 @@ export default async function AdminPedidoDetailPage({ params }: { params: Promis
       </div>
 
       <div className="mb-4 rounded-2xl bg-white p-4" style={{ boxShadow: "0 2px 10px rgba(35,20,42,0.06)" }}>
-        <p className="mb-1 text-xs font-bold text-texto">Produtos</p>
+        <p className="mb-1 text-xs font-bold text-texto">Produtos e adicionais</p>
         <p className="mb-2 text-[10px] text-cinza">Identificação visual para separar o pedido com mais segurança.</p>
 
         <div className="divide-y divide-rosa/10">
@@ -158,6 +173,19 @@ export default async function AdminPedidoDetailPage({ params }: { params: Promis
             );
           })}
         </div>
+
+        {miscCharge && miscCharge.amount > 0 && (
+          <div className="mt-2 rounded-xl border border-rosa/15 bg-creme/50 p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <span className="inline-flex rounded-full bg-rosa/10 px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wide text-rosa-profundo">Diversos</span>
+                <p className="mt-1 text-sm font-bold text-texto">{miscCharge.description}</p>
+                <p className="mt-0.5 text-[10px] text-cinza">Adicional da venda, sem cadastro no catálogo e sem movimentação de estoque.</p>
+              </div>
+              <strong className="shrink-0 text-sm text-rosa-profundo">{money(miscCharge.amount)}</strong>
+            </div>
+          </div>
+        )}
 
         {order.notes && (
           <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3">

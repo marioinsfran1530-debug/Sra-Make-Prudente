@@ -49,6 +49,25 @@ type ProductStats = {
   orders: number;
 };
 
+type PerformanceOption = {
+  id: string;
+  name: string;
+  brand: string;
+  featured: boolean;
+  stockQty: number;
+  views: number;
+  carts: number;
+  orders: number;
+  score: number;
+};
+
+function bestBy(options: PerformanceOption[], key: "views" | "carts" | "orders") {
+  return options.reduce<PerformanceOption | null>((best, product) => {
+    if (!best || product[key] > best[key]) return product;
+    return best;
+  }, null);
+}
+
 export default async function ProductPerformancePage({
   searchParams,
 }: {
@@ -119,7 +138,7 @@ export default async function ProductPerformancePage({
     for (const productId of productIds) ensure(productId).orders += 1;
   }
 
-  const options = products
+  const options: PerformanceOption[] = products
     .map((product) => {
       const stockQty = product.variants.length > 0
         ? product.variants.reduce((sum, variant) => sum + variant.stockQty, 0)
@@ -152,21 +171,49 @@ export default async function ProductPerformancePage({
   const totalCarts = options.reduce((sum, product) => sum + product.carts, 0);
   const totalOrders = options.reduce((sum, product) => sum + product.orders, 0);
 
+  const topViewed = bestBy(options, "views");
+  const topCarted = bestBy(options, "carts");
+  const topSold = bestBy(options, "orders");
+
+  const quickSignals = [
+    {
+      label: "Mais visto",
+      explanation: "Chama atenção",
+      product: topViewed && topViewed.views > 0 ? topViewed : null,
+      value: topViewed?.views ?? 0,
+      unit: "visualizações",
+    },
+    {
+      label: "Mais colocado no carrinho",
+      explanation: "Gera intenção",
+      product: topCarted && topCarted.carts > 0 ? topCarted : null,
+      value: topCarted?.carts ?? 0,
+      unit: "carrinhos",
+    },
+    {
+      label: "Mais vendido",
+      explanation: "Converte",
+      product: topSold && topSold.orders > 0 ? topSold : null,
+      value: topSold?.orders ?? 0,
+      unit: "pedidos",
+    },
+  ];
+
   return (
-    <div className="mx-auto max-w-4xl">
+    <div className="mx-auto max-w-5xl">
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-bold uppercase tracking-wider text-rosa-profundo">Desempenho</p>
-          <h1 className="font-serif text-2xl font-bold text-texto">Escolher destaques da Home</h1>
+          <h1 className="font-serif text-2xl font-bold text-texto">Desempenho e destaques da Home</h1>
           <p className="mt-1 max-w-2xl text-sm text-cinza">
-            Veja os sinais mais úteis e escolha 5 produtos. Sem tabela e sem excesso de filtros.
+            Entenda rapidamente o que chamou atenção, gerou intenção e vendeu. Depois escolha os 5 produtos da primeira vitrine.
           </p>
         </div>
         <Link
-          href="/admin/analise"
+          href="/admin/analise/oportunidades"
           className="rounded-xl border border-rosa/20 bg-white px-4 py-2.5 text-xs font-bold text-rosa-profundo"
         >
-          Voltar para Análise
+          Ver oportunidades
         </Link>
       </div>
 
@@ -190,8 +237,45 @@ export default async function ProductPerformancePage({
       </div>
 
       <div className="mb-4 rounded-2xl border border-rosa/10 bg-creme/45 px-4 py-3 text-xs text-cinza">
-        Período usado nas sugestões: <strong className="text-texto">{totalViews} vistas</strong> · {totalCarts} carrinhos · {totalOrders} pedidos finalizados.
+        Período analisado: <strong className="text-texto">{totalViews} vistas</strong> · {totalCarts} carrinhos · {totalOrders} pedidos finalizados.
       </div>
+
+      <section className="mb-5">
+        <div className="mb-2 flex items-end justify-between gap-3">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-rosa-profundo">Leitura rápida</p>
+            <h2 className="mt-1 text-sm font-extrabold text-texto">O que os dados mostram</h2>
+          </div>
+          <span className="text-[10px] text-cinza">Somente produtos com estoque</span>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-3">
+          {quickSignals.map((item) => (
+            <div key={item.label} className="rounded-2xl border border-rosa/10 bg-white p-4 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-cinza">{item.label}</p>
+                  <p className="mt-1 text-[11px] font-bold text-rosa-profundo">{item.explanation}</p>
+                </div>
+                {item.product ? (
+                  <span className="rounded-full bg-creme px-2 py-1 text-[10px] font-bold text-texto">
+                    {item.value.toLocaleString("pt-BR")} {item.unit}
+                  </span>
+                ) : null}
+              </div>
+
+              {item.product ? (
+                <div className="mt-3">
+                  <p className="line-clamp-2 text-sm font-extrabold leading-snug text-texto">{item.product.name}</p>
+                  <p className="mt-1 text-[10px] text-cinza">{item.product.brand}</p>
+                </div>
+              ) : (
+                <p className="mt-3 text-xs text-cinza">Ainda não há dados suficientes neste período.</p>
+              )}
+            </div>
+          ))}
+        </div>
+      </section>
 
       <HomeFeaturedPicker
         products={options.map(({ id, name, brand, stockQty, views, carts, orders }) => ({
