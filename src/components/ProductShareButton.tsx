@@ -64,7 +64,8 @@ export function ProductShareButton({
             if (imageFile && navigator.canShare({ files: [imageFile] })) {
               await navigator.share({
                 title: name,
-                text: `${text}\n${url}`,
+                text,
+                url,
                 files: [imageFile],
               });
               return;
