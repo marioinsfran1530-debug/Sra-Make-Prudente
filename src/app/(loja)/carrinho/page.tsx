@@ -10,11 +10,13 @@ import {
   ArrowRight,
   AlertTriangle,
   RefreshCw,
+  MessageCircle,
 } from "lucide-react";
 import { useCart } from "@/components/CartProvider";
 import { ProductImage } from "@/components/ProductImage";
 import { money } from "@/lib/money";
 import { trackEvent } from "@/lib/analytics";
+import { getTrackingPayload } from "@/lib/tracking";
 
 type CartIssue = {
   type:
@@ -41,6 +43,10 @@ export default function CarrinhoPage() {
   const { items, subtotal, updateQty, removeItem } = useCart();
   const [validation, setValidation] = useState<CartValidation | null>(null);
   const [validating, setValidating] = useState(false);
+  const [recoveryPhone, setRecoveryPhone] = useState("");
+  const [savingRecovery, setSavingRecovery] = useState(false);
+  const [recoverySaved, setRecoverySaved] = useState(false);
+  const [recoveryError, setRecoveryError] = useState<string | null>(null);
 
   const validateCart = useCallback(async (): Promise<CartValidation> => {
     if (items.length === 0) {
@@ -104,6 +110,59 @@ export default function CarrinhoPage() {
       setValidating(false);
     }
   }, [items]);
+
+  async function handleSaveRecoveryContact() {
+    if (savingRecovery) return;
+
+    const digits = recoveryPhone.replace(/\D/g, "").replace(/^55(?=\d{10,11}$)/, "");
+    if (digits.length !== 10 && digits.length !== 11) {
+      setRecoveryError("Digite um WhatsApp válido com DDD.");
+      setRecoverySaved(false);
+      return;
+    }
+
+    const sessionId = getTrackingPayload().sessionId;
+    if (!sessionId) {
+      setRecoveryError("Não conseguimos registrar seu contato agora. Tente novamente.");
+      setRecoverySaved(false);
+      return;
+    }
+
+    setSavingRecovery(true);
+    setRecoveryError(null);
+
+    try {
+      const response = await fetch("/api/checkout-recovery", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        keepalive: true,
+        body: JSON.stringify({
+          customerName: "Contato do catálogo",
+          customerPhone: recoveryPhone,
+          sessionId,
+          items: items.map((item) => ({
+            productId: item.productId,
+            variantId: item.variantId,
+            qty: item.qty,
+          })),
+          phase: "CONTACT",
+        }),
+      });
+
+      const data = (await response.json().catch(() => null)) as { ok?: boolean } | null;
+      if (!response.ok || !data?.ok) {
+        throw new Error("Não conseguimos registrar o contato.");
+      }
+
+      setRecoverySaved(true);
+      setRecoveryError(null);
+    } catch {
+      setRecoverySaved(false);
+      setRecoveryError("Não conseguimos registrar agora. Tente novamente.");
+    } finally {
+      setSavingRecovery(false);
+    }
+  }
 
   useEffect(() => {
     void validateCart();
@@ -287,6 +346,55 @@ export default function CarrinhoPage() {
             <p className="text-[11px] text-cinza mb-4">
               Escolha retirada no Centro ou 99Entrega em Presidente Prudente na próxima etapa. A loja confirma tudo pelo WhatsApp.
             </p>
+
+            <div className="mb-4 rounded-2xl border border-rosa/15 bg-creme/40 p-4">
+              <div className="flex gap-3">
+                <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white text-rosa-profundo shadow-sm">
+                  <MessageCircle size={17} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-extrabold text-texto">Quer ajuda para finalizar depois?</p>
+                  <p className="mt-1 text-[10px] leading-relaxed text-cinza">
+                    Deixe seu WhatsApp (opcional). O contato fica registrado no CRM para a equipe poder continuar o atendimento.
+                  </p>
+
+                  <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                    <input
+                      type="tel"
+                      inputMode="tel"
+                      autoComplete="tel"
+                      value={recoveryPhone}
+                      onChange={(event) => {
+                        setRecoveryPhone(event.target.value);
+                        setRecoverySaved(false);
+                        setRecoveryError(null);
+                      }}
+                      placeholder="(18) 99124-8713"
+                      aria-label="WhatsApp para recuperação do pedido"
+                      className="min-w-0 flex-1 rounded-xl border border-rosa/20 bg-white px-3 py-3 text-sm outline-none focus:border-rosa-profundo"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void handleSaveRecoveryContact()}
+                      disabled={savingRecovery || recoverySaved}
+                      className="rounded-xl bg-white px-4 py-3 text-[11px] font-extrabold text-rosa-profundo shadow-sm ring-1 ring-rosa/15 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {savingRecovery ? "Registrando..." : recoverySaved ? "Contato registrado" : "Deixar meu WhatsApp"}
+                    </button>
+                  </div>
+
+                  {recoveryError && (
+                    <p className="mt-2 text-[10px] font-semibold text-amber-800">{recoveryError}</p>
+                  )}
+                  {recoverySaved && (
+                    <p className="mt-2 text-[10px] font-semibold text-emerald-700">
+                      Pronto. Seu contato ficou registrado para a equipe continuar o atendimento.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
             {hasIssues && (
               <p className="mb-3 rounded-xl bg-amber-50 px-3 py-2 text-[11px] font-semibold leading-relaxed text-amber-900">
                 Corrija os itens destacados antes de continuar.
