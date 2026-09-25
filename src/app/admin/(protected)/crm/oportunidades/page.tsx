@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { whatsappUrl } from "@/lib/crm";
+import { markCheckoutContactedAction } from "@/app/admin/(protected)/crm/actions";
 import { crmTodayBounds, formatCrmDateTime } from "@/lib/crm-time";
 
 const CHECKOUT_SOURCE = "catalogo_checkout";
@@ -143,6 +144,7 @@ export default async function OportunidadesPage() {
               leadId={lead.id}
               whatsapp={whatsappUrl(lead.customer.phone, message)}
               badge="Recuperar venda"
+              showContacted
             />
           );
         })}
@@ -199,7 +201,7 @@ function OpportunitySection({ title, subtitle, empty, children }: { title: strin
   );
 }
 
-function OpportunityRow({ name, detail, phone, customerId, leadId, whatsapp, badge }: { name: string; detail: string; phone: string; customerId: string; leadId?: string | null; whatsapp: string; badge: string }) {
+function OpportunityRow({ name, detail, phone, customerId, leadId, whatsapp, badge, showContacted = false }: { name: string; detail: string; phone: string; customerId: string; leadId?: string | null; whatsapp: string; badge: string; showContacted?: boolean }) {
   return (
     <article className="grid gap-3 px-4 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
       <div className="min-w-0">
@@ -209,9 +211,17 @@ function OpportunityRow({ name, detail, phone, customerId, leadId, whatsapp, bad
         </div>
         <p className="mt-1 text-[11px] leading-relaxed text-cinza">{detail}</p>
       </div>
-      <div className="grid grid-cols-2 gap-2 sm:flex">
+      <div className={`grid gap-2 ${showContacted ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-2 sm:flex"}`}>
         <a href={whatsapp} target="_blank" rel="noopener noreferrer" className="rounded-xl bg-emerald-600 px-4 py-3 text-center text-[11px] font-extrabold text-white">WhatsApp</a>
         <Link href={`/admin/crm/follow-ups/novo?customerId=${encodeURIComponent(customerId)}${leadId ? `&leadId=${encodeURIComponent(leadId)}` : ""}`} className="rounded-xl border border-rosa/20 px-4 py-3 text-center text-[11px] font-extrabold text-rosa-profundo">Agendar</Link>
+        {showContacted && leadId && (
+          <form action={markCheckoutContactedAction} className="contents">
+            <input type="hidden" name="id" value={leadId} />
+            <button type="submit" className="col-span-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-center text-[11px] font-extrabold text-emerald-700 sm:col-span-1">
+              Marcar como contatado
+            </button>
+          </form>
+        )}
       </div>
     </article>
   );

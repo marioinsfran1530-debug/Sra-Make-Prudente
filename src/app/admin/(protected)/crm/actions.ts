@@ -146,6 +146,66 @@ export async function moveLeadAction(formData: FormData) {
   refreshCrm(before.customerId);
 }
 
+export async function markCheckoutContactedAction(formData: FormData) {
+  const session = await assertEditor();
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) throw new Error("Oportunidade inválida.");
+
+  const lead = await prisma.crmLead.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      customerId: true,
+      source: true,
+      stage: true,
+      productId: true,
+    },
+  });
+
+  if (!lead) throw new Error("Oportunidade não encontrada.");
+  if (lead.source !== "catalogo_checkout") {
+    throw new Error("Essa oportunidade não pertence ao fluxo de recuperação do catálogo.");
+  }
+  if (lead.stage === "VENDIDO" || lead.stage === "PERDIDO") {
+    throw new Error("Essa oportunidade já foi encerrada.");
+  }
+
+  const now = new Date();
+  const nextStage = lead.stage === "NOVO" ? "ATENDIMENTO" : lead.stage;
+
+  await prisma.$transaction([
+    prisma.crmLead.update({
+      where: { id: lead.id },
+      data: {
+        stage: nextStage,
+        lastContactAt: now,
+      },
+    }),
+    prisma.customer.update({
+      where: { id: lead.customerId },
+      data: { lastContactAt: now },
+    }),
+    prisma.crmInteraction.create({
+      data: {
+        customerId: lead.customerId,
+        leadId: lead.id,
+        productId: lead.productId,
+        createdById: session.id,
+        kind: "CHECKOUT_RECOVERY_CONTACTED",
+        channel: "WHATSAPP",
+        direction: "OUT",
+        body: "Contato de recuperação realizado via WhatsApp.",
+        metadata: {
+          previousStage: lead.stage,
+          nextStage,
+        },
+      },
+    }),
+  ]);
+
+  refreshCrm(lead.customerId);
+}
+
 export async function updateLeadDetailsAction(formData: FormData) {
   const session = await assertEditor();
   const id = String(formData.get("id") ?? "").trim();
