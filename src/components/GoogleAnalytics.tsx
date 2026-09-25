@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import Script from "next/script";
 
 const GA_MEASUREMENT_ID = "G-60T57RTWD1";
+const GOOGLE_ADS_ID = "AW-18275809533";
 const PRODUCTION_HOSTS = new Set([
   "www.sramakeprudente.com.br",
   "sramakeprudente.com.br",
@@ -35,6 +36,7 @@ export function GoogleAnalytics() {
           function gtag(){dataLayer.push(arguments);}
           gtag('js', new Date());
           gtag('config', '${GA_MEASUREMENT_ID}');
+          gtag('config', '${GOOGLE_ADS_ID}');
         `}
       </Script>
     </>
