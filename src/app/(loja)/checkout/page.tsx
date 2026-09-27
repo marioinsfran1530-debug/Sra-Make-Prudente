@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Store, Truck, Send } from "lucide-react";
+import { Store, Truck, Send, CheckCircle2 } from "lucide-react";
 import { useCart } from "@/components/CartProvider";
 import { money } from "@/lib/money";
 import { waLink, buildOrderMessage } from "@/lib/whatsapp";
@@ -28,9 +28,10 @@ export default function CheckoutPage() {
   const [payment, setPayment] = useState("PIX");
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [success, setSuccess] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  if (items.length === 0 && step === "form") {
+  if (items.length === 0 && step === "form" && success === null) {
     return (
       <main className="px-6 py-16 text-center">
         <p className="text-sm text-cinza">Seu carrinho está vazio.</p>
@@ -45,20 +46,27 @@ export default function CheckoutPage() {
     );
   }
 
-  const canReview = name.trim() && phone.trim() && (deliveryType !== "ENTREGA" || address.trim());
+  const canReview =
+    name.trim() &&
+    phone.replace(/\\D/g, "").length >= 10 &&
+    phone.replace(/\\D/g, "").length <= 11 &&
+    (deliveryType !== "ENTREGA" || address.trim());
 
   async function handleSendOrder() {
+    if (submitting || success !== null) return;
+
     setSubmitting(true);
     setError(null);
+
     try {
       const res = await fetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          items: items.map((i) => ({
-            productId: i.productId,
-            variantId: i.variantId,
-            qty: i.qty,
+          items: items.map((item) => ({
+            productId: item.productId,
+            variantId: item.variantId,
+            qty: item.qty,
           })),
           customerName: name,
           customerPhone: phone,
@@ -71,8 +79,9 @@ export default function CheckoutPage() {
       });
 
       const data = await res.json();
+
       if (!res.ok) {
-        setError(data.error ?? "Não foi possível enviar o pedido. Tente novamente.");
+        setError(data.error ?? "Não foi possível registrar o pedido. Tente novamente.");
         setSubmitting(false);
         return;
       }
@@ -91,14 +100,43 @@ export default function CheckoutPage() {
       });
 
       clear();
-      trackEvent("order_created", { orderNumber: data.orderNumber, total: data.total });
-      trackEvent("whatsapp_click", { context: "checkout", orderNumber: data.orderNumber });
+      setSuccess(data.orderNumber);
+      trackEvent("order_created", {
+        orderNumber: data.orderNumber,
+        total: data.total,
+      });
+      trackEvent("whatsapp_click", {
+        context: "checkout",
+        orderNumber: data.orderNumber,
+      });
+
       window.open(waLink(message), "_blank");
-      router.push("/");
     } catch {
-      setError("Não foi possível enviar o pedido. Verifique sua conexão e tente novamente.");
+      setError("Não foi possível registrar o pedido. Verifique sua conexão e tente novamente.");
       setSubmitting(false);
     }
+  }
+
+  if (success !== null) {
+    return (
+      <main className="px-6 py-16 text-center">
+        <CheckCircle2 size={42} className="mx-auto text-verde" />
+        <p className="font-serif font-bold text-xl mt-4 text-texto">
+          Pedido registrado
+        </p>
+        <p className="text-sm mt-2 text-cinza">
+          Pedido #{success}. Seu carrinho foi preservado no registro e o WhatsApp foi aberto
+          para continuarmos a confirmação.
+        </p>
+        <button
+          onClick={() => router.push("/")}
+          className="mt-6 text-sm font-bold px-5 py-2.5 rounded-full text-white"
+          style={{ backgroundColor: "#E4127B" }}
+        >
+          Voltar para a loja
+        </button>
+      </main>
+    );
   }
 
   if (step === "form") {
@@ -109,16 +147,20 @@ export default function CheckoutPage() {
           <Field label="Nome">
             <input
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(event) => setName(event.target.value)}
               placeholder="Seu nome"
+              autoComplete="name"
               className="w-full outline-none text-sm text-texto"
             />
           </Field>
+
           <Field label="WhatsApp">
             <input
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              onChange={(event) => setPhone(event.target.value)}
               placeholder="(18) 9 9999-9999"
+              inputMode="tel"
+              autoComplete="tel"
               className="w-full outline-none text-sm text-texto"
             />
           </Field>
@@ -138,12 +180,14 @@ export default function CheckoutPage() {
               label="Entrega"
             />
           </div>
+
           {deliveryType === "ENTREGA" && (
             <Field label="Endereço de entrega">
               <input
                 value={address}
-                onChange={(e) => setAddress(e.target.value)}
+                onChange={(event) => setAddress(event.target.value)}
                 placeholder="Rua, número, bairro"
+                autoComplete="street-address"
                 className="w-full outline-none text-sm text-texto"
               />
             </Field>
@@ -151,18 +195,22 @@ export default function CheckoutPage() {
 
           <p className="text-xs font-bold mt-2 text-texto">Forma de pagamento</p>
           <div className="grid grid-cols-2 gap-2">
-            {PAYMENT_OPTIONS.map((opt) => (
+            {PAYMENT_OPTIONS.map((option) => (
               <button
-                key={opt.value}
-                onClick={() => setPayment(opt.value)}
+                key={option.value}
+                onClick={() => setPayment(option.value)}
                 className="rounded-full px-4 py-1.5 text-xs font-semibold"
                 style={
-                  payment === opt.value
+                  payment === option.value
                     ? { backgroundColor: "#E4127B", color: "#fff" }
-                    : { backgroundColor: "#fff", color: "#23142A", border: "1px solid #E9D9E4" }
+                    : {
+                        backgroundColor: "#fff",
+                        color: "#23142A",
+                        border: "1px solid #E9D9E4",
+                      }
                 }
               >
-                {opt.label}
+                {option.label}
               </button>
             ))}
           </div>
@@ -170,7 +218,7 @@ export default function CheckoutPage() {
           <Field label="Observação (opcional)">
             <textarea
               value={notes}
-              onChange={(e) => setNotes(e.target.value)}
+              onChange={(event) => setNotes(event.target.value)}
               placeholder="Ex: Quero trocar a cor da base."
               rows={2}
               className="w-full outline-none text-sm resize-none text-texto"
@@ -178,10 +226,17 @@ export default function CheckoutPage() {
           </Field>
         </div>
 
+        <p className="text-[11px] leading-4 mt-4 text-cinza">
+          Usaremos seu WhatsApp para confirmar seu pedido e combinar a retirada ou entrega.
+          Nenhuma mensagem promocional está sendo autorizada por este formulário.
+        </p>
+
+        {error && <p className="text-xs text-vermelho mt-3">{error}</p>}
+
         <button
           disabled={!canReview}
           onClick={() => setStep("review")}
-          className="w-full mt-6 py-3.5 rounded-full font-bold text-sm text-white disabled:opacity-40"
+          className="w-full mt-4 py-3.5 rounded-full font-bold text-sm text-white disabled:opacity-40"
           style={{ backgroundColor: "#E4127B" }}
         >
           Revisar pedido
@@ -193,24 +248,34 @@ export default function CheckoutPage() {
   return (
     <main className="px-4 pt-4 pb-8">
       <p className="font-serif font-bold text-lg mb-4 text-texto">Confira seu pedido</p>
+
       <div className="flex flex-col gap-2 mb-4">
-        {items.map((i) => (
-          <div key={i.productId + (i.variantId ?? "")} className="flex justify-between text-sm">
+        {items.map((item) => (
+          <div
+            key={item.productId + (item.variantId ?? "")}
+            className="flex justify-between text-sm"
+          >
             <span className="text-texto">
-              {i.name}
-              {i.variantName ? ` (${i.variantName})` : ""} × {i.qty}
+              {item.name}
+              {item.variantName ? ` (${item.variantName})` : ""} × {item.qty}
             </span>
-            <span className="font-bold text-rosa-profundo">{money(i.price * i.qty)}</span>
+            <span className="font-bold text-rosa-profundo">
+              {money(item.price * item.qty)}
+            </span>
           </div>
         ))}
       </div>
+
       <div className="rounded-2xl p-4 flex flex-col gap-1.5 text-sm bg-creme">
         <Row label="Subtotal" value={money(subtotal)} bold />
-        <Row label="Recebimento" value={deliveryType === "RETIRADA" ? "Retirar na loja" : "Entrega"} />
+        <Row
+          label="Recebimento"
+          value={deliveryType === "RETIRADA" ? "Retirar na loja" : "Entrega"}
+        />
         {deliveryType === "ENTREGA" && <Row label="Endereço" value={address} />}
         <Row
           label="Pagamento"
-          value={PAYMENT_OPTIONS.find((p) => p.value === payment)?.label ?? payment}
+          value={PAYMENT_OPTIONS.find((option) => option.value === payment)?.label ?? payment}
         />
         {notes && <Row label="Observação" value={notes} />}
       </div>
@@ -220,21 +285,26 @@ export default function CheckoutPage() {
       <div className="flex gap-2 mt-6">
         <button
           onClick={() => setStep("form")}
-          className="px-4 py-3.5 rounded-full font-bold text-sm border border-rosa/20 text-texto"
+          disabled={submitting}
+          className="px-4 py-3.5 rounded-full font-bold text-sm border border-rosa/20 text-texto disabled:opacity-50"
         >
           Voltar
         </button>
+
         <button
           onClick={handleSendOrder}
           disabled={submitting}
           className="flex-1 py-3.5 rounded-full font-bold text-sm text-white flex items-center justify-center gap-2 disabled:opacity-60"
           style={{ backgroundColor: "#25D366" }}
         >
-          <Send size={16} /> {submitting ? "Enviando..." : "Enviar pedido pelo WhatsApp"}
+          <Send size={16} />
+          {submitting ? "Registrando..." : "Confirmar e continuar no WhatsApp"}
         </button>
       </div>
+
       <p className="text-[11px] text-center mt-3 text-cinza">
-        O pedido é confirmado com a gente pelo WhatsApp. Nenhum pagamento é feito por aqui.
+        O pedido é registrado pela loja antes de abrir o WhatsApp. Nenhum pagamento é feito
+        por aqui.
       </p>
     </main>
   );
@@ -243,7 +313,9 @@ export default function CheckoutPage() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="rounded-2xl px-4 py-2.5 border border-rosa/20">
-      <p className="text-[10px] font-bold uppercase tracking-wide mb-0.5 text-cinza">{label}</p>
+      <p className="text-[10px] font-bold uppercase tracking-wide mb-0.5 text-cinza">
+        {label}
+      </p>
       {children}
     </div>
   );
@@ -264,17 +336,32 @@ function ToggleCard({
     <button
       onClick={onClick}
       className="flex-1 rounded-2xl p-3 flex flex-col items-center gap-1"
-      style={active ? { backgroundColor: "#E4127B" } : { border: "1px solid #E9D9E4" }}
+      style={
+        active
+          ? { backgroundColor: "#E4127B" }
+          : { border: "1px solid #E9D9E4" }
+      }
     >
       <Icon size={18} className={active ? "text-white" : "text-texto"} />
-      <span className="text-xs font-semibold" style={{ color: active ? "#fff" : "#23142A" }}>
+      <span
+        className="text-xs font-semibold"
+        style={{ color: active ? "#fff" : "#23142A" }}
+      >
         {label}
       </span>
     </button>
   );
 }
 
-function Row({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
+function Row({
+  label,
+  value,
+  bold,
+}: {
+  label: string;
+  value: string;
+  bold?: boolean;
+}) {
   return (
     <div className="flex justify-between">
       <span className="text-cinza">{label}</span>
