@@ -42,7 +42,7 @@ function clean(value: unknown, maxLength = 500): string | undefined {
 
 function normalizePhone(value: unknown): string | null {
   if (typeof value !== "string") return null;
-  const digits = value.replace(/\\D/g, "");
+  const digits = value.replace(/\D/g, "");
   return digits.length >= 10 && digits.length <= 11 ? digits : null;
 }
 
