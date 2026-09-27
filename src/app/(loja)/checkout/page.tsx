@@ -120,7 +120,7 @@ export default function CheckoutPage() {
   if (success !== null) {
     return (
       <main className="px-6 py-16 text-center">
-        <CheckCircle2 size={42} className="mx-auto text-verde" />
+        <CheckCircle2 size={42} className="mx-auto text-rosa" />
         <p className="font-serif font-bold text-xl mt-4 text-texto">
           Pedido registrado
         </p>
