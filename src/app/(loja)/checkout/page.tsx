@@ -48,8 +48,8 @@ export default function CheckoutPage() {
 
   const canReview =
     name.trim() &&
-    phone.replace(/\\D/g, "").length >= 10 &&
-    phone.replace(/\\D/g, "").length <= 11 &&
+    phone.replace(/\D/g, "").length >= 10 &&
+    phone.replace(/\D/g, "").length <= 11 &&
     (deliveryType !== "ENTREGA" || address.trim());
 
   async function handleSendOrder() {
