@@ -15,6 +15,7 @@ const PERIODS: { value: Period; label: string }[] = [
 
 const ANALYSIS_AREAS = [
   { href: "/admin/analise/produtos", title: "Desempenho", description: "Produtos, carrinhos e vendas." },
+  { href: "/admin/analise/abc", title: "Curva ABC", description: "Concentração das vendas por produto." },
   { href: "/admin/analise/oportunidades", title: "Oportunidades", description: "Prioridades comerciais e de cadastro." },
   { href: "/admin/analise/buscas", title: "Buscas", description: "Demanda e buscas sem resultado." },
   { href: "/admin/analise/qualidade", title: "Qualidade", description: "Saúde dos cadastros." },
