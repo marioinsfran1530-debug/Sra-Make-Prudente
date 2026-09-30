@@ -209,12 +209,20 @@ export default async function ProductPerformancePage({
             Entenda rapidamente o que chamou atenção, gerou intenção e vendeu. Depois escolha os 5 produtos da primeira vitrine.
           </p>
         </div>
-        <Link
-          href="/admin/analise/oportunidades"
-          className="rounded-xl border border-rosa/20 bg-white px-4 py-2.5 text-xs font-bold text-rosa-profundo"
-        >
-          Ver oportunidades
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/admin/analise/abc"
+            className="rounded-xl border border-rosa/20 bg-white px-4 py-2.5 text-xs font-bold text-rosa-profundo"
+          >
+            Curva ABC
+          </Link>
+          <Link
+            href="/admin/analise/oportunidades"
+            className="rounded-xl border border-rosa/20 bg-white px-4 py-2.5 text-xs font-bold text-rosa-profundo"
+          >
+            Ver oportunidades
+          </Link>
+        </div>
       </div>
 
       <div className="mb-4 flex flex-wrap gap-2">
