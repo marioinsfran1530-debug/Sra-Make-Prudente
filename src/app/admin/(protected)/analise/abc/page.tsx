@@ -206,7 +206,7 @@ export default async function CurvaAbcPage({
   soldProducts.sort((a, b) => {
     const aValue = metric === "revenue" ? a.revenue : a.units;
     const bValue = metric === "revenue" ? b.revenue : b.units;
-    return bValue - aValue || b.units - a.units || a.name.localeCompare(a.name, "pt-BR");
+    return bValue - aValue || b.units - a.units || a.name.localeCompare(b.name, "pt-BR");
   });
 
   const totalRevenue = soldProducts.reduce((sum, product) => sum + product.revenue, 0);
