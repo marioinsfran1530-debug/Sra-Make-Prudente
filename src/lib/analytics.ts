@@ -1,4 +1,8 @@
-import { getAcquisitionData, getOrCreateSessionId } from "@/lib/tracking";
+import {
+  captureAcquisition,
+  getAcquisitionData,
+  getOrCreateSessionId,
+} from "@/lib/tracking";
 
 export type AnalyticsEvent =
   | "page_view"
@@ -334,6 +338,10 @@ export function trackEvent(
 ) {
   if (typeof window === "undefined") return;
   if (isInternalPreview()) return;
+
+  // Garante que a origem (UTM/gclid) já esteja gravada antes do primeiro evento,
+  // mesmo que outro componente dispare evento antes do TrackingInit montar.
+  captureAcquisition();
 
   const record = {
     event,

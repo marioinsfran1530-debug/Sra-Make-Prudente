@@ -39,12 +39,25 @@ export function getOrCreateSessionId(): string {
   }
 }
 
-function guessOrigin(utmSource: string | null, referrer: string | null): string | null {
+function guessOrigin(
+  utmSource: string | null,
+  referrer: string | null,
+  utmMedium: string | null = null
+): string | null {
+  // Google pago fica separado do Google orgânico no painel de origens.
+  if (
+    utmSource?.toLowerCase() === "google" &&
+    /^(cpc|ppc|paid)/i.test(utmMedium ?? "")
+  ) {
+    return "google_ads";
+  }
   if (utmSource) return utmSource;
   if (!referrer) return "direto";
   try {
     const host = new URL(referrer).hostname.replace("www.", "");
     if (host.includes("instagram")) return "instagram";
+    if (host.includes("facebook") || host === "fb.com") return "facebook";
+    if (host.includes("whatsapp") || host === "wa.me" || host === "l.wl.co") return "whatsapp";
     if (host.includes("google")) return "google";
     if (host.includes("tiktok")) return "tiktok";
     return host;
@@ -53,28 +66,79 @@ function guessOrigin(utmSource: string | null, referrer: string | null): string 
   }
 }
 
-// Só captura na PRIMEIRA visita — não sobrescreve a origem original do
-// visitante em navegações internas subsequentes.
+// Atribuição vale por 30 dias; passado isso, uma nova visita reavalia a origem.
+const ACQUISITION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+type StoredAcquisition = AcquisitionData & {
+  capturedAt?: string;
+  adClickId?: string | null;
+};
+
+function readStoredAcquisition(): StoredAcquisition | null {
+  try {
+    const raw = window.localStorage.getItem(ACQUISITION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+// Captura a origem do visitante.
+// - Link com UTM ou gclid/gbraid/wbraid (anúncio) SEMPRE grava a origem, mesmo
+//   que o visitante já tivesse uma antiga (último clique pago vence).
+// - Sem sinal de campanha, mantém a origem já gravada por até 30 dias, para
+//   não sobrescrever com navegação interna ou retorno direto.
+// - O Google Ads só adiciona ?gclid= ao link; por isso gclid sem UTM é tratado
+//   como google / cpc.
 export function captureAcquisition() {
   if (typeof window === "undefined") return;
   try {
-    if (window.localStorage.getItem(ACQUISITION_KEY)) return;
-
     const params = new URLSearchParams(window.location.search);
-    const utmSource = params.get("utm_source");
-    const utmMedium = params.get("utm_medium");
-    const utmCampaign = params.get("utm_campaign");
-    const utmContent = params.get("utm_content");
-    const referrer = document.referrer || null;
+    const adClickId =
+      params.get("gclid") || params.get("gbraid") || params.get("wbraid");
 
-    const data: AcquisitionData = {
-      origin: guessOrigin(utmSource, referrer),
+    let utmSource = params.get("utm_source");
+    let utmMedium = params.get("utm_medium");
+    let utmCampaign = params.get("utm_campaign");
+    const utmContent = params.get("utm_content");
+
+    if (adClickId && !utmSource) {
+      utmSource = "google";
+      utmMedium = utmMedium || "cpc";
+      utmCampaign = utmCampaign || "google-ads";
+    }
+
+    const hasCampaignSignal = Boolean(utmSource || adClickId);
+    const stored = readStoredAcquisition();
+    const storedIsFresh =
+      !!stored?.capturedAt &&
+      Date.now() - Date.parse(stored.capturedAt) < ACQUISITION_TTL_MS;
+
+    if (stored && storedIsFresh && !hasCampaignSignal) return;
+    // Mesmo clique de anúncio já gravado (a função pode rodar várias vezes
+    // enquanto a URL ainda tem o gclid): não reescreve.
+    if (stored && adClickId && stored.adClickId === adClickId) return;
+
+    let referrer = document.referrer || null;
+    // Navegação interna (referrer do próprio site) não é uma origem.
+    try {
+      if (referrer && new URL(referrer).hostname === window.location.hostname) {
+        referrer = null;
+      }
+    } catch {
+      referrer = null;
+    }
+
+    const data: StoredAcquisition = {
+      origin: guessOrigin(utmSource, referrer, utmMedium),
       referrer,
       landingPage: window.location.pathname,
       utmSource,
       utmMedium,
       utmCampaign,
       utmContent,
+      capturedAt: new Date().toISOString(),
+      adClickId,
     };
 
     window.localStorage.setItem(ACQUISITION_KEY, JSON.stringify(data));

@@ -72,7 +72,19 @@ function conversion(part: number, total: number) {
   return total > 0 ? (part / total) * 100 : 0;
 }
 
+// Junta variações antigas de host (l.facebook.com, m.facebook.com, l.wl.co...)
+// na mesma origem usada pelo rastreio novo.
+function normalizeOrigin(origin: string) {
+  const value = origin.trim().toLowerCase();
+  if (value.includes("facebook") || value === "fb.com") return "facebook";
+  if (value.includes("whatsapp") || value === "wa.me" || value === "l.wl.co") return "whatsapp";
+  return origin;
+}
+
 function sourceLabel(origin: string) {
+  if (origin === "google_ads") return "Google Ads";
+  if (origin === "whatsapp") return "WhatsApp";
+  if (origin === "facebook") return "Facebook";
   if (origin === "meta") return "Meta";
   if (origin === "direto") return "Direto";
   if (origin === "facebook.com") return "Facebook";
@@ -277,7 +289,7 @@ export default async function AnalisePage({ searchParams }: { searchParams?: Pro
       continue;
     }
 
-    const source = row.origin ? getSource(row.origin) : undefined;
+    const source = row.origin ? getSource(normalizeOrigin(row.origin)) : undefined;
 
     if (row.event === "page_view") {
       addStage("visitor", row.sessionId);
