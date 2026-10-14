@@ -37,6 +37,92 @@ const STATUS_MESSAGES: Record<string, string> = {
     "Seu pedido está em processo de entrega.",
 };
 
+type NewOrderPushData = {
+  id: string;
+  number: number;
+  customerName: string;
+  customerPhone: string;
+  total: number;
+  channel: string;
+};
+
+export async function notifyNewOrderToAdmins(order: NewOrderPushData) {
+  try {
+    const subscriptions = await prisma.pushSubscription.findMany({
+      where: { active: true, isAdmin: true },
+      select: { id: true, token: true },
+    });
+
+    if (subscriptions.length === 0) {
+      console.log(
+        `[push-admin] Nenhum admin com notificações ativas para o pedido #${order.number}.`
+      );
+      return;
+    }
+
+    const messaging = getMessaging(firebaseAdminApp);
+
+    const formattedTotal = order.total.toLocaleString("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    });
+
+    const results = await Promise.allSettled(
+      subscriptions.map((subscription) =>
+        messaging.send({
+          token: subscription.token,
+          notification: {
+            title: `Novo pedido #${order.number} • ${formattedTotal}`,
+            body: `${order.customerName} — toque para abrir o pedido.`,
+          },
+          data: {
+            orderId: order.id,
+            orderNumber: String(order.number),
+            type: "new_order",
+          },
+          webpush: {
+            fcmOptions: {
+              link: `/admin/pedidos/${order.id}`,
+            },
+          },
+        })
+      )
+    );
+
+    const invalidTokenIds: string[] = [];
+    results.forEach((result, index) => {
+      if (result.status === "rejected") {
+        const code = (result.reason as { code?: string } | undefined)?.code;
+        if (
+          code === "messaging/registration-token-not-registered" ||
+          code === "messaging/invalid-registration-token"
+        ) {
+          invalidTokenIds.push(subscriptions[index].id);
+        }
+      }
+    });
+
+    if (invalidTokenIds.length > 0) {
+      await prisma.pushSubscription.updateMany({
+        where: { id: { in: invalidTokenIds } },
+        data: { active: false },
+      });
+    }
+
+    const enviados = results.filter((result) => result.status === "fulfilled").length;
+
+    console.log(
+      `[push-admin] Pedido #${order.number}: ${enviados}/${subscriptions.length} notificação(ões) enviada(s) para admins.`
+    );
+  } catch (error) {
+    // Push nunca deve impedir a criação do pedido.
+    console.error(
+      `[push-admin] Erro ao notificar admins sobre o pedido #${order.number}:`,
+      error
+    );
+  }
+}
+
 export async function notifyOrderStatus(order: OrderPushData) {
   try {
     const message = STATUS_MESSAGES[order.status];

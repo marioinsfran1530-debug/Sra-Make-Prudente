@@ -489,6 +489,8 @@ model PushSubscription {
   token      String   @unique
   phone      String?
   sessionId  String?
+  isAdmin    Boolean  @default(false)
+  adminId    String?
   active     Boolean  @default(true)
   lastSeenAt DateTime @default(now())
   createdAt  DateTime @default(now())
@@ -496,4 +498,5 @@ model PushSubscription {
 
   @@index([phone])
   @@index([sessionId])
+  @@index([isAdmin])
 }

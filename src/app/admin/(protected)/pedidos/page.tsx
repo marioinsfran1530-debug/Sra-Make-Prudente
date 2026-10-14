@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { OrdersTable } from "@/components/admin/OrdersTable";
+import { AdminOrderPushBanner } from "@/components/admin/AdminOrderPushBanner";
 
 export default async function AdminPedidosPage({
   searchParams,
@@ -37,6 +38,8 @@ export default async function AdminPedidosPage({
           + Nova venda
         </Link>
       </div>
+
+      <AdminOrderPushBanner />
 
       <OrdersTable
         initialStatus={params?.status ?? ""}

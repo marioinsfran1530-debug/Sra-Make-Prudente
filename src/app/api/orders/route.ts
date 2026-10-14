@@ -20,6 +20,7 @@ import {
   getClientIp,
   isTrustedSameSiteRequest,
 } from "@/lib/public-api-security";
+import { notifyNewOrderToAdmins } from "@/lib/order-push";
 
 type CartItemInput = {
   productId: string;
@@ -381,7 +382,9 @@ export async function POST(request: NextRequest) {
 
     return {
       duplicate: false as const,
+      orderId: order.id,
       orderNumber: order.number,
+      channel: order.channel,
       subtotal,
       deliveryFee,
       total,
@@ -410,6 +413,17 @@ export async function POST(request: NextRequest) {
         phone: customerPhone,
         lastSeenAt: new Date(),
       },
+    });
+  }
+
+  if (!result.duplicate) {
+    await notifyNewOrderToAdmins({
+      id: result.orderId,
+      number: result.orderNumber,
+      customerName,
+      customerPhone,
+      total: result.total,
+      channel: result.channel,
     });
   }
 

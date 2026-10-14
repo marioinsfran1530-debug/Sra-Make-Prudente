@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Search } from "lucide-react";
+import { AlertTriangle, Search } from "lucide-react";
 import { money } from "@/lib/money";
 
 type OrderRow = {
@@ -47,6 +47,31 @@ const PENDING_STATUSES = new Set([
 ]);
 
 const PERIODS = new Set<Period>(["today", "7d", "30d", "month", "all"]);
+
+// Status em que um pedido depende de uma ação da loja (confirmar, separar etc.).
+// É aqui que um pedido "esquecido" fica parado sem ninguém perceber.
+const ATTENTION_STATUSES = new Set(["NOVO", "EM_CONFIRMACAO"]);
+const WARNING_MINUTES = 15;
+const URGENT_MINUTES = 60;
+
+function ageMinutes(createdAt: string, now: number) {
+  return Math.max(0, Math.floor((now - new Date(createdAt).getTime()) / 60000));
+}
+
+function urgencyLevel(order: OrderRow, now: number): "urgent" | "warning" | null {
+  if (!ATTENTION_STATUSES.has(order.status)) return null;
+  const minutes = ageMinutes(order.createdAt, now);
+  if (minutes >= URGENT_MINUTES) return "urgent";
+  if (minutes >= WARNING_MINUTES) return "warning";
+  return null;
+}
+
+function formatAge(minutes: number) {
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest > 0 ? `${hours}h${String(rest).padStart(2, "0")}` : `${hours}h`;
+}
 
 function normalize(value: string) {
   return value
@@ -110,6 +135,23 @@ export function OrdersTable({ orders, initialStatus = "", initialPeriod = "30d" 
   const [page, setPage] = useState(1);
   const perPage = 20;
 
+  // Atualiza a cada 30s só para recalcular a idade dos pedidos pendentes
+  // (cor do destaque, "há quanto tempo"), sem precisar recarregar a página.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const interval = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  const attentionOrders = useMemo(
+    () =>
+      orders
+        .filter((order) => urgencyLevel(order, now) !== null)
+        .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()),
+    [orders, now]
+  );
+  const urgentCount = attentionOrders.filter((order) => urgencyLevel(order, now) === "urgent").length;
+
   const filtered = useMemo(() => {
     const terms = normalize(query).split(" ").filter(Boolean);
     const range = periodRange(period);
@@ -137,9 +179,29 @@ export function OrdersTable({ orders, initialStatus = "", initialPeriod = "30d" 
     };
   }, [orders, period]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
+  // Pedidos que dependem de uma ação da loja sobem para o topo (mais antigos
+  // primeiro), para não ficarem enterrados pelos pedidos novos. O resto segue
+  // normalmente do mais recente para o mais antigo.
+  const sorted = useMemo(() => {
+    const rank = (order: OrderRow) => {
+      const level = urgencyLevel(order, now);
+      if (level === "urgent") return 0;
+      if (level === "warning") return 1;
+      return 2;
+    };
+    return [...filtered].sort((a, b) => {
+      const rankDiff = rank(a) - rank(b);
+      if (rankDiff !== 0) return rankDiff;
+      if (rank(a) < 2) {
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      }
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+  }, [filtered, now]);
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / perPage));
   const safePage = Math.min(page, totalPages);
-  const visible = filtered.slice((safePage - 1) * perPage, safePage * perPage);
+  const visible = sorted.slice((safePage - 1) * perPage, safePage * perPage);
 
   function changeFilter(callback: () => void) {
     callback();
@@ -148,6 +210,26 @@ export function OrdersTable({ orders, initialStatus = "", initialPeriod = "30d" 
 
   return (
     <div>
+      {attentionOrders.length > 0 && (
+        <div
+          className={`mb-4 flex items-center gap-3 rounded-2xl border p-3.5 sm:p-4 ${
+            urgentCount > 0
+              ? "border-red-200 bg-red-50"
+              : "border-amber-200 bg-amber-50"
+          }`}
+        >
+          <AlertTriangle
+            size={18}
+            className={urgentCount > 0 ? "shrink-0 text-red-600" : "shrink-0 text-amber-600"}
+          />
+          <p className={`text-xs font-bold leading-5 ${urgentCount > 0 ? "text-red-700" : "text-amber-700"}`}>
+            {attentionOrders.length} pedido{attentionOrders.length === 1 ? "" : "s"} aguardando ação há mais de {WARNING_MINUTES} min
+            {urgentCount > 0 && ` — ${urgentCount} há mais de 1 hora`}
+            . {attentionOrders.length === 1 ? "Ele foi" : "Eles foram"} destacado{attentionOrders.length === 1 ? "" : "s"} no topo da lista.
+          </p>
+        </div>
+      )}
+
       <div className="mb-4 grid gap-3 rounded-2xl bg-white p-3 shadow-sm sm:p-4">
         <div className="relative">
           <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-cinza" aria-hidden="true" />
@@ -185,21 +267,44 @@ export function OrdersTable({ orders, initialStatus = "", initialPeriod = "30d" 
       </div>
 
       <div className="flex flex-col gap-2">
-        {visible.map((order) => (
-          <Link key={order.id} href={`/admin/pedidos/${order.id}`} className={`rounded-2xl bg-white px-4 py-3 transition hover:-translate-y-0.5 ${order.status === "NOVO" ? "border-l-4 border-l-rosa-profundo" : ""}`} style={{ boxShadow: "0 2px 10px rgba(35,20,42,0.06)" }}>
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="truncate text-sm font-bold text-texto">#{order.number} — {order.customerName}</p>
-                  <span className={`rounded-full px-2 py-1 text-[9px] font-bold ${statusTone(order.status)}`}>{STATUS_LABEL[order.status] ?? order.status}</span>
-                  <span className={`rounded-full px-2 py-1 text-[9px] font-bold ${order.channel === "LOJA_FISICA" ? "bg-green-50 text-green-700" : "bg-creme text-rosa-profundo"}`}>{CHANNEL_LABEL[order.channel] ?? order.channel}</span>
+        {visible.map((order) => {
+          const level = urgencyLevel(order, now);
+          const cardClass =
+            level === "urgent"
+              ? "border-l-4 border-l-red-600 bg-red-50/40"
+              : level === "warning"
+                ? "border-l-4 border-l-amber-500 bg-amber-50/40"
+                : order.status === "NOVO"
+                  ? "border-l-4 border-l-rosa-profundo"
+                  : "";
+
+          return (
+            <Link
+              key={order.id}
+              href={`/admin/pedidos/${order.id}`}
+              className={`rounded-2xl bg-white px-4 py-3 transition hover:-translate-y-0.5 ${cardClass}`}
+              style={{ boxShadow: "0 2px 10px rgba(35,20,42,0.06)" }}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="truncate text-sm font-bold text-texto">#{order.number} — {order.customerName}</p>
+                    <span className={`rounded-full px-2 py-1 text-[9px] font-bold ${statusTone(order.status)}`}>{STATUS_LABEL[order.status] ?? order.status}</span>
+                    <span className={`rounded-full px-2 py-1 text-[9px] font-bold ${order.channel === "LOJA_FISICA" ? "bg-green-50 text-green-700" : "bg-creme text-rosa-profundo"}`}>{CHANNEL_LABEL[order.channel] ?? order.channel}</span>
+                    {level && (
+                      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[9px] font-bold ${level === "urgent" ? "bg-red-600 text-white" : "bg-amber-400 text-white"}`}>
+                        <AlertTriangle size={10} />
+                        {formatAge(ageMinutes(order.createdAt, now))}
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-1 text-[11px] text-cinza">{new Date(order.createdAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
                 </div>
-                <p className="mt-1 text-[11px] text-cinza">{new Date(order.createdAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
+                <p className="shrink-0 text-sm font-extrabold text-rosa-profundo">{money(order.total)}</p>
               </div>
-              <p className="shrink-0 text-sm font-extrabold text-rosa-profundo">{money(order.total)}</p>
-            </div>
-          </Link>
-        ))}
+            </Link>
+          );
+        })}
 
         {visible.length === 0 && (
           <div className="rounded-2xl bg-white p-6 text-center shadow-sm">
