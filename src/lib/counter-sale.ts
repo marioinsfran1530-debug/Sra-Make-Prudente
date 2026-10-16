@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { findPaymentRule, normalizePaymentSettings } from "@/lib/payment-settings";
 import { stockWasDecremented } from "@/lib/order-rules";
+import { normalizeCounterSaleChannel } from "@/lib/sales-channel";
 
 export class CounterSaleError extends Error {}
 
@@ -28,6 +29,7 @@ type CreateCounterSaleInput = {
   customerName?: string;
   customerPhone?: string;
   notes?: string;
+  salesChannel?: string;
   createdById: string;
   idempotencyKey: string;
   sourceOrderId?: string;
@@ -108,7 +110,7 @@ export async function createCounterSale(input: CreateCounterSaleInput) {
 
     if (!sourceOrderId) {
       const existingOrder = await tx.order.findFirst({
-        where: { sessionId: saleSessionId, origin: "loja_fisica" },
+        where: { sessionId: saleSessionId },
         include: { items: true, payments: true },
       });
       if (existingOrder) return existingOrder;
@@ -383,7 +385,7 @@ export async function createCounterSale(input: CreateCounterSaleInput) {
             channel: "LOJA_FISICA",
             createdById: input.createdById,
             notes,
-            origin: "loja_fisica",
+            origin: normalizeCounterSaleChannel(input.salesChannel),
             sessionId: saleSessionId,
             status: "FINALIZADO",
             items: { create: orderItems },

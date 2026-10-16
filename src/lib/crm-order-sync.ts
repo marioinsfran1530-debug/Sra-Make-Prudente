@@ -18,7 +18,7 @@ export function normalizeCrmSource(value: string | null | undefined, fallback = 
   if (raw.includes("whatsapp") || raw.includes("wa.me")) return "whatsapp";
   if (raw.includes("tiktok")) return "tiktok";
   if (raw.includes("indic")) return "indicacao";
-  if (raw.includes("loja_fisica") || raw.includes("loja física") || raw === "loja") return "loja_fisica";
+  if (raw.includes("loja_fisica") || raw.includes("loja física") || raw === "loja" || raw === "presencial") return "loja_fisica";
   if (
     raw.includes("catalog") ||
     raw.includes("sramakeprudente") ||

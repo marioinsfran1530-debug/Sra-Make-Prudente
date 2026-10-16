@@ -14,6 +14,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import { getAdminSession } from "@/lib/admin-auth";
 import { computeStockStatus } from "@/lib/stock";
+import { salesChannelLabel } from "@/lib/sales-channel";
 import { money } from "@/lib/money";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -25,13 +26,6 @@ const STATUS_LABEL: Record<string, string> = {
   SAIU_ENTREGA: "Saiu para entrega",
   FINALIZADO: "Finalizado",
   CANCELADO: "Cancelado",
-};
-
-const CHANNEL_LABEL: Record<string, string> = {
-  CATALOGO: "Catálogo",
-  WHATSAPP: "WhatsApp",
-  LOJA_FISICA: "Loja física",
-  MANUAL: "Manual",
 };
 
 const PENDING_STATUSES = [
@@ -222,6 +216,7 @@ export default async function AdminDashboardPage({
         id: true,
         total: true,
         channel: true,
+        origin: true,
         items: {
           select: {
             productId: true,
@@ -295,7 +290,7 @@ export default async function AdminDashboardPage({
   const channelMap = new Map<string, { orders: number; revenue: number }>();
 
   for (const order of finalizedOrders) {
-    const channel = CHANNEL_LABEL[order.channel] ?? order.channel;
+    const channel = salesChannelLabel(order.channel, order.origin);
     const channelStats = channelMap.get(channel) ?? { orders: 0, revenue: 0 };
     channelStats.orders += 1;
     channelStats.revenue += Number(order.total);

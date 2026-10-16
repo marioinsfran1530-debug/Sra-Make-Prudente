@@ -21,6 +21,7 @@ type Body = {
   customerName?: string;
   customerPhone?: string;
   notes?: string;
+  salesChannel?: string;
 };
 
 function sourceOrderFromRequest(request: NextRequest, body: Body) {
@@ -74,6 +75,7 @@ export async function POST(request: NextRequest) {
       customerName: typeof body.customerName === "string" ? body.customerName : "",
       customerPhone: typeof body.customerPhone === "string" ? body.customerPhone : "",
       notes: typeof body.notes === "string" ? body.notes : "",
+      salesChannel: typeof body.salesChannel === "string" ? body.salesChannel : undefined,
       createdById: session.id,
     });
 

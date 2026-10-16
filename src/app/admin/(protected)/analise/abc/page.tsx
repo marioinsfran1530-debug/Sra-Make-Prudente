@@ -77,6 +77,10 @@ type ProductSales = {
   revenue: number;
   orders: number;
   stockQty: number;
+  // false quando o produto foi inativado ou removido do catálogo depois da venda.
+  inCatalog: boolean;
+  // false quando o produto não existe mais no banco (só restou o nome do pedido).
+  hasRecord: boolean;
 };
 
 type AbcRow = ProductSales & {
@@ -126,6 +130,8 @@ export default async function CurvaAbcPage({
         items: {
           select: {
             productId: true,
+            name: true,
+            brand: true,
             qty: true,
             subtotal: true,
           },
@@ -147,7 +153,10 @@ export default async function CurvaAbcPage({
     }),
   ]);
 
-  const salesMap = new Map<string, { units: number; revenue: number; orders: number }>();
+  const salesMap = new Map<
+    string,
+    { units: number; revenue: number; orders: number; name: string; brand: string }
+  >();
 
   for (const order of orders) {
     const productIdsInOrder = new Set<string>();
@@ -157,6 +166,8 @@ export default async function CurvaAbcPage({
         units: 0,
         revenue: 0,
         orders: 0,
+        name: item.name,
+        brand: item.brand?.trim() || "Sem marca",
       };
 
       current.units += item.qty;
@@ -190,15 +201,50 @@ export default async function CurvaAbcPage({
     })
   );
 
+  // Produtos vendidos que hoje estão inativos: busca os dados reais (estoque,
+  // nome atual) em vez de tratá-los como "não identificados". Os removidos de
+  // vez usam o nome e a marca gravados no próprio item do pedido.
+  const missingProductIds = Array.from(salesMap.keys()).filter((id) => !productMap.has(id));
+  const inactiveProducts = missingProductIds.length
+    ? await prisma.product.findMany({
+        where: { id: { in: missingProductIds } },
+        select: {
+          id: true,
+          name: true,
+          brand: true,
+          stockQty: true,
+          variants: { select: { stockQty: true } },
+        },
+      })
+    : [];
+  const inactiveMap = new Map(
+    inactiveProducts.map((product) => [
+      product.id,
+      {
+        name: product.name,
+        brand: product.brand,
+        stockQty:
+          product.variants.length > 0
+            ? product.variants.reduce((sum, variant) => sum + variant.stockQty, 0)
+            : product.stockQty,
+      },
+    ])
+  );
+
   const soldProducts: ProductSales[] = Array.from(salesMap.entries())
     .map(([productId, sales]) => {
       const product = productMap.get(productId);
+      const inactive = inactiveMap.get(productId);
       return {
         productId,
-        name: product?.name ?? "Produto não identificado",
-        brand: product?.brand ?? "Sem marca",
-        stockQty: product?.stockQty ?? 0,
-        ...sales,
+        name: product?.name ?? inactive?.name ?? sales.name,
+        brand: product?.brand ?? inactive?.brand ?? sales.brand,
+        stockQty: product?.stockQty ?? inactive?.stockQty ?? 0,
+        inCatalog: Boolean(product),
+        hasRecord: Boolean(product || inactive),
+        units: sales.units,
+        revenue: sales.revenue,
+        orders: sales.orders,
       };
     })
     .filter((product) => product.units > 0 || product.revenue > 0);
@@ -407,13 +453,24 @@ export default async function CurvaAbcPage({
                       {row.rank}
                     </td>
                     <td className="max-w-[300px] px-3 py-3">
-                      <Link
-                        href={`/admin/produtos/${row.productId}`}
-                        className="font-bold text-texto hover:text-rosa-profundo hover:underline"
-                      >
-                        {row.name}
-                      </Link>
-                      <p className="mt-0.5 text-[10px] text-cinza">{row.brand}</p>
+                      {!row.hasRecord ? (
+                        <span className="font-bold text-texto">{row.name}</span>
+                      ) : (
+                        <Link
+                          href={`/admin/produtos/${row.productId}`}
+                          className="font-bold text-texto hover:text-rosa-profundo hover:underline"
+                        >
+                          {row.name}
+                        </Link>
+                      )}
+                      <p className="mt-0.5 text-[10px] text-cinza">
+                        {row.brand}
+                        {!row.inCatalog && (
+                          <span className="ml-1.5 rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold text-slate-600">
+                            inativo
+                          </span>
+                        )}
+                      </p>
                     </td>
                     <td className="px-3 py-3">
                       <span

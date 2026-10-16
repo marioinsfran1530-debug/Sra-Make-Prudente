@@ -7,6 +7,12 @@ import {
   findPaymentRule,
   type PaymentSettingsConfig,
 } from "@/lib/payment-settings";
+import {
+  COUNTER_SALE_CHANNELS,
+  DEFAULT_COUNTER_SALE_CHANNEL,
+  normalizeCounterSaleChannel,
+  type CounterSaleChannel,
+} from "@/lib/sales-channel";
 
 type Variant = {
   id: string;
@@ -61,6 +67,7 @@ type LastAddition = { key: string; previousQty: number } | null;
 type Tab = "FAVORITOS" | "TODOS" | string;
 
 const FAVORITES_KEY = "sramake_counter_sale_favorites_v1";
+const SALES_CHANNEL_KEY = "sramake_counter_sale_channel_v1";
 const PAGE_SIZE = 16;
 
 function normalize(value: string) {
@@ -161,6 +168,7 @@ export function CounterSaleForm({
   const [customerName, setCustomerName] = useState(initialSale?.customerName ?? "");
   const [customerPhone, setCustomerPhone] = useState(initialSale?.customerPhone ?? "");
   const [notes, setNotes] = useState(initialSale?.notes ?? "");
+  const [salesChannel, setSalesChannel] = useState<CounterSaleChannel>(DEFAULT_COUNTER_SALE_CHANNEL);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
@@ -186,6 +194,15 @@ export function CounterSaleForm({
       // Favoritos são apenas uma conveniência local.
     }
   }, [products]);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(SALES_CHANNEL_KEY);
+      if (saved) setSalesChannel(normalizeCounterSaleChannel(saved));
+    } catch {
+      // O canal lembrado é apenas uma conveniência local.
+    }
+  }, []);
 
   useEffect(() => {
     searchRef.current?.focus();
@@ -299,6 +316,15 @@ export function CounterSaleForm({
   function clearSearch() {
     setQuery("");
     focusSearch();
+  }
+
+  function chooseSalesChannel(next: CounterSaleChannel) {
+    setSalesChannel(next);
+    try {
+      localStorage.setItem(SALES_CHANNEL_KEY, next);
+    } catch {
+      // Não bloqueia o PDV.
+    }
   }
 
   function persistFavorites(next: string[]) {
@@ -493,6 +519,7 @@ export function CounterSaleForm({
           customerName,
           customerPhone,
           notes,
+          salesChannel,
         }),
       });
       const data = await response.json();
@@ -696,6 +723,32 @@ export function CounterSaleForm({
                 </div>
               </>
             )}
+          </div>
+        )}
+
+        {!initialSale && (
+          <div className="mt-3 rounded-xl border border-rosa/10 p-3">
+            <p className="text-xs font-bold text-texto">De onde veio esta venda?</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {COUNTER_SALE_CHANNELS.map((item) => {
+                const active = item.value === salesChannel;
+                return (
+                  <button
+                    key={item.value}
+                    type="button"
+                    onClick={() => chooseSalesChannel(item.value)}
+                    aria-pressed={active}
+                    className={`rounded-xl border px-3 py-2 text-[11px] font-bold ${
+                      active
+                        ? "border-rosa-profundo bg-rosa-profundo text-white"
+                        : "border-rosa/15 bg-white text-cinza"
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         )}
 

@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { MessageCircle, Star } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { money } from "@/lib/money";
+import { salesChannelLabel } from "@/lib/sales-channel";
 import { waLink } from "@/lib/whatsapp";
 import { OrderStatusControl } from "@/components/admin/OrderStatusControl";
 
@@ -23,13 +24,6 @@ const STATUS_LABEL: Record<string, string> = {
   SAIU_ENTREGA: "Saiu para entrega",
   FINALIZADO: "Finalizado",
   CANCELADO: "Cancelado",
-};
-
-const CHANNEL_LABEL: Record<string, string> = {
-  CATALOGO: "Catálogo",
-  WHATSAPP: "WhatsApp",
-  LOJA_FISICA: "Loja física",
-  MANUAL: "Manual",
 };
 
 const PAYMENT_LABEL: Record<string, string> = {
@@ -97,7 +91,7 @@ export default async function AdminPedidoDetailPage({ params }: { params: Promis
         <div>
           <h1 className="font-serif text-xl font-bold text-texto">Pedido #{order.number}</h1>
           <p className="text-xs text-cinza">{new Date(order.createdAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}</p>
-          <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[9px] font-bold ${order.channel === "LOJA_FISICA" ? "bg-green-50 text-green-700" : "bg-creme text-rosa-profundo"}`}>{CHANNEL_LABEL[order.channel] ?? order.channel}</span>
+          <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[9px] font-bold ${order.channel === "LOJA_FISICA" ? "bg-green-50 text-green-700" : "bg-creme text-rosa-profundo"}`}>{salesChannelLabel(order.channel, order.origin)}</span>
         </div>
         <div className="flex shrink-0 flex-col gap-2">
           {canTakeToSale && (
@@ -203,7 +197,7 @@ export default async function AdminPedidoDetailPage({ params }: { params: Promis
       </div>
 
       <div className="mb-4 rounded-2xl bg-white p-4" style={{ boxShadow: "0 2px 10px rgba(35,20,42,0.06)" }}>
-        <Row label="Canal" value={CHANNEL_LABEL[order.channel] ?? order.channel} />
+        <Row label="Canal" value={salesChannelLabel(order.channel, order.origin)} />
         <Row label="Recebimento" value={order.deliveryType === "RETIRADA" ? "Retirada / balcão" : "Entrega"} />
         {order.address && <Row label="Endereço" value={order.address} />}
         {order.payments.length > 0 ? order.payments.map((payment) => (

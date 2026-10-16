@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, Search } from "lucide-react";
 import { money } from "@/lib/money";
+import { salesChannelLabel } from "@/lib/sales-channel";
 
 type OrderRow = {
   id: string;
@@ -13,6 +14,7 @@ type OrderRow = {
   total: number;
   status: string;
   channel: string;
+  origin?: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -28,13 +30,6 @@ const STATUS_LABEL: Record<string, string> = {
   SAIU_ENTREGA: "Saiu para entrega",
   FINALIZADO: "Finalizado",
   CANCELADO: "Cancelado",
-};
-
-const CHANNEL_LABEL: Record<string, string> = {
-  CATALOGO: "Catálogo",
-  WHATSAPP: "WhatsApp",
-  LOJA_FISICA: "Loja física",
-  MANUAL: "Manual",
 };
 
 const PENDING_STATUSES = new Set([
@@ -157,7 +152,7 @@ export function OrdersTable({ orders, initialStatus = "", initialPeriod = "30d" 
     const range = periodRange(period);
 
     return orders.filter((order) => {
-      const searchable = normalize(`${order.number} ${order.customerName} ${order.customerPhone} ${CHANNEL_LABEL[order.channel] ?? order.channel}`);
+      const searchable = normalize(`${order.number} ${order.customerName} ${order.customerPhone} ${salesChannelLabel(order.channel, order.origin)}`);
       const matchesQuery = terms.every((term) => searchable.includes(term));
       const matchesStatus = !status || (status === "pending" ? PENDING_STATUSES.has(order.status) : order.status === status);
       const referenceDate = order.status === "FINALIZADO" || order.status === "CANCELADO" ? new Date(order.updatedAt) : new Date(order.createdAt);
@@ -290,7 +285,7 @@ export function OrdersTable({ orders, initialStatus = "", initialPeriod = "30d" 
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="truncate text-sm font-bold text-texto">#{order.number} — {order.customerName}</p>
                     <span className={`rounded-full px-2 py-1 text-[9px] font-bold ${statusTone(order.status)}`}>{STATUS_LABEL[order.status] ?? order.status}</span>
-                    <span className={`rounded-full px-2 py-1 text-[9px] font-bold ${order.channel === "LOJA_FISICA" ? "bg-green-50 text-green-700" : "bg-creme text-rosa-profundo"}`}>{CHANNEL_LABEL[order.channel] ?? order.channel}</span>
+                    <span className={`rounded-full px-2 py-1 text-[9px] font-bold ${order.channel === "LOJA_FISICA" ? "bg-green-50 text-green-700" : "bg-creme text-rosa-profundo"}`}>{salesChannelLabel(order.channel, order.origin)}</span>
                     {level && (
                       <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[9px] font-bold ${level === "urgent" ? "bg-red-600 text-white" : "bg-amber-400 text-white"}`}>
                         <AlertTriangle size={10} />

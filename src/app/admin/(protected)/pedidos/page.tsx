@@ -20,6 +20,7 @@ export default async function AdminPedidosPage({
       total: true,
       status: true,
       channel: true,
+      origin: true,
       createdAt: true,
       updatedAt: true,
     },
@@ -52,6 +53,7 @@ export default async function AdminPedidosPage({
           total: Number(order.total),
           status: order.status,
           channel: order.channel,
+          origin: order.origin,
           createdAt: order.createdAt.toISOString(),
           updatedAt: order.updatedAt.toISOString(),
         }))}
