@@ -22,6 +22,7 @@ const primaryItems: Item[] = [
 const productItems: Item[] = [
   { href: "/admin/produtos", label: "Produtos", exact: true },
   { href: "/admin/produtos/novo", label: "Novo produto" },
+  { href: "/admin/produtos/custos", label: "Custos e margem" },
   { href: "/admin/categorias", label: "Categorias e subcategorias" },
 ];
 
