@@ -80,6 +80,7 @@ export function AdminNav({ isAdmin }: { isAdmin: boolean }) {
 
   const managementItems: Item[] = [
     { href: "/admin/analise", label: "Análise" },
+    { href: "/admin/financeiro", label: "Fechamento do mês" },
     { href: "/admin/divulgacao", label: "Divulgação" },
     { href: "/admin/loja", label: "Loja" },
     ...(isAdmin
