@@ -89,7 +89,6 @@ export function AdminNav({ isAdmin }: { isAdmin: boolean }) {
           { href: "/admin/usuarios", label: "Usuários" },
         ]
       : []),
-    { href: "/admin/dispositivos", label: "Segurança" },
   ];
 
   function isActive(item: Item) {
