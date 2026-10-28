@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { money } from "@/lib/money";
 import {
+  computeMonthGoal,
   currentMonth,
+  grossMarginRatio,
   monthLabel,
   monthRange,
   parseMonth,
@@ -9,8 +11,15 @@ import {
   shiftMonth,
   summarizeMonth,
 } from "@/lib/finance";
-import { countFixedEntries, getMonthSales, listFinanceEntries } from "@/lib/finance-data";
+import {
+  countFixedEntries,
+  EMPTY_FINANCE_GOAL,
+  getFinanceGoal,
+  getMonthSales,
+  listFinanceEntries,
+} from "@/lib/finance-data";
 import { FinanceEntries } from "@/components/admin/FinanceEntries";
+import { FinanceGoal } from "@/components/admin/FinanceGoal";
 
 export const dynamic = "force-dynamic";
 
@@ -59,10 +68,12 @@ export default async function AdminFinanceiroPage({
   const month = requested > thisMonth ? thisMonth : requested;
   const isCurrent = month === thisMonth;
 
-  const [entries, sales, previousFixedCount] = await Promise.all([
+  const [entries, sales, previousFixedCount, goalSetting] = await Promise.all([
     listFinanceEntries(month),
     getMonthSales(month),
     countFixedEntries(shiftMonth(month, -1)),
+    // A meta é um recurso novo: se a leitura falhar, o restante da página continua funcionando.
+    getFinanceGoal(month).catch(() => EMPTY_FINANCE_GOAL),
   ]);
 
   const sumOf = (kind: string) =>
@@ -78,6 +89,28 @@ export default async function AdminFinanceiroPage({
     fixedExpenses: sumOf("FIXA"),
     variableCosts: sumOf("VARIAVEL"),
     withdrawal: sumOf("RETIRADA"),
+    elapsedDays,
+    daysInMonth,
+  });
+
+  // Margem para a meta: a do próprio mês; sem vendas com margem positiva, a do mês anterior.
+  let goalMargin = grossMarginRatio(sales);
+  let marginFromPrevious = false;
+  if (goalMargin === null || goalMargin <= 0) {
+    const previousMargin = grossMarginRatio(await getMonthSales(shiftMonth(month, -1)));
+    if (previousMargin !== null && previousMargin > 0) {
+      goalMargin = previousMargin;
+      marginFromPrevious = true;
+    }
+  }
+
+  const monthGoal = computeMonthGoal({
+    expenses: summary.expenses,
+    withdrawal: sumOf("RETIRADA"),
+    desiredProfit: goalSetting.desiredProfit,
+    margin: goalMargin,
+    revenue: sales.revenue,
+    goalOverride: goalSetting.goalOverride,
     elapsedDays,
     daysInMonth,
   });
@@ -149,6 +182,24 @@ export default async function AdminFinanceiroPage({
           <span className="font-bold text-texto">{money(summary.afterWithdrawal)}</span>
         </p>
       </section>
+
+      <FinanceGoal
+        month={month}
+        isCurrent={isCurrent}
+        revenue={sales.revenue}
+        goal={monthGoal.goal}
+        suggestedGoal={monthGoal.suggestedGoal}
+        usesOverride={monthGoal.usesOverride}
+        reached={monthGoal.reached}
+        progressPct={monthGoal.progressPct}
+        remaining={monthGoal.remaining}
+        daysLeft={monthGoal.daysLeft}
+        perDayNeeded={monthGoal.perDayNeeded}
+        onPace={monthGoal.onPace}
+        desiredProfit={goalSetting.desiredProfit}
+        profitInherited={goalSetting.inherited}
+        marginFromPrevious={marginFromPrevious}
+      />
 
       <section className="mb-4 rounded-2xl border border-rosa/10 bg-white p-4 shadow-sm">
         <h2 className="mb-1 text-sm font-bold text-texto">Para onde vai o dinheiro das vendas</h2>
@@ -248,7 +299,8 @@ export default async function AdminFinanceiroPage({
         Como é calculado: vendas = total dos pedidos finalizados no mês (horário de Brasília, incluindo frete cobrado).
         Reposição = custo gravado na venda; sem ele, o custo atual do produto; sem ele, 44% do preço. Taxas = o que foi
         registrado nas vendas de cartão e link (Pix e dinheiro não têm taxa). Equilíbrio = despesas ÷ margem bruta do mês.
-        Anúncios, embalagens e fretes pagos por vocês entram em custos variáveis.
+        Anúncios, embalagens e fretes pagos por vocês entram em custos variáveis. Meta sugerida = (despesas + retirada +
+        lucro desejado) ÷ margem bruta do mês; sem vendas no mês, vale a margem do mês anterior.
       </p>
     </div>
   );

@@ -220,3 +220,89 @@ export function summarizeMonth(input: MonthSummaryInput): MonthSummary {
         : null,
   };
 }
+
+// ---------- Meta do mês ----------
+
+export const MAX_GOAL_AMOUNT = 10_000_000;
+
+// Margem bruta (de 0 a 1) das vendas de um mês; null quando não há vendas.
+export function grossMarginRatio(input: { revenue: number; cogs: number; paymentFees: number }) {
+  if (!(input.revenue > 0)) return null;
+  return (input.revenue - input.cogs - input.paymentFees) / input.revenue;
+}
+
+export type MonthGoalInput = {
+  expenses: number; // despesas fixas + custos variáveis lançados no mês
+  withdrawal: number; // retirada dos sócios (pró-labore)
+  desiredProfit: number; // quanto a loja deve sobrar depois de tudo
+  margin: number | null; // margem bruta de 0 a 1; null quando desconhecida
+  revenue: number; // vendas finalizadas até agora
+  goalOverride: number | null; // meta digitada, que vale no lugar da calculada
+  elapsedDays: number | null; // dia do mês em andamento (null em mês encerrado)
+  daysInMonth: number;
+};
+
+export type MonthGoal = {
+  suggestedGoal: number | null;
+  goal: number | null;
+  usesOverride: boolean;
+  reached: boolean;
+  progressPct: number | null;
+  remaining: number | null;
+  daysLeft: number | null; // dias que restam contando hoje
+  perDayNeeded: number | null;
+  expectedByToday: number | null;
+  onPace: boolean | null;
+};
+
+// Meta sugerida = (despesas + retirada + lucro desejado) ÷ margem bruta.
+export function computeMonthGoal(input: MonthGoalInput): MonthGoal {
+  const needed = round2(input.expenses + input.withdrawal + input.desiredProfit);
+  const marginUsable = input.margin !== null && input.margin > 0;
+  const suggestedGoal = needed === 0 ? 0 : marginUsable ? round2(needed / (input.margin as number)) : null;
+
+  const usesOverride = input.goalOverride !== null && input.goalOverride > 0;
+  const goal = usesOverride ? (input.goalOverride as number) : suggestedGoal;
+  const hasGoal = goal !== null && goal > 0;
+
+  const remaining = hasGoal ? round2(Math.max(0, (goal as number) - input.revenue)) : null;
+  const daysLeft =
+    input.elapsedDays !== null ? Math.max(1, input.daysInMonth - input.elapsedDays + 1) : null;
+  const expectedByToday =
+    hasGoal && input.elapsedDays !== null
+      ? round2(((goal as number) * input.elapsedDays) / input.daysInMonth)
+      : null;
+
+  return {
+    suggestedGoal,
+    goal: hasGoal ? (goal as number) : null,
+    usesOverride,
+    reached: hasGoal && input.revenue >= (goal as number),
+    progressPct: hasGoal ? (input.revenue / (goal as number)) * 100 : null,
+    remaining,
+    daysLeft,
+    perDayNeeded: remaining !== null && daysLeft !== null ? round2(remaining / daysLeft) : null,
+    expectedByToday,
+    onPace: expectedByToday !== null ? input.revenue >= expectedByToday : null,
+  };
+}
+
+// Valida o lucro desejado e a meta digitada recebidos pela API.
+// A meta é opcional: null (ou ausente) volta a usar a meta sugerida.
+export function validateGoalFields(body: Record<string, unknown>) {
+  const desiredProfit = typeof body.desiredProfit === "number" ? body.desiredProfit : Number.NaN;
+  if (!Number.isFinite(desiredProfit) || desiredProfit < 0 || desiredProfit > MAX_ENTRY_AMOUNT) {
+    return { error: "Informe um lucro desejado válido, de zero a R$ 1.000.000,00." } as const;
+  }
+
+  let goalOverride: number | null = null;
+  if (body.goalOverride !== null && body.goalOverride !== undefined) {
+    const value = typeof body.goalOverride === "number" ? body.goalOverride : Number.NaN;
+    if (!Number.isFinite(value) || value <= 0 || value > MAX_GOAL_AMOUNT) {
+      return { error: "Informe uma meta de vendas válida, de R$ 0,01 a R$ 10.000.000,00." } as const;
+    }
+    goalOverride = round2(value);
+  }
+
+  return { desiredProfit: round2(desiredProfit), goalOverride } as const;
+}

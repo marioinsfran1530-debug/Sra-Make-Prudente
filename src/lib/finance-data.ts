@@ -100,3 +100,58 @@ export async function getMonthSales(month: string): Promise<MonthSales> {
     realCostSharePct: itemsRevenue > 0 ? (itemsRevenueWithRealCost / itemsRevenue) * 100 : 0,
   };
 }
+
+export type FinanceGoalSetting = {
+  desiredProfit: number;
+  goalOverride: number | null; // meta digitada; null = vale a meta sugerida
+  inherited: boolean; // lucro desejado copiado de um mês anterior (este mês ainda não tem o seu)
+};
+
+export const EMPTY_FINANCE_GOAL: FinanceGoalSetting = { desiredProfit: 0, goalOverride: null, inherited: false };
+
+// Lucro desejado e meta digitada do mês. Sem registro no mês, o lucro desejado do
+// mês anterior mais recente vale como ponto de partida, sem copiar a meta digitada.
+export async function getFinanceGoal(month: string): Promise<FinanceGoalSetting> {
+  const rows = await prisma.$queryRaw<
+    { month: string; desiredProfit: number; goalOverride: number | null }[]
+  >`
+    SELECT "month", "desiredProfit"::float8 AS "desiredProfit", "goalOverride"::float8 AS "goalOverride"
+    FROM app_security."FinanceGoal"
+    WHERE "month" <= ${month}
+    ORDER BY "month" DESC
+    LIMIT 1
+  `;
+  const row = rows[0];
+  if (!row) return EMPTY_FINANCE_GOAL;
+
+  const desiredProfit = Number(row.desiredProfit);
+  if (row.month === month) {
+    return {
+      desiredProfit,
+      goalOverride: row.goalOverride === null ? null : Number(row.goalOverride),
+      inherited: false,
+    };
+  }
+  return { desiredProfit, goalOverride: null, inherited: true };
+}
+
+export async function saveFinanceGoal(month: string, desiredProfit: number, goalOverride: number | null) {
+  // Duas instruções (em vez de um parâmetro nulo) para o tipo da coluna nunca ficar ambíguo.
+  if (goalOverride === null) {
+    await prisma.$executeRaw`
+      INSERT INTO app_security."FinanceGoal" ("month", "desiredProfit", "goalOverride", "updatedAt")
+      VALUES (${month}, ${desiredProfit}, NULL, NOW())
+      ON CONFLICT ("month") DO UPDATE
+      SET "desiredProfit" = EXCLUDED."desiredProfit", "goalOverride" = NULL, "updatedAt" = NOW()
+    `;
+    return;
+  }
+  await prisma.$executeRaw`
+    INSERT INTO app_security."FinanceGoal" ("month", "desiredProfit", "goalOverride", "updatedAt")
+    VALUES (${month}, ${desiredProfit}, ${goalOverride}, NOW())
+    ON CONFLICT ("month") DO UPDATE
+    SET "desiredProfit" = EXCLUDED."desiredProfit",
+        "goalOverride" = EXCLUDED."goalOverride",
+        "updatedAt" = NOW()
+  `;
+}

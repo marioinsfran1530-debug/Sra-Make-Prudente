@@ -13,6 +13,9 @@ const {
   isFinanceKind,
   DEFAULT_FIXED_EXPENSES,
   validateEntryFields,
+  grossMarginRatio,
+  computeMonthGoal,
+  validateGoalFields,
 } = require("../.tmp-tests/finance.js");
 
 const baseInput = {
@@ -169,4 +172,120 @@ test("validateEntryFields recusa nome vazio, longo e valores inválidos", () => 
   assert.ok("error" in validateEntryFields({ label: "Ok", amount: Number.NaN }));
   assert.ok("error" in validateEntryFields({ label: "Ok", amount: 1_000_001 }));
   assert.ok("error" in validateEntryFields({ amount: 10 }));
+});
+
+const goalInput = {
+  expenses: 7000,
+  withdrawal: 1000,
+  desiredProfit: 3000,
+  margin: 0.4,
+  revenue: 10000,
+  goalOverride: null,
+  elapsedDays: 10,
+  daysInMonth: 31,
+};
+
+test("margem bruta em razão: vendas menos reposição e taxas", () => {
+  assert.equal(grossMarginRatio({ revenue: 2000, cogs: 880, paymentFees: 20 }), 0.55);
+  assert.equal(grossMarginRatio({ revenue: 0, cogs: 0, paymentFees: 0 }), null);
+});
+
+test("meta sugerida = (despesas + retirada + lucro desejado) ÷ margem", () => {
+  // (7.000 + 1.000 + 3.000) ÷ 0,40 = 27.500
+  const goal = computeMonthGoal(goalInput);
+  assert.equal(goal.suggestedGoal, 27500);
+  assert.equal(goal.goal, 27500);
+  assert.equal(goal.usesOverride, false);
+  assert.equal(goal.reached, false);
+});
+
+test("ritmo diário divide o que falta pelos dias que restam, contando hoje", () => {
+  // faltam 17.500 e restam 22 dias (do dia 10 ao 31)
+  const goal = computeMonthGoal(goalInput);
+  assert.equal(goal.remaining, 17500);
+  assert.equal(goal.daysLeft, 22);
+  assert.equal(goal.perDayNeeded, 795.45);
+  assert.equal(Math.round(goal.progressPct), 36);
+});
+
+test("ritmo: verde quando o vendido alcança a fração da meta dos dias que passaram", () => {
+  // esperado até o dia 10: 27.500 × 10 ÷ 31 = 8.870,97
+  const goal = computeMonthGoal(goalInput);
+  assert.equal(goal.expectedByToday, 8870.97);
+  assert.equal(goal.onPace, true);
+  assert.equal(computeMonthGoal({ ...goalInput, revenue: 8000 }).onPace, false);
+});
+
+test("meta digitada vale no lugar da sugerida e a sugerida continua disponível", () => {
+  const goal = computeMonthGoal({ ...goalInput, goalOverride: 30000 });
+  assert.equal(goal.goal, 30000);
+  assert.equal(goal.usesOverride, true);
+  assert.equal(goal.suggestedGoal, 27500);
+  assert.equal(goal.remaining, 20000);
+});
+
+test("meta batida zera o que falta e o ritmo", () => {
+  const goal = computeMonthGoal({ ...goalInput, revenue: 30000 });
+  assert.equal(goal.reached, true);
+  assert.equal(goal.remaining, 0);
+  assert.equal(goal.perDayNeeded, 0);
+});
+
+test("mês encerrado não tem ritmo diário", () => {
+  const goal = computeMonthGoal({ ...goalInput, elapsedDays: null });
+  assert.equal(goal.daysLeft, null);
+  assert.equal(goal.perDayNeeded, null);
+  assert.equal(goal.onPace, null);
+  assert.equal(goal.remaining, 17500);
+});
+
+test("último dia do mês ainda conta como um dia restante", () => {
+  const goal = computeMonthGoal({ ...goalInput, elapsedDays: 31 });
+  assert.equal(goal.daysLeft, 1);
+  assert.equal(goal.perDayNeeded, 17500);
+});
+
+test("sem margem não há meta sugerida, mas a digitada funciona", () => {
+  const semMargem = computeMonthGoal({ ...goalInput, margin: null });
+  assert.equal(semMargem.suggestedGoal, null);
+  assert.equal(semMargem.goal, null);
+  assert.equal(semMargem.progressPct, null);
+  assert.equal(semMargem.perDayNeeded, null);
+
+  const margemZero = computeMonthGoal({ ...goalInput, margin: 0 });
+  assert.equal(margemZero.suggestedGoal, null);
+
+  const digitada = computeMonthGoal({ ...goalInput, margin: null, goalOverride: 25000 });
+  assert.equal(digitada.goal, 25000);
+  assert.equal(digitada.remaining, 15000);
+});
+
+test("sem despesas, retirada nem lucro desejado a meta é zero e fica sem barra", () => {
+  const goal = computeMonthGoal({ ...goalInput, expenses: 0, withdrawal: 0, desiredProfit: 0 });
+  assert.equal(goal.suggestedGoal, 0);
+  assert.equal(goal.goal, null);
+  assert.equal(goal.reached, false);
+});
+
+test("validateGoalFields aceita lucro desejado e meta opcional", () => {
+  assert.deepEqual(validateGoalFields({ desiredProfit: 3000.456, goalOverride: null }), {
+    desiredProfit: 3000.46,
+    goalOverride: null,
+  });
+  assert.deepEqual(validateGoalFields({ desiredProfit: 0 }), { desiredProfit: 0, goalOverride: null });
+  assert.deepEqual(validateGoalFields({ desiredProfit: 1000, goalOverride: 27500 }), {
+    desiredProfit: 1000,
+    goalOverride: 27500,
+  });
+});
+
+test("validateGoalFields recusa lucro e meta inválidos", () => {
+  assert.ok("error" in validateGoalFields({}));
+  assert.ok("error" in validateGoalFields({ desiredProfit: -1 }));
+  assert.ok("error" in validateGoalFields({ desiredProfit: "3000" }));
+  assert.ok("error" in validateGoalFields({ desiredProfit: 1_000_001 }));
+  assert.ok("error" in validateGoalFields({ desiredProfit: 100, goalOverride: 0 }));
+  assert.ok("error" in validateGoalFields({ desiredProfit: 100, goalOverride: -5 }));
+  assert.ok("error" in validateGoalFields({ desiredProfit: 100, goalOverride: "27500" }));
+  assert.ok("error" in validateGoalFields({ desiredProfit: 100, goalOverride: 10_000_001 }));
 });
