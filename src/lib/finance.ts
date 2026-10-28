@@ -20,16 +20,26 @@ export const FINANCE_KINDS = [
 
 export type FinanceKind = (typeof FINANCE_KINDS)[number]["value"];
 
+export const FINANCE_STATUSES = ["PAGO", "PENDENTE"] as const;
+export type FinanceStatus = (typeof FINANCE_STATUSES)[number];
+
 export type FinanceEntryRow = {
   id: string;
   month: string;
   kind: FinanceKind;
   label: string;
   amount: number;
+  status: FinanceStatus; // PENDENTE = ainda a pagar
+  dueDate: string | null; // vencimento, AAAA-MM-DD
+  paidAt: string | null; // data do pagamento, AAAA-MM-DD
 };
 
 export function isFinanceKind(value: unknown): value is FinanceKind {
   return FINANCE_KINDS.some((item) => item.value === value);
+}
+
+export function isFinanceStatus(value: unknown): value is FinanceStatus {
+  return FINANCE_STATUSES.some((item) => item === value);
 }
 
 // Despesas fixas da planilha de precificação da loja, usadas como ponto de
@@ -305,4 +315,157 @@ export function validateGoalFields(body: Record<string, unknown>) {
   }
 
   return { desiredProfit: round2(desiredProfit), goalOverride } as const;
+}
+
+// ---------- Pagamento das despesas ----------
+
+// Data de calendário AAAA-MM-DD (sem horário, para não depender de fuso).
+export function isValidDate(value: unknown): value is string {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [year, month, day] = value.split("-").map(Number);
+  if (year < 2000 || year > 2100) return false;
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+}
+
+export function todayIso(now: Date = new Date()) {
+  const { year, month, day } = saoPauloToday(now);
+  return `${formatMonth(year, month)}-${String(day).padStart(2, "0")}`;
+}
+
+function dayNumber(date: string) {
+  const [year, month, day] = date.split("-").map(Number);
+  return Math.round(Date.UTC(year, month - 1, day) / (24 * 60 * 60 * 1000));
+}
+
+// Quantos dias de "from" até "to" (positivo quando "to" é depois).
+export function daysBetween(from: string, to: string) {
+  return dayNumber(to) - dayNumber(from);
+}
+
+// "2026-11-05" -> "05/11"
+export function formatDateShort(date: string) {
+  const [, month, day] = date.split("-");
+  return `${day}/${month}`;
+}
+
+export type PaymentTone = "paid" | "pending" | "due-today" | "overdue";
+
+export type PaymentState = {
+  tone: PaymentTone;
+  label: string;
+  daysOverdue: number;
+};
+
+export function paymentState(
+  entry: Pick<FinanceEntryRow, "status" | "dueDate" | "paidAt">,
+  today: string
+): PaymentState {
+  if (entry.status === "PAGO") {
+    return {
+      tone: "paid",
+      label: entry.paidAt ? `Pago em ${formatDateShort(entry.paidAt)}` : "Pago",
+      daysOverdue: 0,
+    };
+  }
+  if (!entry.dueDate) return { tone: "pending", label: "A pagar", daysOverdue: 0 };
+
+  const late = daysBetween(entry.dueDate, today);
+  if (late > 0) {
+    return { tone: "overdue", label: `Vencida há ${late} ${late === 1 ? "dia" : "dias"}`, daysOverdue: late };
+  }
+  if (late === 0) return { tone: "due-today", label: "Vence hoje", daysOverdue: 0 };
+  return { tone: "pending", label: `A pagar · vence ${formatDateShort(entry.dueDate)}`, daysOverdue: 0 };
+}
+
+export type PaymentSummary = {
+  paid: number;
+  pending: number; // tudo que ainda falta pagar, inclusive o vencido
+  overdue: number; // parte do pendente com vencimento já passado
+  paidCount: number;
+  pendingCount: number;
+  overdueCount: number;
+  upcoming: FinanceEntryRow[]; // pendentes: vencidas primeiro, depois por vencimento, sem data por último
+};
+
+export function summarizePayments(entries: FinanceEntryRow[], today: string, limit = 5): PaymentSummary {
+  let paid = 0;
+  let pending = 0;
+  let overdue = 0;
+  let paidCount = 0;
+  let pendingCount = 0;
+  let overdueCount = 0;
+  const open: FinanceEntryRow[] = [];
+
+  for (const entry of entries) {
+    if (entry.status === "PAGO") {
+      paid += entry.amount;
+      paidCount += 1;
+      continue;
+    }
+    pending += entry.amount;
+    pendingCount += 1;
+    open.push(entry);
+    if (paymentState(entry, today).tone === "overdue") {
+      overdue += entry.amount;
+      overdueCount += 1;
+    }
+  }
+
+  open.sort((a, b) => {
+    if (a.dueDate && b.dueDate) {
+      return a.dueDate === b.dueDate ? a.label.localeCompare(b.label, "pt-BR") : a.dueDate < b.dueDate ? -1 : 1;
+    }
+    if (a.dueDate) return -1;
+    if (b.dueDate) return 1;
+    return a.label.localeCompare(b.label, "pt-BR");
+  });
+
+  return {
+    paid: round2(paid),
+    pending: round2(pending),
+    overdue: round2(overdue),
+    paidCount,
+    pendingCount,
+    overdueCount,
+    upcoming: open.slice(0, limit),
+  };
+}
+
+// Valida situação e datas de um lançamento recebido pela API.
+// - defaultStatus: situação quando o corpo não traz uma (null = exigir, usado ao editar).
+// - Pago sem data informada (campo ausente) vale como pago hoje; null ou vazio = data desconhecida.
+// - Pendente nunca guarda data de pagamento.
+export function validatePaymentFields(
+  body: Record<string, unknown>,
+  options: { defaultStatus: FinanceStatus | null; today?: string }
+) {
+  const today = options.today ?? todayIso();
+
+  const rawStatus = body.status === undefined ? options.defaultStatus : body.status;
+  if (!isFinanceStatus(rawStatus)) {
+    return { error: "Informe se a despesa está paga ou a pagar." } as const;
+  }
+  const status: FinanceStatus = rawStatus;
+
+  const rawDue = body.dueDate;
+  let dueDate: string | null = null;
+  if (rawDue !== undefined && rawDue !== null && rawDue !== "") {
+    if (!isValidDate(rawDue)) return { error: "Informe um vencimento válido." } as const;
+    dueDate = rawDue;
+  }
+
+  let paidAt: string | null = null;
+  if (status === "PAGO") {
+    const rawPaid = body.paidAt;
+    if (rawPaid === undefined) {
+      paidAt = today;
+    } else if (rawPaid !== null && rawPaid !== "") {
+      if (!isValidDate(rawPaid)) return { error: "Informe uma data de pagamento válida." } as const;
+      if (rawPaid > today) return { error: "A data do pagamento não pode ser no futuro." } as const;
+      paidAt = rawPaid;
+    }
+  }
+
+  return { status, dueDate, paidAt } as const;
 }

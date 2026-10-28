@@ -7,9 +7,12 @@ import {
   monthLabel,
   monthRange,
   parseMonth,
+  paymentState,
   saoPauloToday,
   shiftMonth,
   summarizeMonth,
+  summarizePayments,
+  todayIso,
 } from "@/lib/finance";
 import {
   countFixedEntries,
@@ -115,6 +118,11 @@ export default async function AdminFinanceiroPage({
     daysInMonth,
   });
 
+  // O resultado e a meta contam todas as despesas do mês, pagas ou não; o cartão
+  // "Contas do mês" mostra o que já saiu do caixa e o que ainda falta pagar.
+  const today = todayIso();
+  const payments = summarizePayments(entries, today);
+
   const hasFixed = entries.some((entry) => entry.kind === "FIXA");
   const resultPositive = summary.operatingResult >= 0;
   const coverage = summary.coveragePct === null ? 0 : Math.min(100, summary.coveragePct);
@@ -202,6 +210,76 @@ export default async function AdminFinanceiroPage({
       />
 
       <section className="mb-4 rounded-2xl border border-rosa/10 bg-white p-4 shadow-sm">
+        <h2 className="mb-2 text-sm font-bold text-texto">Contas do mês</h2>
+        {entries.length === 0 ? (
+          <p className="text-xs text-cinza">Nenhuma despesa lançada neste mês. Adicione as despesas abaixo.</p>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded-xl bg-emerald-50 p-3">
+                <p className="text-[10px] font-bold uppercase tracking-wide text-cinza">Já pago</p>
+                <p className="mt-0.5 text-lg font-extrabold text-emerald-800">{money(payments.paid)}</p>
+                <p className="text-[10px] text-cinza">
+                  {payments.paidCount} {payments.paidCount === 1 ? "lançamento" : "lançamentos"}
+                </p>
+              </div>
+              <div className={`rounded-xl p-3 ${payments.overdueCount > 0 ? "bg-red-50" : "bg-amber-50"}`}>
+                <p className="text-[10px] font-bold uppercase tracking-wide text-cinza">A pagar</p>
+                <p
+                  className={`mt-0.5 text-lg font-extrabold ${
+                    payments.overdueCount > 0 ? "text-red-700" : "text-amber-900"
+                  }`}
+                >
+                  {money(payments.pending)}
+                </p>
+                <p className={`text-[10px] ${payments.overdueCount > 0 ? "font-bold text-red-700" : "text-cinza"}`}>
+                  {payments.overdueCount > 0
+                    ? `${money(payments.overdue)} vencido${payments.overdueCount === 1 ? "" : "s"} (${payments.overdueCount})`
+                    : `${payments.pendingCount} ${payments.pendingCount === 1 ? "lançamento" : "lançamentos"}`}
+                </p>
+              </div>
+            </div>
+
+            {payments.pendingCount === 0 ? (
+              <p className="mt-3 text-xs font-semibold text-emerald-800">Tudo pago neste mês.</p>
+            ) : (
+              <>
+                <p className="mb-1 mt-3 text-[11px] font-bold text-texto">Próximos vencimentos</p>
+                <ul className="divide-y divide-rosa/10">
+                  {payments.upcoming.map((item) => {
+                    const state = paymentState(item, today);
+                    const tone =
+                      state.tone === "overdue"
+                        ? "text-red-700"
+                        : state.tone === "due-today"
+                          ? "text-amber-800"
+                          : "text-cinza";
+                    return (
+                      <li key={item.id} className="flex items-center justify-between gap-3 py-2">
+                        <div className="min-w-0">
+                          <p className="truncate text-xs font-semibold text-texto">{item.label}</p>
+                          <p className={`text-[11px] font-semibold ${tone}`}>{state.label}</p>
+                        </div>
+                        <p className="shrink-0 text-sm font-bold text-texto">{money(item.amount)}</p>
+                      </li>
+                    );
+                  })}
+                </ul>
+                {payments.pendingCount > payments.upcoming.length && (
+                  <p className="mt-1 text-[11px] text-cinza">
+                    e mais {payments.pendingCount - payments.upcoming.length} a pagar, nas listas abaixo.
+                  </p>
+                )}
+              </>
+            )}
+            <p className="mt-3 text-[10px] leading-4 text-cinza">
+              O resultado do mês e a meta contam as despesas pagas e as a pagar.
+            </p>
+          </>
+        )}
+      </section>
+
+      <section className="mb-4 rounded-2xl border border-rosa/10 bg-white p-4 shadow-sm">
         <h2 className="mb-1 text-sm font-bold text-texto">Para onde vai o dinheiro das vendas</h2>
         <Line label="Vendas finalizadas" note={`(${sales.orders} ${sales.orders === 1 ? "pedido" : "pedidos"})`} value={sales.revenue} />
         <Line label="Reposição do estoque" note="(custo do que vendeu)" value={sales.cogs} sign="-" />
@@ -287,7 +365,7 @@ export default async function AdminFinanceiroPage({
       )}
 
       <h2 className="mb-2 mt-6 text-sm font-bold text-texto">Despesas de {monthLabel(month)}</h2>
-      <FinanceEntries month={month} entries={entries} previousHasFixed={previousFixedCount > 0} />
+      <FinanceEntries month={month} entries={entries} previousHasFixed={previousFixedCount > 0} today={today} />
 
       {!hasFixed && sales.revenue > 0 && (
         <p className="mt-3 text-[11px] text-cinza">

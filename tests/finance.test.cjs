@@ -16,6 +16,14 @@ const {
   grossMarginRatio,
   computeMonthGoal,
   validateGoalFields,
+  isFinanceStatus,
+  isValidDate,
+  todayIso,
+  daysBetween,
+  formatDateShort,
+  paymentState,
+  summarizePayments,
+  validatePaymentFields,
 } = require("../.tmp-tests/finance.js");
 
 const baseInput = {
@@ -288,4 +296,161 @@ test("validateGoalFields recusa lucro e meta inválidos", () => {
   assert.ok("error" in validateGoalFields({ desiredProfit: 100, goalOverride: -5 }));
   assert.ok("error" in validateGoalFields({ desiredProfit: 100, goalOverride: "27500" }));
   assert.ok("error" in validateGoalFields({ desiredProfit: 100, goalOverride: 10_000_001 }));
+});
+
+// ---------- Pagamento das despesas ----------
+
+const TODAY = "2026-10-28";
+
+function entry(overrides) {
+  return {
+    id: "e",
+    month: "2026-10",
+    kind: "FIXA",
+    label: "Aluguel",
+    amount: 100,
+    status: "PENDENTE",
+    dueDate: null,
+    paidAt: null,
+    ...overrides,
+  };
+}
+
+test("situação: só PAGO e PENDENTE", () => {
+  assert.equal(isFinanceStatus("PAGO"), true);
+  assert.equal(isFinanceStatus("PENDENTE"), true);
+  assert.equal(isFinanceStatus("pago"), false);
+  assert.equal(isFinanceStatus(undefined), false);
+});
+
+test("isValidDate aceita só datas reais de calendário", () => {
+  assert.equal(isValidDate("2026-10-28"), true);
+  assert.equal(isValidDate("2028-02-29"), true);
+  assert.equal(isValidDate("2026-02-29"), false);
+  assert.equal(isValidDate("2026-13-01"), false);
+  assert.equal(isValidDate("2026-04-31"), false);
+  assert.equal(isValidDate("28/10/2026"), false);
+  assert.equal(isValidDate("1999-12-31"), false);
+  assert.equal(isValidDate(20261028), false);
+  assert.equal(isValidDate(null), false);
+});
+
+test("todayIso usa o dia de Brasília, não o de UTC", () => {
+  // 02:00 UTC de 28/10 ainda é 23:00 de 27/10 em Brasília
+  assert.equal(todayIso(new Date("2026-10-28T02:00:00Z")), "2026-10-27");
+  assert.equal(todayIso(new Date("2026-10-28T12:00:00Z")), "2026-10-28");
+});
+
+test("daysBetween conta dias de calendário, inclusive entre meses e em ano bissexto", () => {
+  assert.equal(daysBetween("2026-10-28", "2026-11-05"), 8);
+  assert.equal(daysBetween("2026-11-05", "2026-10-28"), -8);
+  assert.equal(daysBetween("2028-02-28", "2028-03-01"), 2);
+  assert.equal(daysBetween("2026-10-28", "2026-10-28"), 0);
+});
+
+test("formatDateShort mostra dia/mês", () => {
+  assert.equal(formatDateShort("2026-11-05"), "05/11");
+});
+
+test("estado de pagamento: pago, a pagar, vence hoje e vencida", () => {
+  assert.deepEqual(paymentState(entry({ status: "PAGO", paidAt: "2026-10-12" }), TODAY), {
+    tone: "paid",
+    label: "Pago em 12/10",
+    daysOverdue: 0,
+  });
+  assert.equal(paymentState(entry({ status: "PAGO" }), TODAY).label, "Pago");
+  assert.deepEqual(paymentState(entry({}), TODAY), { tone: "pending", label: "A pagar", daysOverdue: 0 });
+  assert.deepEqual(paymentState(entry({ dueDate: "2026-11-05" }), TODAY), {
+    tone: "pending",
+    label: "A pagar · vence 05/11",
+    daysOverdue: 0,
+  });
+  assert.deepEqual(paymentState(entry({ dueDate: TODAY }), TODAY), {
+    tone: "due-today",
+    label: "Vence hoje",
+    daysOverdue: 0,
+  });
+  assert.deepEqual(paymentState(entry({ dueDate: "2026-10-27" }), TODAY), {
+    tone: "overdue",
+    label: "Vencida há 1 dia",
+    daysOverdue: 1,
+  });
+  assert.equal(paymentState(entry({ dueDate: "2026-10-25" }), TODAY).label, "Vencida há 3 dias");
+});
+
+test("pago nunca aparece como vencido, mesmo com vencimento antigo", () => {
+  const state = paymentState(entry({ status: "PAGO", dueDate: "2026-09-01", paidAt: "2026-09-01" }), TODAY);
+  assert.equal(state.tone, "paid");
+});
+
+test("resumo separa pago, a pagar e vencido, e ordena os próximos vencimentos", () => {
+  const entries = [
+    entry({ id: "1", label: "Energia", amount: 90, status: "PAGO", paidAt: "2026-10-10" }),
+    entry({ id: "2", label: "Internet", amount: 120, dueDate: "2026-11-05" }),
+    entry({ id: "3", label: "Aluguel", amount: 58.33, dueDate: "2026-10-20" }),
+    entry({ id: "4", label: "Vigilantes", amount: 60 }),
+    entry({ id: "5", label: "DAS", amount: 82, dueDate: "2026-10-28" }),
+  ];
+  const summary = summarizePayments(entries, TODAY);
+  assert.equal(summary.paid, 90);
+  assert.equal(summary.paidCount, 1);
+  assert.equal(summary.pending, 320.33);
+  assert.equal(summary.pendingCount, 4);
+  assert.equal(summary.overdue, 58.33);
+  assert.equal(summary.overdueCount, 1);
+  // vencida primeiro, depois por data, sem data por último
+  assert.deepEqual(
+    summary.upcoming.map((item) => item.label),
+    ["Aluguel", "DAS", "Internet", "Vigilantes"]
+  );
+});
+
+test("resumo limita a lista de próximos vencimentos", () => {
+  const entries = Array.from({ length: 8 }, (_, index) =>
+    entry({ id: String(index), label: `Conta ${index}`, dueDate: `2026-11-0${index + 1}` })
+  );
+  assert.equal(summarizePayments(entries, TODAY, 3).upcoming.length, 3);
+  assert.equal(summarizePayments(entries, TODAY).upcoming.length, 5);
+  assert.equal(summarizePayments([], TODAY).pending, 0);
+});
+
+test("validatePaymentFields: lançamento novo sem situação vale como pago hoje", () => {
+  assert.deepEqual(validatePaymentFields({}, { defaultStatus: "PAGO", today: TODAY }), {
+    status: "PAGO",
+    dueDate: null,
+    paidAt: TODAY,
+  });
+});
+
+test("validatePaymentFields: pago aceita data informada, vazia ou nula", () => {
+  const ok = validatePaymentFields({ status: "PAGO", paidAt: "2026-10-10" }, { defaultStatus: "PAGO", today: TODAY });
+  assert.equal(ok.paidAt, "2026-10-10");
+  assert.equal(validatePaymentFields({ status: "PAGO", paidAt: null }, { defaultStatus: "PAGO", today: TODAY }).paidAt, null);
+  assert.equal(validatePaymentFields({ status: "PAGO", paidAt: "" }, { defaultStatus: "PAGO", today: TODAY }).paidAt, null);
+});
+
+test("validatePaymentFields: pendente guarda vencimento e nunca data de pagamento", () => {
+  const result = validatePaymentFields(
+    { status: "PENDENTE", dueDate: "2026-11-05", paidAt: "2026-10-10" },
+    { defaultStatus: "PAGO", today: TODAY }
+  );
+  assert.deepEqual(result, { status: "PENDENTE", dueDate: "2026-11-05", paidAt: null });
+});
+
+test("validatePaymentFields: ao editar, a situação é obrigatória", () => {
+  assert.ok("error" in validatePaymentFields({ dueDate: "2026-11-05" }, { defaultStatus: null, today: TODAY }));
+  assert.equal(
+    validatePaymentFields({ status: "PENDENTE" }, { defaultStatus: null, today: TODAY }).status,
+    "PENDENTE"
+  );
+});
+
+test("validatePaymentFields recusa situação, vencimento e pagamento inválidos", () => {
+  const opts = { defaultStatus: "PAGO", today: TODAY };
+  assert.ok("error" in validatePaymentFields({ status: "ATRASADO" }, opts));
+  assert.ok("error" in validatePaymentFields({ status: "PENDENTE", dueDate: "05/11/2026" }, opts));
+  assert.ok("error" in validatePaymentFields({ status: "PENDENTE", dueDate: "2026-02-30" }, opts));
+  assert.ok("error" in validatePaymentFields({ status: "PAGO", paidAt: "2026-13-01" }, opts));
+  assert.ok("error" in validatePaymentFields({ status: "PAGO", paidAt: "2026-10-29" }, opts));
+  assert.ok("error" in validatePaymentFields({ status: "PAGO", paidAt: 20261010 }, opts));
 });

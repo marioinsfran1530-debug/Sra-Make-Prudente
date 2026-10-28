@@ -9,6 +9,8 @@ export const dynamic = "force-dynamic";
 // ("default") ou copiando as fixas e a retirada do mês anterior ("previous").
 // Cada opção é uma única instrução SQL com NOT EXISTS, então dois cliques
 // seguidos (ou dois aparelhos) nunca duplicam as despesas.
+// As despesas carregadas entram como PENDENTE (a pagar). Ao copiar do mês anterior,
+// o vencimento vai para o mesmo dia do mês novo (31 vira o último dia de meses curtos).
 export async function POST(request: NextRequest) {
   const { session, error, status } = await requireAdmin("EDITOR");
   if (error || !session) return NextResponse.json({ error }, { status });
@@ -28,8 +30,16 @@ export async function POST(request: NextRequest) {
   if (body.source === "previous") {
     const previous = shiftMonth(month, -1);
     const inserted = await prisma.$executeRaw`
-      INSERT INTO app_security."FinanceEntry" ("month", "kind", "label", "amount")
-      SELECT ${month}, "kind", "label", "amount"
+      INSERT INTO app_security."FinanceEntry" ("month", "kind", "label", "amount", "status", "dueDate")
+      SELECT ${month}, "kind", "label", "amount", 'PENDENTE',
+        CASE WHEN "dueDate" IS NULL THEN NULL ELSE
+          (${month}::text || '-01')::date + (
+            LEAST(
+              EXTRACT(DAY FROM "dueDate")::int,
+              EXTRACT(DAY FROM ((${month}::text || '-01')::date + INTERVAL '1 month - 1 day'))::int
+            ) - 1
+          )
+        END
       FROM app_security."FinanceEntry"
       WHERE "month" = ${previous}
         AND "kind" IN ('FIXA', 'RETIRADA')
@@ -51,8 +61,8 @@ export async function POST(request: NextRequest) {
     const labels = DEFAULT_FIXED_EXPENSES.map((item) => item.label);
     const amounts = DEFAULT_FIXED_EXPENSES.map((item) => item.amount.toFixed(2));
     const inserted = await prisma.$executeRaw`
-      INSERT INTO app_security."FinanceEntry" ("month", "kind", "label", "amount")
-      SELECT ${month}, 'FIXA', t."label", t."amount"::numeric
+      INSERT INTO app_security."FinanceEntry" ("month", "kind", "label", "amount", "status")
+      SELECT ${month}, 'FIXA', t."label", t."amount"::numeric, 'PENDENTE'
       FROM unnest(${labels}::text[], ${amounts}::text[]) AS t("label", "amount")
       WHERE NOT EXISTS (
         SELECT 1 FROM app_security."FinanceEntry"

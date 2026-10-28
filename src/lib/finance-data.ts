@@ -1,19 +1,35 @@
 import { prisma } from "@/lib/prisma";
 import { ESTIMATED_COST_RATIO } from "@/lib/pricing";
-import { monthRange, type FinanceEntryRow, type FinanceKind } from "@/lib/finance";
+import { monthRange, type FinanceEntryRow, type FinanceKind, type FinanceStatus } from "@/lib/finance";
 
 // Acesso a dados do fechamento do mês (somente servidor).
 
 export async function listFinanceEntries(month: string): Promise<FinanceEntryRow[]> {
+  // As datas voltam como texto AAAA-MM-DD para não sofrerem conversão de fuso.
   const rows = await prisma.$queryRaw<
-    { id: string; month: string; kind: string; label: string; amount: number }[]
+    {
+      id: string;
+      month: string;
+      kind: string;
+      label: string;
+      amount: number;
+      status: string;
+      dueDate: string | null;
+      paidAt: string | null;
+    }[]
   >`
-    SELECT "id", "month", "kind", "label", "amount"::float8 AS "amount"
+    SELECT "id", "month", "kind", "label", "amount"::float8 AS "amount",
+           "status", "dueDate"::text AS "dueDate", "paidAt"::text AS "paidAt"
     FROM app_security."FinanceEntry"
     WHERE "month" = ${month}
     ORDER BY "kind", "createdAt", "id"
   `;
-  return rows.map((row) => ({ ...row, kind: row.kind as FinanceKind, amount: Number(row.amount) }));
+  return rows.map((row) => ({
+    ...row,
+    kind: row.kind as FinanceKind,
+    status: row.status as FinanceStatus,
+    amount: Number(row.amount),
+  }));
 }
 
 export async function countFixedEntries(month: string): Promise<number> {
