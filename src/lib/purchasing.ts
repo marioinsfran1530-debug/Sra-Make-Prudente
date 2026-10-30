@@ -3,6 +3,12 @@ import { estimatedCost } from "./pricing";
 // Janela de vendas usada para medir o giro de cada produto.
 export const SALES_WINDOW_DAYS = 30;
 
+// Início de uma janela de vendas: "agora" menos N dias. Fica aqui, fora das páginas,
+// porque a regra react-hooks/purity do lint proíbe Date.now() dentro de componentes.
+export function windowStart(days: number, now: number = Date.now()): Date {
+  return new Date(now - days * 24 * 60 * 60 * 1000);
+}
+
 // Prazo de chegada por origem de compra. É um valor único por origem, escolhido
 // na tela de compras (o cadastro de fornecedor por produto ainda não existe).
 export const SUPPLY_ORIGINS = [

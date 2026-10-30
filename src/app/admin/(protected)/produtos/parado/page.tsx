@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { money } from "@/lib/money";
-import { stockValue } from "@/lib/purchasing";
+import { stockValue, windowStart } from "@/lib/purchasing";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +20,7 @@ export default async function AdminEstoqueParadoPage({
 }) {
   const params = searchParams ? await searchParams : undefined;
   const windowDays = parseWindow(params?.dias);
-  const since = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
+  const since = windowStart(windowDays);
 
   const [products, recentSales, allSales, firstSale] = await Promise.all([
     prisma.product.findMany({

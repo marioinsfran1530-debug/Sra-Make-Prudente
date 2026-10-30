@@ -10,6 +10,7 @@ import {
   parseSupplyOrigin,
   suggestPurchase,
   unitCostOf,
+  windowStart,
 } from "@/lib/purchasing";
 import { CopyListButton } from "@/components/admin/CopyListButton";
 
@@ -28,7 +29,7 @@ export default async function AdminComprasPage({
   const origin = parseSupplyOrigin(params?.origem);
   const horizon = parseHorizon(params?.dias);
 
-  const since = new Date(Date.now() - SALES_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+  const since = windowStart(SALES_WINDOW_DAYS);
 
   const [products, sales] = await Promise.all([
     prisma.product.findMany({

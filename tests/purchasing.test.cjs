@@ -6,6 +6,7 @@ const {
   stockValue,
   parseHorizon,
   parseSupplyOrigin,
+  windowStart,
 } = require("../.tmp-tests/purchasing.js");
 
 const base = { stockQty: 2, unitsSold: 30, price: 25, costPrice: null };
@@ -85,4 +86,11 @@ test("parâmetros inválidos voltam aos padrões", () => {
   assert.equal(parseHorizon(undefined), 30);
   assert.equal(parseSupplyOrigin("cidade").leadDays, 1);
   assert.equal(parseSupplyOrigin("xyz").value, "shopee");
+});
+
+test("windowStart volta N dias a partir de agora", () => {
+  const now = Date.UTC(2026, 9, 29, 12, 0, 0);
+  assert.equal(windowStart(30, now).toISOString(), "2026-09-29T12:00:00.000Z");
+  assert.equal(windowStart(90, now).toISOString(), "2026-07-31T12:00:00.000Z");
+  assert.equal(windowStart(0, now).getTime(), now);
 });

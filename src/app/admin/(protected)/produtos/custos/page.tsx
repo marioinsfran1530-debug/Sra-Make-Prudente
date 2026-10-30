@@ -1,12 +1,13 @@
 import { prisma } from "@/lib/prisma";
 import { CostEditor, type CostRow } from "@/components/admin/CostEditor";
+import { windowStart } from "@/lib/purchasing";
 
 export const dynamic = "force-dynamic";
 
 const WINDOW_DAYS = 90;
 
 export default async function AdminCustosPage() {
-  const since = new Date(Date.now() - WINDOW_DAYS * 24 * 60 * 60 * 1000);
+  const since = windowStart(WINDOW_DAYS);
 
   const [products, sales] = await Promise.all([
     prisma.product.findMany({
