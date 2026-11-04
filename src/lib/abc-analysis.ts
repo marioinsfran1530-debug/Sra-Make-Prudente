@@ -1,13 +1,17 @@
 // Lógica pura da Curva ABC do painel (sem acesso a banco), para ser testada
 // isoladamente. A página em /admin/analise/abc só busca os dados e desenha.
 
+import { ESTIMATED_COST_RATIO, MIN_MARGIN_PCT, marginPct } from "./pricing";
+
 export type Period = "7d" | "30d" | "month" | "all";
-export type Metric = "revenue" | "quantity";
+export type Metric = "revenue" | "quantity" | "profit";
 export type Curve = "A" | "B" | "C";
 
 export type SignalKey =
   | "ruptura"
   | "reposicao"
+  | "margem"
+  | "custo"
   | "conteudo"
   | "vitrine"
   | "conversao";
@@ -17,6 +21,8 @@ export const CURVES: readonly Curve[] = ["A", "B", "C"];
 export const SIGNAL_KEYS: readonly SignalKey[] = [
   "ruptura",
   "reposicao",
+  "margem",
+  "custo",
   "conteudo",
   "vitrine",
   "conversao",
@@ -107,6 +113,40 @@ export function seoGaps(input: SeoInput): SeoGap[] {
   return gaps;
 }
 
+// ---------- Custo e margem ----------
+
+export type CostItem = {
+  qty: number;
+  subtotal: number;
+  unitPrice: number;
+  // Custo gravado no item quando a venda foi finalizada; null se não existia.
+  unitCost: number | null;
+};
+
+// Mesmo critério do financeiro e do dashboard: custo gravado no item; senão o
+// custo atual do produto; senão a estimativa da loja (custo = 44% do preço).
+// "realCostRevenue" é o faturamento dos itens cujo custo é real, para mostrar
+// o quanto da margem é estimado.
+export function costOfSales(items: CostItem[], productCost: number | null) {
+  let cogs = 0;
+  let realCostRevenue = 0;
+
+  for (const item of items) {
+    const real = item.unitCost !== null ? item.unitCost : productCost;
+    if (real !== null) {
+      cogs += item.qty * real;
+      realCostRevenue += item.subtotal;
+    } else {
+      cogs += item.qty * item.unitPrice * ESTIMATED_COST_RATIO;
+    }
+  }
+
+  return { cogs, realCostRevenue };
+}
+
+// Menos de 1 centavo de diferença não conta como "custo estimado".
+const COST_EPSILON = 0.005;
+
 // ---------- Linhas da curva ----------
 
 export type SoldProduct = {
@@ -122,6 +162,12 @@ export type SoldProduct = {
   stockQty: number;
   views: number;
   carts: number;
+  // Custo total das unidades vendidas (real ou estimado) e quanto do
+  // faturamento tem custo real. Ver costOfSales.
+  cogs: number;
+  realCostRevenue: number;
+  // Preço de tabela atual (null quando o produto não existe mais).
+  listPrice: number | null;
   // false quando o produto foi inativado ou removido do catálogo depois da venda.
   inCatalog: boolean;
   // false quando o produto não existe mais no banco (só restou o nome do pedido).
@@ -139,6 +185,14 @@ export type AbcRow = SoldProduct & {
   coverageDays: number | null;
   // Pedidos / visitas, em %; null quando não há visita registrada.
   conversion: number | null;
+  // Preço e custo médios por unidade vendida no período.
+  avgPrice: number;
+  avgCost: number;
+  grossProfit: number;
+  // Lucro bruto / faturamento, em %; null sem faturamento.
+  marginPct: number | null;
+  // true quando parte do custo é estimada (custo real não cadastrado).
+  costIsEstimated: boolean;
   signals: SignalKey[];
 };
 
@@ -174,6 +228,12 @@ export function signalsFor(row: Omit<AbcRow, "signals">): SignalKey[] {
     signals.push("reposicao");
   }
 
+  if (row.marginPct !== null && carriesSales && row.marginPct < MIN_MARGIN_PCT) {
+    signals.push("margem");
+  }
+
+  if (carriesSales && row.costIsEstimated) signals.push("custo");
+
   if (carriesSales && row.gaps.length > 0) signals.push("conteudo");
 
   if (row.curve === "A" && row.views < LOW_VISIBILITY_VIEWS) signals.push("vitrine");
@@ -194,8 +254,14 @@ export function buildAbcRows(
   metric: Metric,
   periodDays: number
 ): AbcRow[] {
+  // Na curva por lucro, quem vende abaixo do custo entra com zero (cauda da
+  // curva) em vez de distorcer as participações com valores negativos.
   const valueOf = (product: SoldProduct) =>
-    metric === "revenue" ? product.revenue : product.units;
+    metric === "revenue"
+      ? product.revenue
+      : metric === "quantity"
+        ? product.units
+        : Math.max(0, product.revenue - product.cogs);
 
   const sorted = sold
     .filter((product) => product.units > 0 || product.revenue > 0)
@@ -224,6 +290,11 @@ export function buildAbcRows(
       curve: classifyCurve(previousCumulative),
       coverageDays: coverageDaysOf(product.stockQty, product.units, periodDays),
       conversion: conversionOf(product.orders, product.views),
+      avgPrice: product.units > 0 ? product.revenue / product.units : 0,
+      avgCost: product.units > 0 ? product.cogs / product.units : 0,
+      grossProfit: product.revenue - product.cogs,
+      marginPct: product.revenue > 0 ? marginPct(product.revenue, product.cogs) : null,
+      costIsEstimated: product.realCostRevenue < product.revenue - COST_EPSILON,
     };
 
     return { ...base, signals: signalsFor(base) };
@@ -261,6 +332,10 @@ function first(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
+function parseMetric(value: string | undefined): Metric {
+  return value === "quantity" || value === "profit" ? value : "revenue";
+}
+
 export function parseAbcParams(raw: RawParams | undefined): AbcParams {
   const period = first(raw?.period);
   const curve = first(raw?.curve)?.toUpperCase();
@@ -270,7 +345,7 @@ export function parseAbcParams(raw: RawParams | undefined): AbcParams {
 
   return {
     period: PERIOD_VALUES.includes(period as Period) ? (period as Period) : "30d",
-    metric: first(raw?.metric) === "quantity" ? "quantity" : "revenue",
+    metric: parseMetric(first(raw?.metric)),
     curve: CURVES.includes(curve as Curve) ? (curve as Curve) : null,
     signal: SIGNAL_KEYS.includes(signal as SignalKey) ? (signal as SignalKey) : null,
     cat: cat ? cat : null,

@@ -5,6 +5,7 @@ const {
   abcHref,
   buildAbcRows,
   classifyCurve,
+  costOfSales,
   coverageDaysOf,
   filterRows,
   matchesQuery,
@@ -29,6 +30,10 @@ function product(overrides = {}) {
     stockQty: 50,
     views: 100,
     carts: 20,
+    // custo real = 44% do faturamento => margem de 56%, sem sinais de custo
+    cogs: 44,
+    realCostRevenue: 100,
+    listPrice: 10,
     inCatalog: true,
     hasRecord: true,
     gaps: [],
@@ -241,4 +246,85 @@ test("dias do período", () => {
   assert.equal(periodLengthDays("month", ctx), 3);
   assert.equal(periodLengthDays("all", ctx), 60);
   assert.equal(periodLengthDays("all", { ...ctx, oldestSaleAt: null }), 30);
+});
+
+test("custo: usa o custo do item, depois o do produto, depois a estimativa", () => {
+  const items = [
+    { qty: 2, subtotal: 40, unitPrice: 20, unitCost: 8 }, // custo gravado no item
+    { qty: 1, subtotal: 20, unitPrice: 20, unitCost: null }, // cai no custo do produto
+  ];
+  const withProductCost = costOfSales(items, 10);
+  assert.equal(withProductCost.cogs, 2 * 8 + 1 * 10);
+  assert.equal(withProductCost.realCostRevenue, 60);
+
+  // Sem custo no produto: o 2º item usa 44% do preço (20 * 0,44 = 8,8).
+  const estimated = costOfSales(items, null);
+  assert.equal(Math.round(estimated.cogs * 100) / 100, 16 + 8.8);
+  assert.equal(estimated.realCostRevenue, 40);
+});
+
+test("margem, lucro e preço/custo médios por unidade", () => {
+  const [row] = buildAbcRows(
+    [product({ units: 4, revenue: 100, cogs: 60, realCostRevenue: 100 })],
+    "revenue",
+    30
+  );
+  assert.equal(row.avgPrice, 25);
+  assert.equal(row.avgCost, 15);
+  assert.equal(row.grossProfit, 40);
+  assert.equal(row.marginPct, 40);
+  assert.equal(row.costIsEstimated, false);
+});
+
+test("custo estimado é sinalizado quando falta custo real", () => {
+  const [partial] = buildAbcRows(
+    [product({ revenue: 100, cogs: 44, realCostRevenue: 60 })],
+    "revenue",
+    30
+  );
+  assert.equal(partial.costIsEstimated, true);
+  assert.ok(partial.signals.includes("custo"));
+
+  const [real] = buildAbcRows([product()], "revenue", 30);
+  assert.equal(real.costIsEstimated, false);
+  assert.equal(real.signals.includes("custo"), false);
+});
+
+test("sinal de margem baixa só para curvas A e B e abaixo da margem mínima", () => {
+  const rows = buildAbcRows(
+    [
+      product({ productId: "barato", name: "Barato", revenue: 90, units: 9, cogs: 63, realCostRevenue: 90 }), // 30%
+      product({ productId: "ok", name: "Ok", revenue: 8, units: 2, cogs: 3.2, realCostRevenue: 8 }), // 60%
+      product({ productId: "cauda", name: "Cauda", revenue: 2, units: 1, cogs: 1.8, realCostRevenue: 2 }), // 10%, curva C
+    ],
+    "revenue",
+    30
+  );
+  const byId = Object.fromEntries(rows.map((row) => [row.productId, row]));
+  assert.ok(byId.barato.signals.includes("margem"));
+  assert.equal(byId.ok.signals.includes("margem"), false);
+  assert.equal(byId.cauda.curve, "C");
+  assert.equal(byId.cauda.signals.includes("margem"), false);
+});
+
+test("curva por lucro ordena pelo lucro bruto e manda prejuízo para a cauda", () => {
+  const rows = buildAbcRows(
+    [
+      product({ productId: "fatura-muito", name: "Fatura muito", revenue: 100, units: 10, cogs: 95, realCostRevenue: 100 }), // lucro 5
+      product({ productId: "lucra-mais", name: "Lucra mais", revenue: 50, units: 5, cogs: 20, realCostRevenue: 50 }), // lucro 30
+      product({ productId: "prejuizo", name: "Prejuízo", revenue: 40, units: 4, cogs: 60, realCostRevenue: 40 }), // lucro -20
+    ],
+    "profit",
+    30
+  );
+  assert.deepEqual(rows.map((row) => row.productId), ["lucra-mais", "fatura-muito", "prejuizo"]);
+  assert.equal(rows[2].baseValue, 0);
+  assert.equal(rows[2].grossProfit, -20);
+  assert.equal(rows[2].marginPct, -50);
+  assert.equal(rows[2].curve, "C");
+});
+
+test("métrica 'profit' é aceita nos parâmetros", () => {
+  assert.equal(parseAbcParams({ metric: "profit" }).metric, "profit");
+  assert.equal(parseAbcParams({ metric: "lucro" }).metric, "revenue");
 });

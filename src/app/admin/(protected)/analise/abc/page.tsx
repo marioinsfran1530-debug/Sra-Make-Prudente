@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { productPath } from "@/lib/product-url";
+import { ESTIMATED_COST_RATIO, MIN_MARGIN_PCT } from "@/lib/pricing";
 import {
   abcHref,
   buildAbcRows,
+  costOfSales,
   filterRows,
   hasActiveFilters,
   HIGH_TRAFFIC_VIEWS,
@@ -15,6 +17,7 @@ import {
   REPLENISH_LEAD_DAYS,
   seoGaps,
   type AbcRow,
+  type CostItem,
   type Curve,
   type Metric,
   type Period,
@@ -35,7 +38,14 @@ const PERIODS: { value: Period; label: string }[] = [
 const METRICS: { value: Metric; label: string }[] = [
   { value: "revenue", label: "Por faturamento" },
   { value: "quantity", label: "Por quantidade" },
+  { value: "profit", label: "Por lucro" },
 ];
+
+const METRIC_ORDER_LABEL: Record<Metric, string> = {
+  revenue: "faturamento",
+  quantity: "quantidade vendida",
+  profit: "lucro bruto",
+};
 
 const CURVE_COPY: Record<Curve, { range: string; detail: string }> = {
   A: {
@@ -71,6 +81,18 @@ const SIGNAL_COPY: Record<
     advice: `O estoque dura menos de ${REPLENISH_LEAD_DAYS} dias no ritmo do período, menos que o prazo de uma compra na Shopee.`,
     tone: "border-amber-200 bg-amber-50 text-amber-800",
   },
+  margem: {
+    label: "Margem baixa",
+    title: "Margem abaixo do mínimo",
+    advice: `Curva A/B com margem bruta abaixo de ${MIN_MARGIN_PCT}%. Vende, mas deixa pouco: reveja o preço de venda, o custo de compra ou o fornecedor.`,
+    tone: "border-orange-200 bg-orange-50 text-orange-800",
+  },
+  custo: {
+    label: "Sem custo",
+    title: "Custo não cadastrado",
+    advice: `Curva A/B com margem estimada (custo ≈ ${Math.round(ESTIMATED_COST_RATIO * 100)}% do preço). Cadastre o custo real para decidir preço e compra com segurança.`,
+    tone: "border-teal-200 bg-teal-50 text-teal-800",
+  },
   conteudo: {
     label: "Página fraca",
     title: "Página a melhorar (SEO)",
@@ -91,7 +113,15 @@ const SIGNAL_COPY: Record<
   },
 };
 
-const SIGNAL_ORDER: SignalKey[] = ["ruptura", "reposicao", "conteudo", "vitrine", "conversao"];
+const SIGNAL_ORDER: SignalKey[] = [
+  "ruptura",
+  "reposicao",
+  "margem",
+  "custo",
+  "conteudo",
+  "vitrine",
+  "conversao",
+];
 
 function getSaoPauloDateParts() {
   const parts = new Intl.DateTimeFormat("en-US", {
@@ -167,6 +197,13 @@ function conversionLabel(value: number | null) {
   return value > 100 ? ">100%" : pct(value);
 }
 
+function marginTone(row: AbcRow) {
+  if (row.marginPct === null) return "text-cinza";
+  if (row.marginPct < MIN_MARGIN_PCT) return "text-red-700";
+  if (row.costIsEstimated) return "text-cinza";
+  return "text-emerald-700";
+}
+
 function coverageTone(days: number | null) {
   if (days === null) return "text-cinza";
   if (days < REPLENISH_LEAD_DAYS) return "text-red-700";
@@ -204,6 +241,8 @@ export default async function CurvaAbcPage({
             name: true,
             brand: true,
             qty: true,
+            unitPrice: true,
+            unitCost: true,
             subtotal: true,
           },
         },
@@ -217,6 +256,8 @@ export default async function CurvaAbcPage({
         brand: true,
         sku: true,
         description: true,
+        price: true,
+        costPrice: true,
         stockQty: true,
         category: { select: { name: true, slug: true } },
         images: { select: { alt: true } },
@@ -249,7 +290,14 @@ export default async function CurvaAbcPage({
 
   const salesMap = new Map<
     string,
-    { units: number; revenue: number; orders: number; name: string; brand: string }
+    {
+      units: number;
+      revenue: number;
+      orders: number;
+      name: string;
+      brand: string;
+      items: CostItem[];
+    }
   >();
   let oldestSaleAt: Date | null = null;
 
@@ -264,10 +312,17 @@ export default async function CurvaAbcPage({
         orders: 0,
         name: item.name,
         brand: item.brand?.trim() || "Sem marca",
+        items: [] as CostItem[],
       };
 
       current.units += item.qty;
       current.revenue += Number(item.subtotal);
+      current.items.push({
+        qty: item.qty,
+        subtotal: Number(item.subtotal),
+        unitPrice: Number(item.unitPrice),
+        unitCost: item.unitCost === null ? null : Number(item.unitCost),
+      });
       productIdsInOrder.add(item.productId);
       salesMap.set(item.productId, current);
     }
@@ -302,6 +357,8 @@ export default async function CurvaAbcPage({
           brand: true,
           sku: true,
           description: true,
+          price: true,
+          costPrice: true,
           stockQty: true,
           category: { select: { name: true, slug: true } },
           images: { select: { alt: true } },
@@ -315,6 +372,8 @@ export default async function CurvaAbcPage({
     ([productId, sales]) => {
       const record = productMap.get(productId) ?? inactiveMap.get(productId);
       const traffic = behavior.get(productId);
+      const productCost = record?.costPrice != null ? Number(record.costPrice) : null;
+      const cost = costOfSales(sales.items, productCost);
 
       return {
         productId,
@@ -331,6 +390,9 @@ export default async function CurvaAbcPage({
         orders: sales.orders,
         views: traffic?.views ?? 0,
         carts: traffic?.carts ?? 0,
+        cogs: cost.cogs,
+        realCostRevenue: cost.realCostRevenue,
+        listPrice: record ? Number(record.price) : null,
         gaps: record ? seoGaps(record) : [],
       };
     }
@@ -343,7 +405,14 @@ export default async function CurvaAbcPage({
 
   const totalRevenue = allRows.reduce((sum, row) => sum + row.revenue, 0);
   const totalUnits = allRows.reduce((sum, row) => sum + row.units, 0);
-  const baseTotal = metric === "revenue" ? totalRevenue : totalUnits;
+  const totalCogs = allRows.reduce((sum, row) => sum + row.cogs, 0);
+  const totalProfit = totalRevenue - totalCogs;
+  const totalMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : null;
+  const realCostShare =
+    totalRevenue > 0
+      ? (allRows.reduce((sum, row) => sum + row.realCostRevenue, 0) / totalRevenue) * 100
+      : 100;
+  const baseTotal = allRows.reduce((sum, row) => sum + row.baseValue, 0);
 
   const curveSummary = (["A", "B", "C"] as const).map((curve) => {
     const rows = allRows.filter((row) => row.curve === curve);
@@ -545,11 +614,20 @@ export default async function CurvaAbcPage({
         </div>
       )}
 
-      <section className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <section className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-5">
         <SummaryMetric
           label="Faturamento"
           value={money(totalRevenue)}
           helper="vendas finalizadas"
+        />
+        <SummaryMetric
+          label="Lucro bruto"
+          value={`${realCostShare < 99.5 ? "~" : ""}${money(totalProfit)}`}
+          helper={
+            totalMargin === null
+              ? "sem vendas no período"
+              : `margem ${pct(totalMargin)} · custo real em ${pct(realCostShare)} das vendas`
+          }
         />
         <SummaryMetric
           label="Itens vendidos"
@@ -606,9 +684,9 @@ export default async function CurvaAbcPage({
                   </span>
                 </p>
                 <p className="mt-1 text-xs">
-                  {metric === "revenue"
-                    ? money(item.baseValue)
-                    : `${number(item.baseValue)} unidades`}
+                  {metric === "quantity"
+                    ? `${number(item.baseValue)} unidades`
+                    : money(item.baseValue)}
                 </p>
                 <p className="mt-2 text-[11px] font-bold underline-offset-2">
                   {active ? "Filtrando · tocar para limpar" : "Ver estes produtos →"}
@@ -673,7 +751,7 @@ export default async function CurvaAbcPage({
               {filtering ? "Produtos do filtro" : "Produtos mais vendidos"}
             </h2>
             <p className="mt-1 text-xs text-cinza">
-              Ordenado por {metric === "revenue" ? "faturamento" : "quantidade vendida"} no período.
+              Ordenado por {METRIC_ORDER_LABEL[metric]} no período.
               {filtering && filtered.length > 0 && (
                 <>
                   {" "}
@@ -701,7 +779,7 @@ export default async function CurvaAbcPage({
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1040px] text-left">
+            <table className="w-full min-w-[1120px] text-left">
               <thead>
                 <tr className="border-b border-rosa/10 text-[10px] uppercase tracking-wide text-cinza">
                   <th className="px-3 py-3">#</th>
@@ -711,15 +789,29 @@ export default async function CurvaAbcPage({
                   <th className="px-3 py-3 text-right">Faturamento</th>
                   <th className="px-3 py-3 text-right">Participação</th>
                   <th className="px-3 py-3 text-right">Acumulado</th>
-                  <th className="px-3 py-3 text-right" title="Visualizações da página do produto no período">
-                    Visitas
+                  <th
+                    className="px-3 py-3 text-right"
+                    title="Visualizações da página do produto no período e pedidos finalizados ÷ visitas"
+                  >
+                    Visitas / conv.
                   </th>
-                  <th className="px-3 py-3 text-right" title="Pedidos finalizados ÷ visitas à página do produto">
-                    Conversão
+                  <th
+                    className="px-3 py-3 text-right"
+                    title="Preço médio realmente cobrado e custo médio por unidade. O sinal ~ indica custo estimado."
+                  >
+                    Preço / custo
                   </th>
-                  <th className="px-3 py-3 text-right">Estoque</th>
-                  <th className="px-3 py-3 text-right" title="Quantos dias o estoque dura no ritmo de venda do período">
-                    Cobertura
+                  <th
+                    className="px-3 py-3 text-right"
+                    title="Margem bruta e lucro bruto no período. O sinal ~ indica custo estimado."
+                  >
+                    Margem / lucro
+                  </th>
+                  <th
+                    className="px-3 py-3 text-right"
+                    title="Estoque atual e quantos dias ele dura no ritmo de venda do período"
+                  >
+                    Estoque / cobertura
                   </th>
                 </tr>
               </thead>
@@ -821,6 +913,14 @@ export default async function CurvaAbcPage({
             Vendas combinadas no WhatsApp ou lançadas no balcão não passam pela página, então use a conversão para comparar produtos entre si, não como taxa absoluta.
           </li>
           <li>
+            <strong className="text-texto">Preço, custo e margem:</strong> o preço é a média realmente cobrada no período (o preço de tabela aparece ao passar o mouse).
+            O custo é o gravado na venda; sem ele, o custo cadastrado do produto; sem nenhum dos dois, a estimativa da loja ({Math.round(ESTIMATED_COST_RATIO * 100)}% do preço), marcada com ~.
+            A margem é bruta, ou seja, não desconta taxas, frete, embalagem nem anúncios. A margem mínima de referência é {MIN_MARGIN_PCT}%.
+          </li>
+          <li>
+            <strong className="text-texto">Por lucro:</strong> ordena pelo lucro bruto. Produtos vendidos abaixo do custo entram com valor zero, no fim da curva C.
+          </li>
+          <li>
             <strong className="text-texto">Cobertura:</strong> estoque atual ÷ média diária vendida no período ({periodDays} dia{periodDays === 1 ? "" : "s"} neste filtro).
             Abaixo de {REPLENISH_LEAD_DAYS} dias aparece em vermelho (prazo de uma compra na Shopee) e abaixo de 15 dias em laranja.
           </li>
@@ -902,17 +1002,41 @@ function ProductRow({ row }: { row: AbcRow }) {
       <td className="px-3 py-3 text-right text-sm font-semibold text-texto">{money(row.revenue)}</td>
       <td className="px-3 py-3 text-right text-xs font-semibold text-texto">{pct(row.share)}</td>
       <td className="px-3 py-3 text-right text-xs font-semibold text-texto">{pct(row.cumulative)}</td>
-      <td className="px-3 py-3 text-right text-xs font-semibold text-texto">{number(row.views)}</td>
       <td className="px-3 py-3 text-right text-xs font-semibold text-texto">
-        {conversionLabel(row.conversion)}
+        {number(row.views)}
+        <p className="mt-0.5 text-[10px] font-medium text-cinza">{conversionLabel(row.conversion)}</p>
+      </td>
+      <td className="px-3 py-3 text-right text-xs font-semibold text-texto">
+        <span
+          title={
+            row.listPrice !== null ? `Preço de tabela atual: ${money(row.listPrice)}` : undefined
+          }
+        >
+          {money(row.avgPrice)}
+        </span>
+        <p
+          className="mt-0.5 text-[10px] font-medium text-cinza"
+          title={
+            row.costIsEstimated
+              ? "Custo estimado: cadastre o custo real do produto"
+              : "Custo real"
+          }
+        >
+          custo {row.costIsEstimated ? "~" : ""}
+          {money(row.avgCost)}
+        </p>
+      </td>
+      <td className={`px-3 py-3 text-right text-xs font-bold ${marginTone(row)}`}>
+        {row.marginPct === null ? "—" : `${row.costIsEstimated ? "~" : ""}${pct(row.marginPct)}`}
+        <p className="mt-0.5 text-[10px] font-medium text-cinza">{money(row.grossProfit)}</p>
       </td>
       <td
         className={`px-3 py-3 text-right text-xs font-bold ${row.stockQty > 0 ? "text-texto" : "text-red-700"}`}
       >
         {number(row.stockQty)}
-      </td>
-      <td className={`px-3 py-3 text-right text-xs font-bold ${coverageTone(row.coverageDays)}`}>
-        {row.coverageDays === null ? "—" : `${number(Math.round(row.coverageDays))} d`}
+        <p className={`mt-0.5 text-[10px] font-semibold ${coverageTone(row.coverageDays)}`}>
+          {row.coverageDays === null ? "—" : `${number(Math.round(row.coverageDays))} d`}
+        </p>
       </td>
     </tr>
   );
