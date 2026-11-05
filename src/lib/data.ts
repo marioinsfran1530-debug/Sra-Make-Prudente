@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { cache } from "react";
 import { productStockStatus, type StockStatus } from "@/lib/stock";
 import { productIdFromLegacySlug, productSlug } from "@/lib/product-url";
+import { searchProducts } from "@/lib/product-search";
 
 // Camada de leitura pública. Regra do plano (seção 3): o Prisma não passa
 // pelas policies de RLS do Supabase, então TODO filtro de "ativo" precisa
@@ -16,50 +17,6 @@ const PRODUCT_INCLUDE = {
   images: { orderBy: { order: "asc" as const } },
   variants: { where: { active: true }, orderBy: { createdAt: "asc" as const } },
 };
-
-function normalizeSearchText(value: string | null | undefined) {
-  return (value ?? "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLocaleLowerCase("pt-BR")
-    .replace(/[^a-z0-9]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function productMatchesSearch(
-  product: {
-    name: string;
-    brand: string;
-    sku: string | null;
-    description: string | null;
-    category: { name: string };
-    subcategory: { name: string } | null;
-    categories: { category: { name: string } }[];
-    variants: { name: string }[];
-  },
-  query: string,
-) {
-  const terms = normalizeSearchText(query).split(" ").filter(Boolean);
-  if (terms.length === 0) return true;
-
-  const searchableText = normalizeSearchText(
-    [
-      product.name,
-      product.brand,
-      product.sku,
-      product.description,
-      product.category.name,
-      product.subcategory?.name,
-      ...product.categories.map((item) => item.category.name),
-      ...product.variants.map((variant) => variant.name),
-    ]
-      .filter(Boolean)
-      .join(" "),
-  );
-
-  return terms.every((term) => searchableText.includes(term));
-}
 
 function mapProduct<
   T extends {
@@ -142,7 +99,7 @@ export type ProductFilters = {
   maxPrice?: number;
 };
 
-export async function getProducts(filters: ProductFilters = {}) {
+async function loadProducts(filters: ProductFilters, allowApproximate: boolean) {
   const where: Record<string, unknown> = { active: true };
 
   if (filters.categoryId) {
@@ -197,11 +154,23 @@ export async function getProducts(filters: ProductFilters = {}) {
     ],
   });
 
-  const filteredProducts = filters.search
-    ? products.filter((product) => productMatchesSearch(product, filters.search!))
-    : products;
+  if (!filters.search) return { products, approximate: false };
 
-  return filteredProducts.map(mapProduct);
+  const result = searchProducts(products, filters.search, { allowApproximate });
+  return { products: result.items, approximate: result.approximate };
+}
+
+// Listagens de página (categorias, SEO) nunca recebem resultados aproximados.
+export async function getProducts(filters: ProductFilters = {}) {
+  const { products } = await loadProducts(filters, false);
+  return products.map(mapProduct);
+}
+
+// Igual ao getProducts, mas informa quando o resultado é aproximado (a pessoa
+// digitou com erro ou a palavra incompleta e nada bateu exatamente).
+export async function searchPublicProducts(filters: ProductFilters = {}) {
+  const { products, approximate } = await loadProducts(filters, true);
+  return { products: products.map(mapProduct), approximate };
 }
 
 export const getProductById = cache(async (id: string) => {

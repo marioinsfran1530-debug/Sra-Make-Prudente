@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { productPath } from "@/lib/product-url";
+import { getSearchBursts } from "@/lib/search-data";
+import { summarizeSearches } from "@/lib/search-analysis";
 import { ESTIMATED_COST_RATIO, MIN_MARGIN_PCT } from "@/lib/pricing";
 import {
   abcHref,
@@ -223,10 +225,7 @@ export default async function CurvaAbcPage({
   const { period, metric } = params;
   const range = getPeriodRange(period);
 
-  const searchesSince = new Date();
-  searchesSince.setDate(searchesSince.getDate() - 30);
-
-  const [orders, products, behaviorGroups, zeroResultSearches] = await Promise.all([
+  const [orders, products, behaviorGroups, searchBursts] = await Promise.all([
     prisma.order.findMany({
       where: {
         status: "FINALIZADO",
@@ -276,14 +275,7 @@ export default async function CurvaAbcPage({
       },
       _count: { _all: true },
     }),
-    prisma.analyticsEvent.count({
-      where: {
-        event: "search",
-        itemCount: 0,
-        createdAt: { gte: searchesSince },
-        OR: [{ context: null }, { context: { not: "search_submit" } }],
-      },
-    }),
+    getSearchBursts(30),
   ]);
 
   // ---------- Vendas por produto ----------
@@ -425,6 +417,8 @@ export default async function CurvaAbcPage({
       productsShare: allRows.length > 0 ? (rows.length / allRows.length) * 100 : 0,
     };
   });
+
+  const searchSummary = summarizeSearches(searchBursts);
 
   const unsoldActive = products.filter((product) => !salesMap.has(product.id));
 
@@ -735,10 +729,10 @@ export default async function CurvaAbcPage({
           >
             <div className="flex items-start justify-between gap-3">
               <p className="text-sm font-extrabold">Demanda sem resposta</p>
-              <span className="text-2xl font-extrabold leading-none">{number(zeroResultSearches)}</span>
+              <span className="text-2xl font-extrabold leading-none">{number(searchSummary.zeroPeople)}</span>
             </div>
             <p className="mt-2 text-[11px] leading-4 opacity-90">
-              Buscas sem resultado nos últimos 30 dias. Veja os termos: podem virar produto novo, sinônimo ou ajuste de nome.
+              Pessoas que terminaram uma busca sem encontrar nada nos últimos 30 dias. Veja os termos: podem virar produto novo, sinônimo ou ajuste de nome.
             </p>
           </Link>
         </div>

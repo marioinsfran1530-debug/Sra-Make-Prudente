@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getProducts } from "@/lib/data";
+import { searchPublicProducts } from "@/lib/data";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
 
-  const products = await getProducts({
+  const { products, approximate } = await searchPublicProducts({
     categorySlug: searchParams.get("category") ?? undefined,
     subcategorySlug: searchParams.get("subcategory") ?? undefined,
     brand: searchParams.get("brand") ?? undefined,
@@ -17,5 +17,5 @@ export async function GET(request: NextRequest) {
       : undefined,
   });
 
-  return NextResponse.json({ products });
+  return NextResponse.json({ products, approximate });
 }
