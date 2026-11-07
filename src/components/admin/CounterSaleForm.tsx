@@ -7,6 +7,7 @@ import {
   findPaymentRule,
   type PaymentSettingsConfig,
 } from "@/lib/payment-settings";
+import { matchesCounterSaleQuery } from "@/lib/counter-sale-search";
 import {
   COUNTER_SALE_CHANNELS,
   DEFAULT_COUNTER_SALE_CHANNEL,
@@ -65,6 +66,7 @@ export type InitialCounterSale = {
 type PaymentMethod = "PIX" | "DINHEIRO" | "DEBITO" | "CREDITO" | "LINK";
 type LastAddition = { key: string; previousQty: number } | null;
 type Tab = "FAVORITOS" | "TODOS" | string;
+type Toast = { text: string; tone: "ok" | "error"; undo: boolean };
 
 const FAVORITES_KEY = "sramake_counter_sale_favorites_v1";
 const SALES_CHANNEL_KEY = "sramake_counter_sale_channel_v1";
@@ -143,6 +145,50 @@ function newSaleToken() {
   return `sale-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
+// Campo de quantidade: o texto só vira quantidade ao sair do campo ou apertar
+// Enter. Antes, apagar o número (ou digitar uma letra) removia o item da venda.
+function QtyInput({ value, max, onCommit }: { value: number; max: number; onCommit: (next: number) => void }) {
+  const [text, setText] = useState(String(value));
+  const [seen, setSeen] = useState(value);
+
+  if (seen !== value) {
+    setSeen(value);
+    setText(String(value));
+  }
+
+  const commit = () => {
+    if (text.trim() === "") {
+      setText(String(value));
+      return;
+    }
+    const next = Number(text);
+    if (!Number.isFinite(next)) {
+      setText(String(value));
+      return;
+    }
+    onCommit(next);
+    // Passou do estoque: o campo mostra o limite, que é o que a venda guarda.
+    setText(String(Math.min(max, Math.max(0, Math.floor(next)))));
+  };
+
+  return (
+    <input
+      value={text}
+      onChange={(event) => setText(event.target.value.replace(/\D/g, "").slice(0, 4))}
+      onBlur={commit}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          commit();
+        }
+      }}
+      inputMode="numeric"
+      aria-label="Quantidade"
+      className="h-9 w-12 rounded-lg border border-rosa/15 text-center text-xs font-bold"
+    />
+  );
+}
+
 export function CounterSaleForm({
   products,
   paymentSettings,
@@ -178,6 +224,7 @@ export function CounterSaleForm({
   const [cartOpen, setCartOpen] = useState(false);
   const [variantPicker, setVariantPicker] = useState<Product | null>(null);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [toast, setToast] = useState<Toast | null>(null);
 
   useEffect(() => {
     try {
@@ -223,6 +270,24 @@ export function CounterSaleForm({
   }, [providers, selectedProviderId]);
 
   useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), toast.tone === "error" ? 4000 : 2800);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
+  // Esc fecha a venda aberta ou a escolha de variação.
+  useEffect(() => {
+    if (!cartOpen && !variantPicker) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (variantPicker) setVariantPicker(null);
+      else setCartOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [cartOpen, variantPicker]);
+
+  useEffect(() => {
     if (!cartOpen && !variantPicker) return;
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -251,15 +316,17 @@ export function CounterSaleForm({
 
     if (!q) return base;
 
-    return base.filter((product) => {
-      const fields = [
-        product.name,
-        product.brand,
-        product.sku ?? "",
-        ...product.variants.map((variant) => `${variant.name} ${variant.sku ?? ""}`),
-      ];
-      return fields.some((field) => normalize(field).includes(q));
-    });
+    return base.filter((product) =>
+      matchesCounterSaleQuery(
+        [
+          product.name,
+          product.brand,
+          product.sku,
+          ...product.variants.map((variant) => `${variant.name} ${variant.sku ?? ""}`),
+        ],
+        query
+      )
+    );
   }, [activeTab, favoriteIds, products, query]);
 
   const visibleProducts = filtered.slice(0, visibleCount);
@@ -305,6 +372,12 @@ export function CounterSaleForm({
     cart.forEach((item) => map.set(item.productId, (map.get(item.productId) ?? 0) + item.qty));
     return map;
   }, [cart]);
+
+  // No celular a venda atual fica escondida atrás do botão "Ver venda", então
+  // erros e confirmações aparecem num aviso por cima da barra de baixo.
+  function notify(text: string, tone: Toast["tone"], undo = false) {
+    setToast({ text, tone, undo });
+  }
 
   function focusSearch(select = false) {
     requestAnimationFrame(() => {
@@ -352,6 +425,7 @@ export function CounterSaleForm({
     const stockQty = variant ? variant.stockQty : product.stockQty;
     if (stockQty <= 0) {
       setError("Este item está sem estoque.");
+      notify("Este item está sem estoque.", "error");
       if (options.focusAfter) focusSearch(options.selectSearch);
       return;
     }
@@ -360,6 +434,7 @@ export function CounterSaleForm({
     const existing = cart.find((item) => item.key === key);
     if (existing && existing.qty >= stockQty) {
       setError("A quantidade já atingiu o estoque disponível.");
+      notify("A quantidade já atingiu o estoque disponível.", "error");
       if (options.focusAfter) focusSearch(options.selectSearch);
       return;
     }
@@ -386,12 +461,14 @@ export function CounterSaleForm({
 
     setError("");
     setVariantPicker(null);
+    notify(`${product.name}${variant ? ` · ${variant.name}` : ""} adicionado`, "ok", true);
     if (options.focusAfter) focusSearch(options.selectSearch);
   }
 
   function chooseProduct(product: Product) {
     if (productAvailable(product) <= 0) {
       setError("Este produto está sem estoque.");
+      notify("Este produto está sem estoque.", "error");
       return;
     }
     if (product.variants.length === 0) {
@@ -421,6 +498,7 @@ export function CounterSaleForm({
     });
     setLastAddition(null);
     setError("");
+    setToast(null);
   }
 
   function tryExactScan() {
@@ -571,14 +649,9 @@ export function CounterSaleForm({
             <p className="shrink-0 text-xs font-extrabold text-texto">{money(item.unitPrice * item.qty)}</p>
           </div>
           <div className="mt-2 flex items-center gap-1.5">
-            <button type="button" onClick={() => updateQty(item.key, item.qty - 1)} className="h-8 w-8 rounded-lg border border-rosa/15 font-bold">−</button>
-            <input
-              value={item.qty}
-              onChange={(event) => updateQty(item.key, Number(event.target.value))}
-              inputMode="numeric"
-              className="h-8 w-12 rounded-lg border border-rosa/15 text-center text-xs font-bold"
-            />
-            <button type="button" onClick={() => updateQty(item.key, item.qty + 1)} className="h-8 w-8 rounded-lg border border-rosa/15 font-bold">+</button>
+            <button type="button" onClick={() => updateQty(item.key, item.qty - 1)} aria-label={`Diminuir quantidade de ${item.name}`} className="h-9 w-9 rounded-lg border border-rosa/15 font-bold">−</button>
+            <QtyInput value={item.qty} max={item.stockQty} onCommit={(next) => updateQty(item.key, next)} />
+            <button type="button" onClick={() => updateQty(item.key, item.qty + 1)} aria-label={`Aumentar quantidade de ${item.name}`} className="h-9 w-9 rounded-lg border border-rosa/15 font-bold">+</button>
             <button type="button" onClick={() => updateQty(item.key, 0)} className="ml-auto px-1 text-[10px] font-bold text-red-600">Remover</button>
           </div>
         </div>
@@ -789,8 +862,7 @@ export function CounterSaleForm({
 
       <div className="grid gap-4 pb-24 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start lg:pb-0">
         <section className="min-w-0 overflow-visible rounded-2xl bg-white shadow-sm">
-          <div className="sticky top-0 z-20 rounded-t-2xl border-b border-rosa/10 bg-white/95 p-3 backdrop-blur sm:p-4">
-            <label className="sr-only">Buscar produto, marca, SKU ou EAN</label>
+          <div className="sticky top-0 z-20 rounded-t-2xl border-b border-rosa/10 bg-white p-3 sm:p-4">
             <div className="relative">
               <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-cinza">⌕</span>
               <input
@@ -805,6 +877,7 @@ export function CounterSaleForm({
                   }
                 }}
                 placeholder="Buscar produto, marca, SKU ou EAN"
+                aria-label="Buscar produto, marca, SKU ou EAN"
                 className="w-full rounded-xl border border-rosa/20 py-3 pl-9 pr-10 text-sm outline-none focus:border-rosa-profundo"
               />
               {query && <button type="button" onClick={clearSearch} aria-label="Limpar busca" className="absolute inset-y-0 right-2 my-auto flex h-8 w-8 items-center justify-center rounded-full text-lg text-cinza hover:bg-creme">×</button>}
@@ -837,7 +910,7 @@ export function CounterSaleForm({
                 const quantityInSale = cartQtyByProduct.get(product.id) ?? 0;
 
                 return (
-                  <article key={product.id} className={`relative overflow-hidden rounded-xl border bg-white ${available > 0 ? "border-rosa/10" : "border-gray-200 opacity-60"}`}>
+                  <article key={product.id} className={`relative isolate overflow-hidden rounded-xl border bg-white ${available > 0 ? "border-rosa/10" : "border-gray-200 opacity-60"}`}>
                     <button type="button" disabled={available <= 0} onClick={() => chooseProduct(product)} aria-label={`Selecionar ${product.name}`} className="absolute inset-0 z-0 disabled:cursor-not-allowed" />
                     <button type="button" onClick={() => toggleFavorite(product.id)} aria-label={isFavorite ? "Remover dos favoritos" : "Adicionar aos favoritos"} className="absolute right-2 top-2 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-white/95 text-base text-rosa-profundo shadow">{isFavorite ? "★" : "☆"}</button>
 
@@ -893,8 +966,26 @@ export function CounterSaleForm({
         </div>
       </div>
 
+      {toast && !cartOpen && !variantPicker && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-40 flex justify-center px-3 lg:hidden">
+          <div
+            role={toast.tone === "error" ? "alert" : "status"}
+            className={`pointer-events-auto flex max-w-sm items-center gap-3 rounded-xl px-3.5 py-2.5 text-xs font-bold shadow-lg ${
+              toast.tone === "error" ? "bg-red-600 text-white" : "bg-texto text-white"
+            }`}
+          >
+            <span className="min-w-0 flex-1">{toast.text}</span>
+            {toast.undo && lastAddition && (
+              <button type="button" onClick={undoLastAddition} className="shrink-0 rounded-lg bg-white/15 px-2.5 py-1.5 text-[11px] font-extrabold">
+                Desfazer
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {cartOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden">
+        <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Venda atual">
           <button type="button" aria-label="Fechar venda atual" onClick={() => setCartOpen(false)} className="absolute inset-0 bg-black/35" />
           <section className="absolute inset-x-0 bottom-0 flex max-h-[90dvh] flex-col rounded-t-3xl bg-white p-4 shadow-2xl">
             <div className="mx-auto mb-3 h-1 w-12 rounded-full bg-gray-300" />
@@ -904,7 +995,7 @@ export function CounterSaleForm({
       )}
 
       {variantPicker && (
-        <div className="fixed inset-0 z-[60]">
+        <div className="fixed inset-0 z-[60]" role="dialog" aria-modal="true" aria-label="Escolha a opção">
           <button type="button" aria-label="Fechar seleção de variação" onClick={() => setVariantPicker(null)} className="absolute inset-0 bg-black/35" />
           <section className="absolute inset-x-0 bottom-0 mx-auto max-h-[80dvh] max-w-lg overflow-y-auto rounded-t-3xl bg-white p-4 shadow-2xl sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:w-[min(92vw,520px)] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl">
             <div className="flex items-start gap-3">
@@ -916,7 +1007,7 @@ export function CounterSaleForm({
                 <h3 className="mt-1 text-sm font-bold text-texto">{variantPicker.name}</h3>
                 <p className="mt-0.5 text-[10px] text-cinza">{variantPicker.brand}</p>
               </div>
-              <button type="button" onClick={() => setVariantPicker(null)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-rosa/10 text-lg text-cinza">×</button>
+              <button type="button" onClick={() => setVariantPicker(null)} aria-label="Fechar" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-rosa/10 text-lg text-cinza">×</button>
             </div>
 
             <div className="mt-4 grid gap-2 sm:grid-cols-2">
