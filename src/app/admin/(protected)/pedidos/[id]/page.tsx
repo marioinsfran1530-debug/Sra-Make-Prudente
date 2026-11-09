@@ -10,6 +10,15 @@ import { OrderStatusControl } from "@/components/admin/OrderStatusControl";
 
 const GOOGLE_REVIEW_URL = "https://g.page/r/Cd60IkMVKKNtEBI/review";
 
+// "Camila - chacara azaleia" -> "Camila". Sem nome utilizável, retorna "".
+function customerFirstName(fullName: string) {
+  const beforeNote = fullName.split(/\s+[-–—|]\s*|\s*[,(]/)[0] ?? "";
+  const first = beforeNote.trim().split(/\s+/)[0] ?? "";
+  if (!/^[\p{L}'-]{2,}$/u.test(first)) return "";
+  if (/^(cliente|consumidor|balc[aã]o|sem)$/i.test(first)) return "";
+  return first.charAt(0).toUpperCase() + first.slice(1).toLowerCase();
+}
+
 type MiscChargeRow = {
   description: string;
   amount: unknown;
@@ -80,7 +89,11 @@ export default async function AdminPedidoDetailPage({ params }: { params: Promis
   const hasPhone = Boolean(order.customerPhone.trim());
   const canTakeToSale =
     order.channel !== "LOJA_FISICA" && order.status !== "FINALIZADO" && order.status !== "CANCELADO";
-  const reviewMessage = `Maravilhosa, obrigada por escolher a Sra Make. 💗\n\nSe você saiu satisfeita, deixe sua experiência registrada e ajude outra pessoa a escolher com mais confiança:\n${GOOGLE_REVIEW_URL}`;
+  const reviewFirstName = customerFirstName(order.customerName);
+  const reviewGreeting = reviewFirstName ? `Oi, ${reviewFirstName}!` : "Oi!";
+  // Texto neutro: sem pedir nota, sem condicionar a satisfação e sem oferecer vantagem
+  // (política de engajamento falso do Google).
+  const reviewMessage = `${reviewGreeting} Obrigada por escolher a Sra Make. 💗\n\nQualquer dúvida sobre seus produtos, é só me chamar por aqui. E se quiser contar como foi sua experiência, sua avaliação no Google ajuda outras clientes a nos conhecerem:\n${GOOGLE_REVIEW_URL}`;
   const paymentMethods = order.payments.length > 0 ? order.payments.map((payment) => payment.method) : [order.payment];
 
   return (
