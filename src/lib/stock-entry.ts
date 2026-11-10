@@ -11,6 +11,8 @@
 // - Estorno devolve o estoque e, se o custo do produto não mudou depois, também
 //   o custo anterior.
 
+import { parseMoneyText } from "./money-text";
+
 export const ENTRY_ORIGINS = [
   { value: "shopee", label: "Shopee" },
   { value: "fornecedor", label: "Fornecedor" },
@@ -64,7 +66,7 @@ function isIsoDate(value: string) {
 
 function toNumber(value: unknown) {
   if (typeof value === "number") return value;
-  if (typeof value === "string" && value.trim() !== "") return Number(value.replace(",", "."));
+  if (typeof value === "string") return parseMoneyText(value);
   return Number.NaN;
 }
 
@@ -168,6 +170,15 @@ export function weightedAverageCost(input: {
   const stock = Math.max(0, input.stockBefore);
   if (input.costBefore === null || stock === 0) return round2(input.landedUnitCost);
   return round2((stock * input.costBefore + input.qty * input.landedUnitCost) / (stock + input.qty));
+}
+
+// Avisa quando o custo digitado está muito longe do custo atual do produto
+// (o erro mais comum é errar a vírgula: 150 em vez de 15,00). Não bloqueia.
+export function costDeviation(costBefore: number | null, landedCost: number): "alto" | "baixo" | null {
+  if (costBefore === null || costBefore <= 0 || landedCost <= 0) return null;
+  if (landedCost >= costBefore * 2) return "alto";
+  if (landedCost <= costBefore / 2) return "baixo";
+  return null;
 }
 
 export type EntryTotals = { items: number; units: number; subtotal: number; freight: number; total: number };

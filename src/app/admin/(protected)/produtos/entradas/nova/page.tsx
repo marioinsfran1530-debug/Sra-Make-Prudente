@@ -6,29 +6,39 @@ import { StockEntryForm, type EntryProduct } from "@/components/admin/StockEntry
 export const dynamic = "force-dynamic";
 
 export default async function NewStockEntryPage() {
-  const products = await prisma.product.findMany({
-    where: { active: true },
-    orderBy: [{ name: "asc" }],
-    select: {
-      id: true,
-      name: true,
-      brand: true,
-      sku: true,
-      stockQty: true,
-      costPrice: true,
-      variants: {
-        where: { active: true },
-        orderBy: { name: "asc" },
-        select: { id: true, name: true, sku: true, stockQty: true },
+  // Também entram os produtos inativos (rascunhos criados por uma entrada anterior,
+  // ou fora de linha): dá para receber mercadoria deles; ficam marcados na busca.
+  const [products, categories] = await Promise.all([
+    prisma.product.findMany({
+      orderBy: [{ name: "asc" }],
+      select: {
+        id: true,
+        name: true,
+        brand: true,
+        sku: true,
+        active: true,
+        stockQty: true,
+        costPrice: true,
+        variants: {
+          where: { active: true },
+          orderBy: { name: "asc" },
+          select: { id: true, name: true, sku: true, stockQty: true },
+        },
       },
-    },
-  });
+    }),
+    prisma.category.findMany({
+      where: { active: true },
+      orderBy: { order: "asc" },
+      select: { id: true, name: true },
+    }),
+  ]);
 
   const serialized: EntryProduct[] = products.map((product) => ({
     id: product.id,
     name: product.name,
     brand: product.brand,
     sku: product.sku,
+    active: product.active,
     stockQty: product.stockQty,
     costPrice: product.costPrice === null ? null : Number(product.costPrice),
     variants: product.variants,
@@ -52,7 +62,7 @@ export default async function NewStockEntryPage() {
         </Link>
       </div>
 
-      <StockEntryForm products={serialized} today={todayIso()} />
+      <StockEntryForm products={serialized} categories={categories} today={todayIso()} />
     </div>
   );
 }

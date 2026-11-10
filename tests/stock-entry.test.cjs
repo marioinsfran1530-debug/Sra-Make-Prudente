@@ -123,3 +123,38 @@ test("custo anterior só volta se o custo não mudou depois da entrada", () => {
   assert.deepEqual(costAfterReversal({ currentCost: 13, costAfter: 12, costBefore: 10 }), { restore: false, cost: 13 });
   assert.deepEqual(costAfterReversal({ currentCost: null, costAfter: 12, costBefore: 10 }), { restore: false, cost: null });
 });
+
+test("valores digitados no jeito brasileiro", () => {
+  const { parseMoneyText } = require("../.tmp-tests/money-text.js");
+  assert.equal(parseMoneyText("12"), 12);
+  assert.equal(parseMoneyText("12,5"), 12.5);
+  assert.equal(parseMoneyText("12.5"), 12.5);
+  assert.equal(parseMoneyText("R$ 12,50"), 12.5);
+  assert.equal(parseMoneyText("1.234,56"), 1234.56);
+  assert.equal(parseMoneyText("1.234"), 1234);
+  assert.equal(parseMoneyText("1.234.567"), 1234567);
+  assert.equal(parseMoneyText("0.500"), 0.5);
+  assert.equal(parseMoneyText(",5"), 0.5);
+  assert.ok(Number.isNaN(parseMoneyText("")));
+  assert.ok(Number.isNaN(parseMoneyText("  ")));
+  assert.ok(Number.isNaN(parseMoneyText("abc")));
+  assert.ok(Number.isNaN(parseMoneyText("1,2,3")));
+  assert.ok(Number.isNaN(parseMoneyText("-5")));
+});
+
+test("custo com milhar digitado é aceito na entrada", () => {
+  const out = parseEntryInput(valid({ lines: [{ productId: "p1", variantId: null, qty: "2", unitCost: "1.250,90" }] }), TODAY);
+  assert.ok(out.value, out.error);
+  assert.equal(out.value.lines[0].unitCost, 1250.9);
+});
+
+test("avisa quando o custo foge muito do atual", () => {
+  const { costDeviation } = require("../.tmp-tests/stock-entry.js");
+  assert.equal(costDeviation(15, 150), "alto");
+  assert.equal(costDeviation(15, 30), "alto");
+  assert.equal(costDeviation(15, 7.5), "baixo");
+  assert.equal(costDeviation(15, 18), null);
+  assert.equal(costDeviation(15, 12), null);
+  assert.equal(costDeviation(null, 999), null);
+  assert.equal(costDeviation(0, 10), null);
+});
