@@ -12,9 +12,10 @@ import {
   Truck,
 } from "lucide-react";
 import { getStoreSettings } from "@/lib/data";
-import { DICAS } from "@/lib/dicas";
+import { getDica } from "@/lib/dicas";
 import { resolveStoreLocation } from "@/lib/store-location";
 import { waLink } from "@/lib/whatsapp";
+import { GoogleReviews } from "@/components/GoogleReviews";
 import { InfoRow } from "@/components/InfoRow";
 import { LocationLink, WhatsAppLink } from "@/components/TrackedLink";
 
@@ -25,7 +26,22 @@ const PAGE_URL = `${SITE_URL}/loja`;
 const STORE_NAME = "Sra Make Prudente";
 const STORE_PHONE = "+55 18 99124-8713";
 
+// Lash primeiro (é o foco da loja), depois como comprar e maquiagem.
+const FEATURED_DICAS = [
+  "cilios-tufinho-para-iniciantes",
+  "como-funciona-retirada-e-99entrega",
+  "como-escolher-o-tom-de-base-e-corretivo",
+].flatMap((slug) => {
+  const dica = getDica(slug);
+  return dica ? [dica] : [];
+});
+
 const FAQS = [
+  {
+    question: "Vocês vendem materiais para lash e nail?",
+    answer:
+      "Sim. O catálogo tem cílios tufinho, colas, pinças, kits e acessórios para lash, além de itens para unhas em gel, preparação, acabamento e lixas, para uso profissional ou pessoal.",
+  },
   {
     question: "Posso comprar pelo site e retirar na loja?",
     answer:
@@ -49,9 +65,9 @@ const FAQS = [
 ];
 
 export const metadata: Metadata = {
-  title: "Nossa loja de maquiagem em Presidente Prudente | Sra Make",
+  title: "Nossa loja de lash, nail e maquiagem em Presidente Prudente | Sra Make",
   description:
-    "Conheça a Sra Make Prudente no Centro de Presidente Prudente/SP. Veja endereço, horário, mapa, retirada, 99Entrega, WhatsApp e produtos de maquiagem e beleza.",
+    "Conheça a Sra Make Prudente no Centro de Presidente Prudente/SP, com materiais para lash e nail e maquiagem. Veja endereço, horário, mapa, retirada, 99Entrega e WhatsApp.",
   alternates: { canonical: PAGE_URL },
   openGraph: {
     title: "Nossa loja | Sra Make Prudente",
@@ -85,7 +101,7 @@ export default async function LojaInfoPage() {
     url: PAGE_URL,
     name: "Nossa loja | Sra Make Prudente",
     description:
-      "Informações oficiais da Sra Make Prudente, loja de maquiagem e cosméticos em Presidente Prudente/SP.",
+      "Informações oficiais da Sra Make Prudente, loja de materiais para lash e nail, maquiagem e cosméticos em Presidente Prudente/SP.",
     isPartOf: { "@id": `${SITE_URL}/#website` },
     about: { "@id": `${SITE_URL}/#store` },
     inLanguage: "pt-BR",
@@ -100,7 +116,7 @@ export default async function LojaInfoPage() {
     url: SITE_URL,
     telephone: STORE_PHONE,
     description:
-      "Loja de maquiagem e cosméticos em Presidente Prudente/SP, com produtos para maquiagem, lash, nail, skincare e acessórios de beleza.",
+      "Loja em Presidente Prudente/SP com materiais para lash e nail, maquiagem, cosméticos, skincare e acessórios de beleza.",
     priceRange: "R$",
     hasMap: mapsUrl,
     address: {
@@ -182,7 +198,7 @@ export default async function LojaInfoPage() {
             Nossa loja
           </h1>
           <p className="mt-3 max-w-2xl text-sm leading-relaxed text-white/88">
-            Maquiagem, cosméticos, lash, nail, skincare e acessórios de beleza. Veja produtos e preços no catálogo, visite a loja ou fale com a equipe para confirmar estoque, retirada e entrega local.
+            Cílios, colas, géis e materiais para lash e nail, além de maquiagem, cosméticos e acessórios de beleza. Veja produtos e preços no catálogo, visite a loja ou fale com a equipe para confirmar estoque, retirada e entrega local.
           </p>
 
           <div className="mt-5 flex flex-wrap gap-2">
@@ -291,27 +307,7 @@ export default async function LojaInfoPage() {
         </div>
       </section>
 
-      <section className="mb-5 rounded-3xl border border-roxo/10 bg-white p-5 shadow-sm sm:p-6">
-        <div className="flex items-start gap-3">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-creme text-rosa-profundo">
-            <MapPin size={21} aria-hidden="true" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-rosa-profundo">Google</p>
-            <h2 className="mt-1 font-serif text-lg font-bold text-texto">Estamos no Google</h2>
-            <p className="mt-2 text-sm leading-relaxed text-cinza">
-              Confira nossa localização, fotos e avaliações no Google. O perfil ajuda você a reconhecer o ponto e abrir a rota até a loja.
-            </p>
-            <LocationLink
-              href={mapsUrl}
-              className="mt-4 inline-flex items-center gap-2 text-sm font-bold text-rosa-profundo underline decoration-rosa/30 underline-offset-4"
-            >
-              Ver no Google Maps
-              <Navigation size={15} aria-hidden="true" />
-            </LocationLink>
-          </div>
-        </div>
-      </section>
+      <GoogleReviews className="-mx-4 mb-5" />
 
       <section className="mb-5">
         <div className="mb-3">
@@ -355,11 +351,11 @@ export default async function LojaInfoPage() {
         </div>
         <h2 className="mt-1 font-serif text-xl font-bold text-texto">Conteúdo para ajudar na escolha</h2>
         <p className="mt-2 text-sm leading-relaxed text-cinza">
-          Guias rápidos sobre maquiagem, cílios e compras em Presidente Prudente, sempre conectando a informação aos produtos e ao atendimento da loja.
+          Guias rápidos sobre cílios, unhas, maquiagem e compras em Presidente Prudente, sempre conectando a informação aos produtos e ao atendimento da loja.
         </p>
 
         <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
-          {DICAS.slice(0, 3).map((item) => (
+          {FEATURED_DICAS.map((item) => (
             <Link
               key={item.slug}
               href={`/dicas/${item.slug}`}
@@ -386,13 +382,13 @@ export default async function LojaInfoPage() {
       <section className="mb-5 rounded-3xl border border-rosa/10 bg-white p-5 shadow-sm sm:p-6">
         <h2 className="font-serif text-xl font-bold text-texto">O que você encontra na Sra Make</h2>
         <p className="mt-2 text-sm leading-relaxed text-cinza">
-          O catálogo reúne diferentes categorias de beleza e trabalho profissional. A disponibilidade muda conforme o estoque da loja.
+          O catálogo reúne materiais de trabalho para lash e nail e produtos de beleza. A disponibilidade muda conforme o estoque da loja.
         </p>
         <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
           {[
-            ["Maquiagem", "/categoria/maquiagem"],
             ["Lash Design", "/categoria/lash"],
             ["Nail Design", "/categoria/nail"],
+            ["Maquiagem", "/categoria/maquiagem"],
             ["Cosméticos", "/categoria/cosmeticos"],
             ["Acessórios", "/categoria/acessorios"],
             ["Ver todas", "/categoria"],

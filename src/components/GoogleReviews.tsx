@@ -18,12 +18,14 @@ function Stars({ size = 14 }: { size?: number }) {
 }
 
 // Avaliações reais do Google (foto de uma data, ver src/lib/google-reviews.ts).
-export function GoogleReviews() {
+// `className` ajusta o espaçamento externo conforme a página (na home é `mt-8`; em
+// páginas que já têm padding lateral, use `-mx-4` para o carrossel ir até a borda).
+export function GoogleReviews({ className = "mt-8" }: { className?: string }) {
   const { rating, total, mapsUrl, writeReviewUrl } = GOOGLE_REVIEWS_SNAPSHOT;
   if (GOOGLE_REVIEWS.length === 0) return null;
 
   return (
-    <section className="mt-8" aria-labelledby="google-reviews-title">
+    <section className={className} aria-labelledby="google-reviews-title">
       <div className="mb-3 flex items-end justify-between gap-3 px-4">
         <div>
           <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-rosa-profundo">
