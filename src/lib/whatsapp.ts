@@ -1,5 +1,16 @@
 export const WHATSAPP_NUMBER = "5518991248713";
 
+// Telefone brasileiro para exibição: "5518991248713" -> "(18) 99124-8713".
+// Se não for um número reconhecível, devolve o texto original sem mexer.
+export function formatPhoneBR(value: string | null | undefined): string {
+  const text = (value ?? "").trim();
+  let digits = text.replace(/\D/g, "");
+  if ((digits.length === 12 || digits.length === 13) && digits.startsWith("55")) digits = digits.slice(2);
+  if (digits.length === 11) return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+  if (digits.length === 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  return text;
+}
+
 export function waLink(message: string, number = WHATSAPP_NUMBER) {
   const normalizedNumber = number.replace(/\D/g, "");
 

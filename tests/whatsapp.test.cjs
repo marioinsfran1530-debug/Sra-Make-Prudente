@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { buildOrderMessage } = require("../.tmp-tests/whatsapp.js");
+const { buildOrderMessage, formatPhoneBR } = require("../.tmp-tests/whatsapp.js");
 
 const BASE_ORDER = {
   orderNumber: 123,
@@ -42,4 +42,19 @@ test("mantém retirada separada da comunicação de entrega", () => {
   assert.match(message, /Tipo: Retirar na loja/);
   assert.match(message, /Combinar no WhatsApp/);
   assert.doesNotMatch(message, /99Entrega/);
+});
+
+test("formata telefone brasileiro para exibição", () => {
+  assert.equal(formatPhoneBR("5518991248713"), "(18) 99124-8713");
+  assert.equal(formatPhoneBR("18991248713"), "(18) 99124-8713");
+  assert.equal(formatPhoneBR("(18) 99124-8713"), "(18) 99124-8713");
+  assert.equal(formatPhoneBR("+55 18 3222-1234"), "(18) 3222-1234");
+  assert.equal(formatPhoneBR("1832221234"), "(18) 3222-1234");
+});
+
+test("telefone irreconhecível ou vazio não é alterado", () => {
+  assert.equal(formatPhoneBR("12345"), "12345");
+  assert.equal(formatPhoneBR(""), "");
+  assert.equal(formatPhoneBR(null), "");
+  assert.equal(formatPhoneBR(undefined), "");
 });

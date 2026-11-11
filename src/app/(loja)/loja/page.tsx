@@ -14,7 +14,7 @@ import {
 import { getStoreSettings } from "@/lib/data";
 import { getDica } from "@/lib/dicas";
 import { resolveStoreLocation } from "@/lib/store-location";
-import { waLink } from "@/lib/whatsapp";
+import { formatPhoneBR, waLink } from "@/lib/whatsapp";
 import { GoogleReviews } from "@/components/GoogleReviews";
 import { InfoRow } from "@/components/InfoRow";
 import { LocationLink, WhatsAppLink } from "@/components/TrackedLink";
@@ -161,6 +161,11 @@ export default async function LojaInfoPage() {
     })),
   };
 
+  const tileClass =
+    "flex flex-col items-center gap-1.5 rounded-2xl border border-rosa/10 bg-white px-2 py-3 text-center shadow-sm transition hover:-translate-y-0.5 hover:shadow-md";
+  const tileIconClass =
+    "flex h-9 w-9 items-center justify-center rounded-xl bg-creme text-rosa-profundo";
+
   return (
     <main className="px-4 pb-8 pt-4">
       <script
@@ -177,7 +182,7 @@ export default async function LojaInfoPage() {
       />
 
       <section
-        className="relative mb-4 overflow-hidden rounded-3xl p-6 text-white shadow-sm"
+        className="relative mb-3 overflow-hidden rounded-3xl p-5 text-white shadow-sm"
         style={{
           background: "linear-gradient(135deg, #E4127B 0%, #A6157A 55%, #6E1E8C 100%)",
         }}
@@ -186,7 +191,7 @@ export default async function LojaInfoPage() {
         <div className="absolute -bottom-16 -left-10 h-44 w-44 rounded-full bg-white/5" />
 
         <div className="relative">
-          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[11px] font-semibold text-white/90 backdrop-blur-sm">
+          <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[11px] font-semibold text-white/90 backdrop-blur-sm">
             <Store size={14} aria-hidden="true" />
             Loja física no Centro de Presidente Prudente
           </div>
@@ -197,81 +202,44 @@ export default async function LojaInfoPage() {
           <h1 className="mt-1 max-w-2xl font-serif text-3xl font-bold leading-tight">
             Nossa loja
           </h1>
-          <p className="mt-3 max-w-2xl text-sm leading-relaxed text-white/88">
-            Cílios, colas, géis e materiais para lash e nail, além de maquiagem, cosméticos e acessórios de beleza. Veja produtos e preços no catálogo, visite a loja ou fale com a equipe para confirmar estoque, retirada e entrega local.
+          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-white/88">
+            Cílios, colas, géis e materiais para lash e nail, além de maquiagem. Confirme estoque, retirada e entrega local pelo WhatsApp.
           </p>
-
-          <div className="mt-5 flex flex-wrap gap-2">
-            <Link
-              href="/categoria"
-              className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-xs font-bold text-rosa-profundo shadow-sm transition hover:-translate-y-0.5"
-            >
-              <ShoppingBag size={16} aria-hidden="true" />
-              Ver produtos
-            </Link>
-            <WhatsAppLink
-              href={whatsappHref}
-              context="nossa_loja_hero"
-              className="inline-flex items-center gap-2 rounded-xl border border-white/25 bg-white/10 px-4 py-2.5 text-xs font-bold text-white backdrop-blur-sm transition hover:bg-white/15"
-            >
-              <MessageCircle size={16} aria-hidden="true" />
-              Falar no WhatsApp
-            </WhatsAppLink>
-          </div>
         </div>
       </section>
 
-      <section className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3" aria-label="Atalhos da loja">
-        <LocationLink
-          href={mapsUrl}
-          className="flex items-center gap-3 rounded-2xl border border-rosa/10 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-        >
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-creme text-rosa-profundo">
-            <Navigation size={19} aria-hidden="true" />
+      <section className="mb-5 grid grid-cols-3 gap-2" aria-label="Atalhos da loja">
+        <LocationLink href={mapsUrl} className={tileClass}>
+          <span className={tileIconClass}>
+            <Navigation size={18} aria-hidden="true" />
           </span>
-          <span>
-            <span className="block text-sm font-bold text-texto">Como chegar</span>
-            <span className="mt-0.5 block text-[11px] leading-relaxed text-cinza">Abrir rota no Google Maps</span>
-          </span>
+          <span className="text-[11px] font-bold leading-tight text-texto">Como chegar</span>
         </LocationLink>
 
-        <WhatsAppLink
-          href={whatsappHref}
-          context="nossa_loja_atalho"
-          className="flex items-center gap-3 rounded-2xl border border-rosa/10 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-        >
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-creme text-rosa-profundo">
-            <MessageCircle size={19} aria-hidden="true" />
+        <WhatsAppLink href={whatsappHref} context="nossa_loja_atalho" className={tileClass}>
+          <span className={tileIconClass}>
+            <MessageCircle size={18} aria-hidden="true" />
           </span>
-          <span>
-            <span className="block text-sm font-bold text-texto">WhatsApp</span>
-            <span className="mt-0.5 block text-[11px] leading-relaxed text-cinza">Confirme estoque e retirada</span>
-          </span>
+          <span className="text-[11px] font-bold leading-tight text-texto">WhatsApp</span>
         </WhatsAppLink>
 
-        <Link
-          href="/categoria"
-          className="flex items-center gap-3 rounded-2xl border border-rosa/10 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-        >
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-creme text-rosa-profundo">
-            <ShoppingBag size={19} aria-hidden="true" />
+        <Link href="/categoria" className={tileClass}>
+          <span className={tileIconClass}>
+            <ShoppingBag size={18} aria-hidden="true" />
           </span>
-          <span>
-            <span className="block text-sm font-bold text-texto">Ver catálogo</span>
-            <span className="mt-0.5 block text-[11px] leading-relaxed text-cinza">Produtos, preços e categorias</span>
-          </span>
+          <span className="text-[11px] font-bold leading-tight text-texto">Ver catálogo</span>
         </Link>
       </section>
 
       <section className="mb-5 overflow-hidden rounded-3xl border border-rosa/10 bg-white shadow-sm">
         <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr]">
-          <div className="min-h-[300px] bg-creme lg:min-h-[390px]">
+          <div className="min-h-[260px] bg-creme lg:min-h-[390px]">
             <iframe
               title="Mapa da Sra Make Prudente"
               src={mapEmbedUrl}
               width="100%"
               height="100%"
-              className="min-h-[300px] w-full border-0 lg:min-h-[390px]"
+              className="min-h-[260px] w-full border-0 lg:min-h-[390px]"
               loading="lazy"
               referrerPolicy="no-referrer-when-downgrade"
               allowFullScreen
@@ -309,13 +277,55 @@ export default async function LojaInfoPage() {
 
       <GoogleReviews className="-mx-4 mb-5" />
 
+      <section className="mb-5 rounded-3xl border border-rosa/10 bg-white p-5 shadow-sm sm:p-6">
+        <h2 className="font-serif text-xl font-bold text-texto">O que você encontra na Sra Make</h2>
+        <p className="mt-2 text-sm leading-relaxed text-cinza">
+          O catálogo reúne materiais de trabalho para lash e nail e produtos de beleza. A disponibilidade muda conforme o estoque da loja.
+        </p>
+
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          {[
+            { label: "Lash Design", text: "Cílios, colas, pinças e kits", href: "/categoria/lash" },
+            { label: "Nail Design", text: "Géis, primer, cabine e lixas", href: "/categoria/nail" },
+          ].map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className="rounded-2xl p-4 text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+              style={{ background: "linear-gradient(135deg, #E4127B 0%, #A6157A 100%)" }}
+            >
+              <span className="block font-serif text-base font-bold leading-tight">{item.label}</span>
+              <span className="mt-1 block text-[11px] leading-snug text-white/85">{item.text}</span>
+              <span className="mt-2 block text-[11px] font-bold">Ver produtos →</span>
+            </Link>
+          ))}
+        </div>
+
+        <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {[
+            ["Maquiagem", "/categoria/maquiagem"],
+            ["Cosméticos", "/categoria/cosmeticos"],
+            ["Acessórios", "/categoria/acessorios"],
+            ["Ver todas", "/categoria"],
+          ].map(([label, href]) => (
+            <Link
+              key={href}
+              href={href}
+              className="rounded-xl border border-rosa/10 bg-creme px-3 py-2.5 text-center text-xs font-bold text-rosa-profundo transition hover:-translate-y-0.5 hover:bg-white hover:shadow-sm"
+            >
+              {label}
+            </Link>
+          ))}
+        </div>
+      </section>
+
       <section className="mb-5">
         <div className="mb-3">
           <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-rosa-profundo">Atendimento</p>
           <h2 className="mt-1 font-serif text-xl font-bold text-texto">Compre do jeito mais fácil para você</h2>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-3 md:gap-3">
           {[
             {
               icon: Store,
@@ -333,73 +343,18 @@ export default async function LojaInfoPage() {
               text: "Para Presidente Prudente, a equipe pode solicitar a 99Entrega depois de confirmar pedido e endereço.",
             },
           ].map((item) => (
-            <article key={item.title} className="rounded-2xl border border-rosa/10 bg-white p-5 shadow-sm">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-creme text-rosa-profundo">
+            <article
+              key={item.title}
+              className="flex items-start gap-3 rounded-2xl border border-rosa/10 bg-white p-4 shadow-sm"
+            >
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-creme text-rosa-profundo">
                 <item.icon size={19} aria-hidden="true" />
               </div>
-              <h3 className="mt-3 text-sm font-bold text-texto">{item.title}</h3>
-              <p className="mt-1.5 text-xs leading-relaxed text-cinza">{item.text}</p>
+              <div>
+                <h3 className="text-sm font-bold text-texto">{item.title}</h3>
+                <p className="mt-1 text-xs leading-relaxed text-cinza">{item.text}</p>
+              </div>
             </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="mb-5 rounded-3xl border border-rosa/10 bg-creme p-5 sm:p-6">
-        <div className="flex items-center gap-2">
-          <Sparkles size={18} className="text-rosa-profundo" aria-hidden="true" />
-          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-rosa-profundo">Dicas da Sra Make</p>
-        </div>
-        <h2 className="mt-1 font-serif text-xl font-bold text-texto">Conteúdo para ajudar na escolha</h2>
-        <p className="mt-2 text-sm leading-relaxed text-cinza">
-          Guias rápidos sobre cílios, unhas, maquiagem e compras em Presidente Prudente, sempre conectando a informação aos produtos e ao atendimento da loja.
-        </p>
-
-        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
-          {FEATURED_DICAS.map((item) => (
-            <Link
-              key={item.slug}
-              href={`/dicas/${item.slug}`}
-              className="rounded-2xl border border-rosa/10 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-            >
-              <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-rosa-profundo">
-                {item.category}
-              </p>
-              <h3 className="mt-1.5 text-sm font-bold text-texto">{item.title}</h3>
-              <p className="mt-1.5 text-xs leading-relaxed text-cinza">{item.excerpt}</p>
-              <span className="mt-3 inline-block text-xs font-bold text-rosa-profundo">Ler dica →</span>
-            </Link>
-          ))}
-        </div>
-
-        <Link
-          href="/dicas"
-          className="mt-4 inline-flex items-center rounded-xl bg-white px-4 py-2.5 text-xs font-bold text-rosa-profundo shadow-sm"
-        >
-          Ver todas as dicas
-        </Link>
-      </section>
-
-      <section className="mb-5 rounded-3xl border border-rosa/10 bg-white p-5 shadow-sm sm:p-6">
-        <h2 className="font-serif text-xl font-bold text-texto">O que você encontra na Sra Make</h2>
-        <p className="mt-2 text-sm leading-relaxed text-cinza">
-          O catálogo reúne materiais de trabalho para lash e nail e produtos de beleza. A disponibilidade muda conforme o estoque da loja.
-        </p>
-        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {[
-            ["Lash Design", "/categoria/lash"],
-            ["Nail Design", "/categoria/nail"],
-            ["Maquiagem", "/categoria/maquiagem"],
-            ["Cosméticos", "/categoria/cosmeticos"],
-            ["Acessórios", "/categoria/acessorios"],
-            ["Ver todas", "/categoria"],
-          ].map(([label, href]) => (
-            <Link
-              key={href}
-              href={href}
-              className="rounded-xl border border-rosa/10 bg-creme px-3 py-3 text-center text-xs font-bold text-rosa-profundo transition hover:-translate-y-0.5 hover:bg-white hover:shadow-sm"
-            >
-              {label}
-            </Link>
           ))}
         </div>
       </section>
@@ -408,7 +363,7 @@ export default async function LojaInfoPage() {
         <InfoRow
           icon="whatsapp"
           title="WhatsApp"
-          text={settings?.whatsapp ?? "(18) 99124-8713"}
+          text={formatPhoneBR(whatsapp)}
           action={{ label: "Conversar", href: whatsappHref }}
           whatsapp
           trackKind="whatsapp"
@@ -454,6 +409,43 @@ export default async function LojaInfoPage() {
         </div>
       </section>
 
+      <section className="mb-5" aria-labelledby="loja-dicas-title">
+        <div className="mb-3 flex items-end justify-between gap-3">
+          <div>
+            <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-rosa-profundo">
+              <Sparkles size={14} aria-hidden="true" />
+              Dicas da Sra Make
+            </p>
+            <h2 id="loja-dicas-title" className="mt-1 font-serif text-xl font-bold text-texto">
+              Conteúdo para ajudar na escolha
+            </h2>
+          </div>
+          <Link
+            href="/dicas"
+            className="shrink-0 rounded-full border border-rosa/15 bg-white px-3 py-1.5 text-xs font-bold text-rosa-profundo shadow-sm"
+          >
+            Ver todas →
+          </Link>
+        </div>
+
+        <div className="-mx-4 flex snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none] md:mx-0 md:grid md:grid-cols-3 md:overflow-visible md:px-0 [&::-webkit-scrollbar]:hidden">
+          {FEATURED_DICAS.map((item) => (
+            <Link
+              key={item.slug}
+              href={`/dicas/${item.slug}`}
+              className="flex w-[78%] max-w-[300px] shrink-0 snap-start flex-col rounded-2xl border border-rosa/10 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md md:w-auto md:max-w-none"
+            >
+              <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-rosa-profundo">
+                {item.category}
+              </p>
+              <h3 className="mt-1.5 text-sm font-bold text-texto">{item.title}</h3>
+              <p className="mt-1.5 flex-1 text-xs leading-relaxed text-cinza">{item.excerpt}</p>
+              <span className="mt-3 inline-block text-xs font-bold text-rosa-profundo">Ler dica →</span>
+            </Link>
+          ))}
+        </div>
+      </section>
+
       <section
         className="overflow-hidden rounded-3xl p-6 text-white shadow-sm"
         style={{ background: "linear-gradient(135deg, #A6157A 0%, #6E1E8C 100%)" }}
@@ -462,10 +454,10 @@ export default async function LojaInfoPage() {
         <p className="mt-2 max-w-xl text-sm leading-relaxed text-white/85">
           Veja os produtos disponíveis ou fale com a Sra Make para confirmar estoque, retirada e entrega local.
         </p>
-        <div className="mt-4 flex flex-wrap gap-2">
+        <div className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
           <Link
             href="/categoria"
-            className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-xs font-bold text-rosa-profundo"
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-xs font-bold text-rosa-profundo"
           >
             <ShoppingBag size={16} aria-hidden="true" />
             Ver produtos
@@ -473,10 +465,10 @@ export default async function LojaInfoPage() {
           <WhatsAppLink
             href={whatsappHref}
             context="nossa_loja_final"
-            className="inline-flex items-center gap-2 rounded-xl border border-white/25 bg-white/10 px-4 py-2.5 text-xs font-bold text-white"
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/25 bg-white/10 px-4 py-2.5 text-xs font-bold text-white"
           >
             <MessageCircle size={16} aria-hidden="true" />
-            Falar no WhatsApp
+            WhatsApp
           </WhatsAppLink>
         </div>
       </section>
