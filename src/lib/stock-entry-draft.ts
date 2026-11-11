@@ -22,6 +22,8 @@ export type EntryDraft = {
   freight: string;
   notes: string;
   lines: DraftLine[];
+  // Preço de venda digitado por produto (só o que foi editado), por id do produto.
+  prices: Record<string, string>;
 };
 
 export function serializeDraft(draft: Omit<EntryDraft, "v">): string {
@@ -78,6 +80,17 @@ export function parseDraft(raw: string | null, validKeys: ReadonlySet<string>, t
     }
   }
 
+  // Só guarda preço de produtos que ainda estão na entrada.
+  const productIds = new Set(lines.map((line) => line.key.split(":")[0]));
+  const prices: Record<string, string> = {};
+  if (data.prices && typeof data.prices === "object" && !Array.isArray(data.prices)) {
+    for (const [productId, value] of Object.entries(data.prices as Record<string, unknown>)) {
+      if (!productIds.has(productId)) continue;
+      const text = asText(value, 12).replace(/[^\d.,]/g, "");
+      if (text) prices[productId] = text;
+    }
+  }
+
   const supplier = asText(data.supplier, 80);
   const freight = asText(data.freight, 12).replace(/[^\d.,]/g, "");
   const notes = asText(data.notes, 300);
@@ -97,5 +110,6 @@ export function parseDraft(raw: string | null, validKeys: ReadonlySet<string>, t
     freight,
     notes,
     lines,
+    prices,
   };
 }

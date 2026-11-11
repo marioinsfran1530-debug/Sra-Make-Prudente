@@ -10,6 +10,7 @@ export type CreatedProduct = {
   name: string;
   brand: string;
   sku: string | null;
+  price: number | string; // Decimal do banco vem como texto
   variants: { id: string; name: string; sku: string | null; stockQty: number }[];
 };
 

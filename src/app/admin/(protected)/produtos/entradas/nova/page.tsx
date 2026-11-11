@@ -17,6 +17,8 @@ export default async function NewStockEntryPage() {
         brand: true,
         sku: true,
         active: true,
+        price: true,
+        promoPrice: true,
         stockQty: true,
         costPrice: true,
         variants: {
@@ -39,6 +41,8 @@ export default async function NewStockEntryPage() {
     brand: product.brand,
     sku: product.sku,
     active: product.active,
+    price: Number(product.price),
+    promoPrice: product.promoPrice === null ? null : Number(product.promoPrice),
     stockQty: product.stockQty,
     costPrice: product.costPrice === null ? null : Number(product.costPrice),
     variants: product.variants,

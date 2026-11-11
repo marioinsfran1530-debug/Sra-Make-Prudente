@@ -64,6 +64,7 @@ export async function POST(request: NextRequest) {
       name: true,
       brand: true,
       sku: true,
+      price: true,
       variants: {
         where: { active: true },
         orderBy: { name: "asc" },

@@ -14,7 +14,15 @@ import {
 
 export class StockEntryError extends Error {}
 
-type ProductRow = { id: string; name: string; sku: string | null; stockQty: number; costPrice: number | null };
+type ProductRow = {
+  id: string;
+  name: string;
+  sku: string | null;
+  stockQty: number;
+  costPrice: number | null;
+  price: number;
+  promoPrice: number | null;
+};
 type VariantRow = { id: string; name: string; sku: string | null; stockQty: number; active: boolean; productId: string };
 
 const TX_OPTIONS = { timeout: 30000, maxWait: 10000 } as const;
@@ -38,6 +46,7 @@ export async function createStockEntry(input: NormalizedEntry, createdById: stri
   );
   const shares = allocateFreight(lines, input.freight);
   const productIds = Array.from(new Set(lines.map((line) => line.productId))).sort();
+  const priceApplied = new Set<string>(); // o preço é do produto: muda uma vez só
 
   return prisma.$transaction(async (tx) => {
     await advisoryLock(tx, `stock-entry:${input.idempotencyKey}`);
@@ -63,7 +72,8 @@ export async function createStockEntry(input: NormalizedEntry, createdById: stri
 
     for (const [index, line] of lines.entries()) {
       const products = await tx.$queryRaw<ProductRow[]>`
-        SELECT "id", "name", "sku", "stockQty", "costPrice"::float8 AS "costPrice"
+        SELECT "id", "name", "sku", "stockQty", "costPrice"::float8 AS "costPrice",
+               "price"::float8 AS "price", "promoPrice"::float8 AS "promoPrice"
         FROM "Product" WHERE "id" = ${line.productId}
       `;
       const product = products[0];
@@ -109,14 +119,33 @@ export async function createStockEntry(input: NormalizedEntry, createdById: stri
         UPDATE "Product" SET "costPrice" = ${costAfter}, "updatedAt" = NOW() WHERE "id" = ${product.id}
       `;
 
+      // Preço de venda novo (opcional). Só mexe se for diferente do atual e nunca
+      // deixa o preço normal igual ou abaixo do promocional (a loja não aceita isso).
+      let priceBefore: number | null = null;
+      let priceAfter: number | null = null;
+      if (line.newPrice !== null && !priceApplied.has(product.id) && Math.abs(line.newPrice - product.price) >= 0.005) {
+        if (product.promoPrice !== null && line.newPrice <= product.promoPrice) {
+          throw new StockEntryError(
+            `O novo preço de "${product.name}" precisa ser maior que o preço promocional (R$ ${product.promoPrice.toFixed(2).replace(".", ",")}).`
+          );
+        }
+        await tx.$executeRaw`
+          UPDATE "Product" SET "price" = ${line.newPrice}, "updatedAt" = NOW() WHERE "id" = ${product.id}
+        `;
+        priceBefore = product.price;
+        priceAfter = line.newPrice;
+      }
+      if (line.newPrice !== null) priceApplied.add(product.id);
+
       await tx.$executeRaw`
         INSERT INTO app_security."StockEntryItem"
           ("entryId", "position", "productId", "variantId", "productName", "variantName", "sku",
-           "qty", "unitCost", "landedUnitCost", "stockBefore", "costBefore", "costAfter")
+           "qty", "unitCost", "landedUnitCost", "stockBefore", "costBefore", "costAfter",
+           "priceBefore", "priceAfter")
         VALUES
           (${entryId}, ${index}, ${product.id}, ${variant?.id ?? null}, ${product.name}, ${variant?.name ?? null},
            ${variant?.sku ?? product.sku}, ${line.qty}, ${line.unitCost}, ${landed}, ${stockBefore},
-           ${costBefore}, ${costAfter})
+           ${costBefore}, ${costAfter}, ${priceBefore}, ${priceAfter})
       `;
     }
 
@@ -136,6 +165,8 @@ type ItemRow = {
   qty: number;
   costBefore: number | null;
   costAfter: number | null;
+  priceBefore: number | null;
+  priceAfter: number | null;
 };
 
 export async function reverseStockEntry(entryId: string, reversedById: string, note: string) {
@@ -151,7 +182,8 @@ export async function reverseStockEntry(entryId: string, reversedById: string, n
 
     const items = await tx.$queryRaw<ItemRow[]>`
       SELECT "id", "position", "productId", "variantId", "productName", "variantName", "qty",
-             "costBefore"::float8 AS "costBefore", "costAfter"::float8 AS "costAfter"
+             "costBefore"::float8 AS "costBefore", "costAfter"::float8 AS "costAfter",
+             "priceBefore"::float8 AS "priceBefore", "priceAfter"::float8 AS "priceAfter"
       FROM app_security."StockEntryItem"
       WHERE "entryId" = ${entryId}
       ORDER BY "position" DESC
@@ -205,6 +237,25 @@ export async function reverseStockEntry(entryId: string, reversedById: string, n
           WHERE "id" = ${item.productId}
         `;
       }
+
+      // Preço de venda: só volta se ninguém o mudou depois da entrada e se o preço
+      // antigo ainda fica acima do promocional atual.
+      if (item.priceBefore !== null && item.priceAfter !== null) {
+        const prices = await tx.$queryRaw<{ price: number; promoPrice: number | null }[]>`
+          SELECT "price"::float8 AS "price", "promoPrice"::float8 AS "promoPrice"
+          FROM "Product" WHERE "id" = ${item.productId}
+        `;
+        const now = prices[0];
+        if (
+          now &&
+          Math.abs(now.price - item.priceAfter) < 0.005 &&
+          (now.promoPrice === null || item.priceBefore > now.promoPrice)
+        ) {
+          await tx.$executeRaw`
+            UPDATE "Product" SET "price" = ${item.priceBefore}, "updatedAt" = NOW() WHERE "id" = ${item.productId}
+          `;
+        }
+      }
     }
 
     await tx.$executeRaw`
@@ -237,6 +288,8 @@ export type StockEntryListItem = {
     qty: number;
     unitCost: number;
     landedUnitCost: number;
+    priceBefore: number | null;
+    priceAfter: number | null;
   }[];
 };
 
@@ -259,10 +312,13 @@ export async function listStockEntries(limit = 60): Promise<StockEntryListItem[]
       qty: number;
       unitCost: number;
       landedUnitCost: number;
+      priceBefore: number | null;
+      priceAfter: number | null;
     }[]
   >`
     SELECT "entryId", "productName", "variantName", "qty",
-           "unitCost"::float8 AS "unitCost", "landedUnitCost"::float8 AS "landedUnitCost"
+           "unitCost"::float8 AS "unitCost", "landedUnitCost"::float8 AS "landedUnitCost",
+           "priceBefore"::float8 AS "priceBefore", "priceAfter"::float8 AS "priceAfter"
     FROM app_security."StockEntryItem"
     WHERE "entryId" = ANY(${ids}::text[])
     ORDER BY "entryId", "position"
@@ -279,6 +335,8 @@ export async function listStockEntries(limit = 60): Promise<StockEntryListItem[]
         qty: item.qty,
         unitCost: Number(item.unitCost),
         landedUnitCost: Number(item.landedUnitCost),
+        priceBefore: item.priceBefore === null ? null : Number(item.priceBefore),
+        priceAfter: item.priceAfter === null ? null : Number(item.priceAfter),
       })),
   }));
 }

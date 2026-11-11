@@ -12,15 +12,16 @@ import {
   serializeDraft,
   type EntryDraft,
 } from "@/lib/stock-entry-draft";
+import { MIN_MARGIN_PCT, priceAdvice } from "@/lib/pricing";
 import {
   ENTRY_ORIGINS,
-  allocateFreight,
   costDeviation,
   entryTotals,
-  landedUnitCost,
+  finalCosts,
   parseEntryInput,
-  weightedAverageCost,
+  simulateEntry,
   type EntryOrigin,
+  type SimLineResult,
 } from "@/lib/stock-entry";
 import { QuickProductSheet, type CreatedProduct, type QuickCategory } from "@/components/admin/QuickProductSheet";
 
@@ -30,6 +31,8 @@ export type EntryProduct = {
   brand: string;
   sku: string | null;
   active: boolean;
+  price: number;
+  promoPrice: number | null;
   stockQty: number;
   costPrice: number | null;
   variants: { id: string; name: string; sku: string | null; stockQty: number }[];
@@ -45,6 +48,8 @@ type Pickable = {
   brand: string;
   sku: string | null;
   active: boolean;
+  price: number; // preço de venda atual do produto
+  promoPrice: number | null;
   stockItem: number; // estoque do item escolhido
   stockProduct: number; // estoque total do produto (base da média de custo)
   costBefore: number | null;
@@ -73,6 +78,8 @@ function toPickables(product: EntryProduct): Pickable[] {
         brand: product.brand,
         sku: product.sku,
         active: product.active,
+        price: product.price,
+        promoPrice: product.promoPrice,
         stockItem: product.stockQty,
         stockProduct: product.stockQty,
         costBefore: product.costPrice,
@@ -89,6 +96,8 @@ function toPickables(product: EntryProduct): Pickable[] {
     brand: product.brand,
     sku: variant.sku ?? product.sku,
     active: product.active,
+    price: product.price,
+    promoPrice: product.promoPrice,
     stockItem: variant.stockQty,
     stockProduct,
     costBefore: product.costPrice,
@@ -97,6 +106,10 @@ function toPickables(product: EntryProduct): Pickable[] {
 
 function costToText(cost: number | null) {
   return cost !== null ? String(cost).replace(".", ",") : "";
+}
+
+function priceToText(price: number) {
+  return price.toFixed(2).replace(".", ",");
 }
 
 // Lê o rascunho guardado no aparelho (só no navegador). Rascunho velho é ignorado.
@@ -151,6 +164,8 @@ export function StockEntryForm({
   const [saving, setSaving] = useState(false);
   const [saleKey, setSaleKey] = useState(() => newKey());
   const [focusKey, setFocusKey] = useState<string | null>(null);
+  // Preço de venda digitado por produto (id do produto). Sem entrada aqui = preço atual.
+  const [priceTexts, setPriceTexts] = useState<Record<string, string>>({});
 
   const [storedDraft] = useState<string | null>(readStoredDraft);
   const [draftHandled, setDraftHandled] = useState(false);
@@ -209,6 +224,8 @@ export function StockEntryForm({
       brand: product.brand,
       sku: product.sku,
       active: false,
+      price: Number(product.price),
+      promoPrice: null,
       stockQty: 0,
       costPrice: null,
       variants: product.variants,
@@ -244,6 +261,7 @@ export function StockEntryForm({
     setFreightText(draft.freight);
     setNotes(draft.notes);
     setSaleKey(draft.idempotencyKey);
+    setPriceTexts(draft.prices);
     setDraftHandled(true);
   }
 
@@ -269,9 +287,10 @@ export function StockEntryForm({
         freight: freightText,
         notes,
         lines: lines.map((line) => ({ key: line.key, qty: line.qtyText, cost: line.costText })),
+        prices: priceTexts,
       })
     );
-  }, [mounted, draftPending, saving, lines, supplier, freightText, notes, entryDate, origin, saleKey]);
+  }, [mounted, draftPending, saving, lines, supplier, freightText, notes, entryDate, origin, saleKey, priceTexts]);
 
   // ---- Cálculos ----
 
@@ -286,27 +305,64 @@ export function StockEntryForm({
   const incomplete = lineValid.filter((ok) => !ok).length;
   const freightValue = Math.max(0, num(freightText) || 0);
 
-  // Prévia por linha: custo com frete e novo custo médio.
-  const preview = useMemo(() => {
-    const shares = allocateFreight(
-      parsedLines.map((line, index) => (lineValid[index] ? line : { qty: 0, unitCost: 0 })),
+  // Prévia: mesma conta do servidor (frete rateado, custo médio e, quando um produto
+  // tem várias variações, cada linha parte do que a anterior deixou).
+  const simulated = useMemo<(SimLineResult | null)[]>(() => {
+    const validIndexes = lines.map((_, index) => index).filter((index) => lineValid[index]);
+    const results = simulateEntry(
+      validIndexes.map((index) => ({
+        productId: lines[index].productId,
+        variantId: lines[index].variantId,
+        qty: parsedLines[index].qty,
+        unitCost: parsedLines[index].unitCost,
+        stockProduct: lines[index].stockProduct,
+        costBefore: lines[index].costBefore,
+      })),
       freightValue
     );
-    return lines.map((line, index) => {
-      if (!lineValid[index]) return null;
-      const landed = landedUnitCost(parsedLines[index], shares[index]);
-      return {
-        landed,
-        average: weightedAverageCost({
-          stockBefore: line.stockProduct,
-          costBefore: line.costBefore,
-          qty: parsedLines[index].qty,
-          landedUnitCost: landed,
-        }),
-        deviation: costDeviation(line.costBefore, landed),
-      };
-    });
+    const byIndex = new Map(validIndexes.map((index, position) => [index, results[position]]));
+    return lines.map((_, index) => byIndex.get(index) ?? null);
   }, [lines, parsedLines, lineValid, freightValue]);
+
+  const preview = useMemo(
+    () =>
+      lines.map((line, index) => {
+        const result = simulated[index];
+        if (!result) return null;
+        return {
+          landed: result.landed,
+          average: result.costAfter,
+          deviation: costDeviation(line.costBefore, result.landed),
+        };
+      }),
+    [lines, simulated]
+  );
+
+  // Custo do produto depois da entrada, para a margem do preço de venda.
+  const finalCostByProduct = useMemo(() => finalCosts(lines, simulated), [lines, simulated]);
+
+  // Preço de venda por produto: o que está digitado (ou o atual) e se vai mudar.
+  const priceInfo = useMemo(() => {
+    const info = new Map<
+      string,
+      { typed: number; current: number; promoPrice: number | null; changed: boolean; belowPromo: boolean }
+    >();
+    for (const line of lines) {
+      if (info.has(line.productId)) continue;
+      const text = priceTexts[line.productId];
+      const parsed = text === undefined ? Number.NaN : num(text);
+      const typed = parsed > 0 ? Math.round(parsed * 100) / 100 : line.price;
+      const changed = Math.abs(typed - line.price) >= 0.005;
+      info.set(line.productId, {
+        typed,
+        current: line.price,
+        promoPrice: line.promoPrice,
+        changed,
+        belowPromo: changed && line.promoPrice !== null && typed <= line.promoPrice,
+      });
+    }
+    return info;
+  }, [lines, priceTexts]);
 
   const totals = useMemo(
     () => entryTotals(parsedLines.filter((_, index) => lineValid[index]), freightValue),
@@ -348,6 +404,17 @@ export function StockEntryForm({
       return;
     }
 
+    for (const line of lines) {
+      const info = priceInfo.get(line.productId);
+      if (info?.belowPromo) {
+        fail(
+          `O preço de “${line.name}” precisa ficar acima do preço promocional (${money(info.promoPrice ?? 0)}).`,
+          `price-${line.productId}`
+        );
+        return;
+      }
+    }
+
     const payload = {
       idempotencyKey: saleKey,
       entryDate,
@@ -360,6 +427,7 @@ export function StockEntryForm({
         variantId: line.variantId,
         qty: parsedLines[index].qty,
         unitCost: parsedLines[index].unitCost,
+        newPrice: priceInfo.get(line.productId)?.changed ? priceInfo.get(line.productId)?.typed : null,
       })),
     };
 
@@ -391,6 +459,84 @@ export function StockEntryForm({
   const inputClass =
     "w-full rounded-xl border border-rosa/20 bg-white px-3 py-2.5 text-sm outline-none focus:border-rosa-profundo";
   const badInputClass = "border-red-400 bg-red-50/40";
+
+  // O preço de venda é do produto: aparece uma vez, no primeiro item dele na entrada.
+  function showPrice(line: Line, index: number) {
+    return lines.findIndex((item) => item.productId === line.productId) === index;
+  }
+
+  function renderPriceBlock(line: Line) {
+    const info = priceInfo.get(line.productId);
+    if (!info) return null;
+    const finalCost = finalCostByProduct.get(line.productId) ?? null;
+    const advice = finalCost !== null ? priceAdvice(info.typed, finalCost) : null;
+    const text = priceTexts[line.productId] ?? priceToText(info.current);
+    const suggested = advice?.suggested ?? null;
+    const showSuggestion =
+      advice !== null &&
+      advice.low &&
+      suggested !== null &&
+      Math.abs(suggested - info.typed) >= 0.005 &&
+      (info.promoPrice === null || suggested > info.promoPrice);
+
+    return (
+      <div className="mt-2 rounded-lg border border-rosa/10 p-2.5">
+        <div className="flex items-end gap-3">
+          <label className="block w-32 shrink-0">
+            <span className="text-[10px] font-bold uppercase text-cinza">Preço de venda</span>
+            <input
+              id={`price-${line.productId}`}
+              value={text}
+              onChange={(event) =>
+                setPriceTexts((current) => ({
+                  ...current,
+                  [line.productId]: event.target.value.replace(/[^\d.,]/g, "").slice(0, 12),
+                }))
+              }
+              inputMode="decimal"
+              aria-label={`Preço de venda de ${line.name}`}
+              aria-invalid={info.belowPromo}
+              className={`${inputClass} mt-1 font-bold ${info.belowPromo ? badInputClass : ""}`}
+            />
+          </label>
+          <p className="min-w-0 pb-2 text-[11px] leading-4 text-cinza">
+            {advice ? (
+              <>
+                margem{" "}
+                <strong className={advice.low ? "text-amber-700" : "text-green-700"}>{Math.round(advice.margin)}%</strong>
+                {info.changed ? ` (preço hoje ${money(info.current)})` : ""}
+              </>
+            ) : (
+              "Informe quantidade e custo para ver a margem."
+            )}
+          </p>
+        </div>
+
+        {showSuggestion && advice && suggested !== null && advice.suggestedMargin !== null && (
+          <button
+            type="button"
+            onClick={() => setPriceTexts((current) => ({ ...current, [line.productId]: priceToText(suggested) }))}
+            className="mt-2 w-full rounded-lg bg-amber-50 px-3 py-2.5 text-left text-[11px] font-bold leading-4 text-amber-900"
+          >
+            Margem abaixo de {MIN_MARGIN_PCT}%. Usar {money(suggested)} (margem {Math.round(advice.suggestedMargin)}%)
+          </button>
+        )}
+        {info.promoPrice !== null && (
+          <p className="mt-2 text-[10px] leading-4 text-cinza">
+            Em promoção por {money(info.promoPrice)}: o preço promocional não muda.
+          </p>
+        )}
+        {info.belowPromo && info.promoPrice !== null && (
+          <p role="alert" className="mt-1 text-[11px] font-semibold text-red-700">
+            O preço precisa ficar acima do promocional ({money(info.promoPrice)}).
+          </p>
+        )}
+        {info.changed && !info.belowPromo && (
+          <p className="mt-2 text-[10px] leading-4 text-cinza">O preço de venda será atualizado ao registrar a entrada.</p>
+        )}
+      </div>
+    );
+  }
 
   function onSearchKey(event: React.KeyboardEvent<HTMLInputElement>) {
     if (event.key === "Enter") {
@@ -642,6 +788,7 @@ export function StockEntryForm({
                       {line.costBefore !== null && line.stockProduct > 0 ? " (média com o estoque atual)" : ""}
                     </p>
                   )}
+                  {showPrice(line, index) && renderPriceBlock(line)}
                   {info?.deviation && line.costBefore !== null && (
                     <p role="status" className="mt-1.5 rounded-lg bg-amber-50 px-3 py-2 text-[11px] font-semibold leading-4 text-amber-900">
                       O custo está {info.deviation === "alto" ? "bem acima" : "bem abaixo"} do atual ({money(line.costBefore)}).

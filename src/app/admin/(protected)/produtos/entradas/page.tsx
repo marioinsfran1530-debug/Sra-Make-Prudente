@@ -27,7 +27,7 @@ export default async function StockEntriesPage({
           <h1 className="font-serif text-2xl font-bold text-texto">Entradas de estoque</h1>
           <p className="mt-1 max-w-2xl text-sm text-cinza">
             Registre aqui o que chegou de cada compra. O estoque sobe, o custo do produto é atualizado (média com o que já
-            havia) e fica o histórico de quando, de onde e por quanto entrou.
+            havia), o preço de venda pode ser ajustado e fica o histórico de quando, de onde e por quanto entrou.
           </p>
         </div>
         <Link
@@ -87,9 +87,14 @@ export default async function StockEntriesPage({
                         {line.qty}× {line.productName}
                         {line.variantName ? ` · ${line.variantName}` : ""}
                       </span>
-                      <span className="shrink-0 text-cinza">
+                      <span className="shrink-0 text-right text-cinza">
                         {money(line.unitCost)}
                         {line.landedUnitCost !== line.unitCost ? ` (com frete ${money(line.landedUnitCost)})` : ""}
+                        {line.priceBefore !== null && line.priceAfter !== null && (
+                          <span className="block text-[10px] text-rosa-profundo">
+                            preço {money(line.priceBefore)} → {money(line.priceAfter)}
+                          </span>
+                        )}
                       </span>
                     </li>
                   ))}

@@ -44,6 +44,10 @@ export type EntryLineInput = {
   variantId: string | null;
   qty: number;
   unitCost: number;
+  // Novo preço de venda do produto (opcional). O preço é do produto, não da
+  // variação: se houver várias linhas do mesmo produto, todas que informarem
+  // preço precisam informar o mesmo.
+  newPrice: number | null;
 };
 
 export type NormalizedEntry = {
@@ -109,6 +113,8 @@ export function parseEntryInput(raw: unknown, today: string): Parsed {
     const variantId = typeof line.variantId === "string" && line.variantId.trim() ? line.variantId.trim() : null;
     const qty = toNumber(line.qty);
     const unitCost = round2(toNumber(line.unitCost));
+    const rawPrice = line.newPrice;
+    const newPrice = rawPrice === undefined || rawPrice === null || rawPrice === "" ? null : round2(toNumber(rawPrice));
 
     if (!productId) return { error: "Há um item sem produto." };
     if (!Number.isInteger(qty) || qty < 1 || qty > MAX_LINE_QTY) {
@@ -118,11 +124,25 @@ export function parseEntryInput(raw: unknown, today: string): Parsed {
       return { error: "Informe o custo unitário de todos os itens (maior que zero)." };
     }
 
+    if (newPrice !== null && (!Number.isFinite(newPrice) || newPrice <= 0 || newPrice > MAX_UNIT_COST)) {
+      return { error: "Preço de venda inválido (maior que zero)." };
+    }
+
     const key = `${productId}:${variantId ?? "base"}`;
     if (seen.has(key)) return { error: "Há um item repetido na entrada." };
     seen.add(key);
 
-    lines.push({ productId, variantId, qty, unitCost });
+    lines.push({ productId, variantId, qty, unitCost, newPrice });
+  }
+
+  const priceByProduct = new Map<string, number>();
+  for (const line of lines) {
+    if (line.newPrice === null) continue;
+    const known = priceByProduct.get(line.productId);
+    if (known !== undefined && known !== line.newPrice) {
+      return { error: "O mesmo produto está com preços de venda diferentes na entrada." };
+    }
+    priceByProduct.set(line.productId, line.newPrice);
   }
 
   return { value: { idempotencyKey, entryDate, origin, supplier, freight, notes, lines } };
@@ -179,6 +199,69 @@ export function costDeviation(costBefore: number | null, landedCost: number): "a
   if (landedCost >= costBefore * 2) return "alto";
   if (landedCost <= costBefore / 2) return "baixo";
   return null;
+}
+
+// ---- Simulação (prévia na tela) ----
+
+export type SimLineInput = {
+  productId: string;
+  variantId: string | null;
+  qty: number;
+  unitCost: number;
+  stockProduct: number; // estoque total do produto antes da entrada
+  costBefore: number | null; // custo do produto antes da entrada
+};
+
+export type SimLineResult = {
+  stockBefore: number;
+  costBefore: number | null;
+  landed: number;
+  costAfter: number;
+};
+
+// Reproduz o que o servidor faz: as linhas são processadas na mesma ordem fixa
+// (produto:variação) e, quando um produto tem várias variações na entrada, cada
+// linha parte do estoque e do custo que a anterior deixou. Devolve na ordem recebida.
+export function simulateEntry(lines: SimLineInput[], freight: number): SimLineResult[] {
+  const order = lines
+    .map((line, index) => ({ line, index }))
+    .sort((a, b) =>
+      `${a.line.productId}:${a.line.variantId ?? ""}`.localeCompare(`${b.line.productId}:${b.line.variantId ?? ""}`)
+    );
+  const shares = allocateFreight(order.map((item) => item.line), freight);
+
+  const state = new Map<string, { stock: number; cost: number | null }>();
+  const results: SimLineResult[] = new Array(lines.length);
+
+  order.forEach(({ line, index }, position) => {
+    const current = state.get(line.productId) ?? { stock: Math.max(0, line.stockProduct), cost: line.costBefore };
+    const landed = landedUnitCost(line, shares[position]);
+    const costAfter = weightedAverageCost({
+      stockBefore: current.stock,
+      costBefore: current.cost,
+      qty: line.qty,
+      landedUnitCost: landed,
+    });
+    results[index] = { stockBefore: current.stock, costBefore: current.cost, landed, costAfter };
+    state.set(line.productId, { stock: current.stock + line.qty, cost: costAfter });
+  });
+
+  return results;
+}
+
+// Custo final de cada produto depois de todas as linhas dele na entrada: é o da
+// linha que partiu do maior estoque (cada linha soma pelo menos 1 unidade).
+export function finalCosts(lines: { productId: string }[], results: (SimLineResult | null)[]): Map<string, number> {
+  const best = new Map<string, { stock: number; cost: number }>();
+  lines.forEach((line, index) => {
+    const result = results[index];
+    if (!result) return;
+    const known = best.get(line.productId);
+    if (!known || result.stockBefore > known.stock) {
+      best.set(line.productId, { stock: result.stockBefore, cost: result.costAfter });
+    }
+  });
+  return new Map(Array.from(best, ([productId, value]) => [productId, value.cost]));
 }
 
 export type EntryTotals = { items: number; units: number; subtotal: number; freight: number; total: number };

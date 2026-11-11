@@ -19,6 +19,7 @@ function draft(extra = {}) {
       { key: "p1:base", qty: "10", cost: "5,5" },
       { key: "p2:v1", qty: "3", cost: "8" },
     ],
+    prices: { p1: "31,90" },
     ...extra,
   };
 }
@@ -71,4 +72,17 @@ test("rascunho velho demais não volta", () => {
   assert.equal(isFreshDraft(raw, 1000 + DRAFT_MAX_AGE_MS + 1), false);
   assert.equal(isFreshDraft("lixo", 1000), false);
   assert.equal(isFreshDraft(null, 1000), false);
+});
+
+test("preços digitados voltam só para produtos que continuam na entrada", () => {
+  const raw = serializeDraft(draft({ prices: { p1: "31,90", p2: "R$ 12,5x", sumiu: "9", p9: "" } }));
+  const back = parseDraft(raw, KEYS, TODAY);
+  assert.deepEqual(back.prices, { p1: "31,90", p2: "12,5" });
+});
+
+test("rascunho antigo, sem preços, continua valendo", () => {
+  const old = JSON.parse(serializeDraft(draft()));
+  delete old.prices;
+  const back = parseDraft(JSON.stringify(old), KEYS, TODAY);
+  assert.deepEqual(back.prices, {});
 });

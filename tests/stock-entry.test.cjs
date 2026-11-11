@@ -8,6 +8,8 @@ const {
   entryTotals,
   landedUnitCost,
   parseEntryInput,
+  simulateEntry,
+  finalCosts,
   weightedAverageCost,
 } = require("../.tmp-tests/stock-entry.js");
 
@@ -31,7 +33,7 @@ test("aceita uma entrada válida e normaliza os campos", () => {
   assert.ok(out.value, out.error);
   assert.equal(out.value.supplier, "Loja X");
   assert.equal(out.value.freight, 12.5);
-  assert.deepEqual(out.value.lines, [{ productId: "p1", variantId: null, qty: 3, unitCost: 4.5 }]);
+  assert.deepEqual(out.value.lines, [{ productId: "p1", variantId: null, qty: 3, unitCost: 4.5, newPrice: null }]);
 });
 
 test("rejeita entrada sem itens, sem origem ou sem identificador", () => {
@@ -157,4 +159,61 @@ test("avisa quando o custo foge muito do atual", () => {
   assert.equal(costDeviation(15, 12), null);
   assert.equal(costDeviation(null, 999), null);
   assert.equal(costDeviation(0, 10), null);
+});
+
+test("preço de venda novo: opcional, validado e igual entre variações do mesmo produto", () => {
+  const withPrice = (price) => parseEntryInput(valid({ lines: [{ productId: "p1", variantId: null, qty: 1, unitCost: 5, newPrice: price }] }), TODAY);
+  assert.equal(withPrice("31,90").value.lines[0].newPrice, 31.9);
+  assert.equal(withPrice(undefined).value.lines[0].newPrice, null);
+  assert.equal(withPrice("").value.lines[0].newPrice, null);
+  assert.equal(withPrice(null).value.lines[0].newPrice, null);
+  assert.ok(withPrice(0).error);
+  assert.ok(withPrice("abc").error);
+  assert.ok(withPrice(-5).error);
+  assert.ok(withPrice(100000).error);
+
+  const two = (a, b) => parseEntryInput(valid({ lines: [
+    { productId: "p1", variantId: "v1", qty: 1, unitCost: 5, newPrice: a },
+    { productId: "p1", variantId: "v2", qty: 1, unitCost: 5, newPrice: b },
+  ] }), TODAY);
+  assert.ok(two(30, 30).value);
+  assert.ok(two(30, null).value);
+  assert.ok(two(30, 31).error);
+});
+
+test("prévia reproduz o servidor: variações do mesmo produto partem do que a anterior deixou", () => {
+  // Produto com 10 un. a R$ 10. Duas variações entram: 10 un. a R$ 14 e 10 un. a R$ 20.
+  const out = simulateEntry([
+    { productId: "p1", variantId: "v2", qty: 10, unitCost: 20, stockProduct: 10, costBefore: 10 },
+    { productId: "p1", variantId: "v1", qty: 10, unitCost: 14, stockProduct: 10, costBefore: 10 },
+  ], 0);
+  // Ordem do servidor: v1 primeiro (10×10 + 10×14)/20 = 12; depois v2 (20×12 + 10×20)/30 = 14,67
+  assert.deepEqual(out[1], { stockBefore: 10, costBefore: 10, landed: 14, costAfter: 12 });
+  assert.deepEqual(out[0], { stockBefore: 20, costBefore: 12, landed: 20, costAfter: 14.67 });
+});
+
+test("prévia: produtos diferentes não se misturam e o frete entra no custo", () => {
+  const out = simulateEntry([
+    { productId: "a", variantId: null, qty: 10, unitCost: 5, stockProduct: 0, costBefore: null },
+    { productId: "b", variantId: null, qty: 5, unitCost: 10, stockProduct: 5, costBefore: 8 },
+  ], 10);
+  assert.equal(out[0].landed, 5.5); // frete 5 sobre 50 + 50
+  assert.equal(out[0].costAfter, 5.5);
+  assert.equal(out[1].landed, 11); // (50 + 5) / 5
+  assert.equal(out[1].costAfter, 9.5); // (5×8 + 5×11) / 10
+});
+
+test("custo final do produto é o da última linha dele (com várias variações)", () => {
+  const lines = [
+    { productId: "p1", variantId: "v2", qty: 10, unitCost: 20, stockProduct: 10, costBefore: 10 },
+    { productId: "p1", variantId: "v1", qty: 10, unitCost: 14, stockProduct: 10, costBefore: 10 },
+    { productId: "p2", variantId: null, qty: 5, unitCost: 8, stockProduct: 0, costBefore: null },
+  ];
+  const results = simulateEntry(lines, 0);
+  const finals = finalCosts(lines, results);
+  assert.equal(finals.get("p1"), 14.67);
+  assert.equal(finals.get("p2"), 8);
+  // linhas incompletas (nulas) são ignoradas
+  assert.equal(finalCosts(lines, [null, results[1], null]).get("p1"), 12);
+  assert.equal(finalCosts(lines, [null, null, null]).size, 0);
 });
