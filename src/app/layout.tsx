@@ -4,9 +4,9 @@ import { GoogleAnalytics } from "@/components/GoogleAnalytics";
 import "./globals.css";
 
 const SITE_URL = "https://www.sramakeprudente.com.br";
-const TITLE = "Loja de Maquiagem em Presidente Prudente | Sra Make";
+const TITLE = "Lash, Nail e Maquiagem em Presidente Prudente | Sra Make";
 const DESCRIPTION =
-  "Loja de maquiagem em Presidente Prudente/SP. Compre bases, corretivos, batons, gloss, paletas, cílios, lash, nail e cosméticos, com retirada e entrega local.";
+  "Materiais para lash e nail em Presidente Prudente/SP: cílios tufinho, colas, géis, pinças e kits. Também maquiagem e cosméticos, com retirada no Centro e entrega local.";
 const SOCIAL_IMAGE_URL = `${SITE_URL}/app-icon/512?v=3`;
 
 function jsonLd(data: Record<string, unknown>) {

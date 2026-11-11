@@ -9,6 +9,7 @@ import {
   Sparkles,
   Truck,
 } from "lucide-react";
+import { GoogleReviews } from "@/components/GoogleReviews";
 import { HomeCategoryRail, BrandRail } from "@/components/HomeDiscoveryRails";
 import { ProductCarousel } from "@/components/ProductCarousel";
 import { SearchBar } from "@/components/SearchBar";
@@ -266,6 +267,8 @@ export default async function PreviewHomePage() {
 
       <HomeCategoryRail categories={categories} />
 
+      <GoogleReviews />
+
       <StoreLocationBar
         address={location.address}
         businessHours={location.businessHours}
@@ -284,28 +287,6 @@ export default async function PreviewHomePage() {
 
       <section className="mt-8 px-4">
         <div className="grid grid-cols-2 gap-3">
-          <Link
-            href="/categoria/maquiagem"
-            className="group relative min-h-[154px] overflow-hidden rounded-3xl border border-rosa/10 bg-creme p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-          >
-            <Sparkles
-              size={72}
-              className="absolute -bottom-3 -right-2 text-rosa-profundo/10"
-            />
-            <p className="text-[10px] font-bold uppercase tracking-wider text-rosa-profundo">
-              Para você
-            </p>
-            <p className="mt-1 max-w-[130px] font-serif text-base font-bold leading-tight text-texto">
-              Maquiagem para o dia a dia
-            </p>
-            <p className="mt-2 max-w-[140px] text-[11px] leading-snug text-cinza">
-              Bases, batons, máscaras, pós e outros favoritos.
-            </p>
-            <p className="mt-3 text-[11px] font-bold text-rosa-profundo">
-              Ver maquiagem →
-            </p>
-          </Link>
-
           <Link
             href="/categoria"
             className="group relative min-h-[154px] overflow-hidden rounded-3xl border border-roxo/10 p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
@@ -328,6 +309,28 @@ export default async function PreviewHomePage() {
               Ver materiais →
             </p>
           </Link>
+          <Link
+            href="/categoria/maquiagem"
+            className="group relative min-h-[154px] overflow-hidden rounded-3xl border border-rosa/10 bg-creme p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+          >
+            <Sparkles
+              size={72}
+              className="absolute -bottom-3 -right-2 text-rosa-profundo/10"
+            />
+            <p className="text-[10px] font-bold uppercase tracking-wider text-rosa-profundo">
+              Para você
+            </p>
+            <p className="mt-1 max-w-[130px] font-serif text-base font-bold leading-tight text-texto">
+              Maquiagem para o dia a dia
+            </p>
+            <p className="mt-2 max-w-[140px] text-[11px] leading-snug text-cinza">
+              Bases, batons, máscaras, pós e outros favoritos.
+            </p>
+            <p className="mt-3 text-[11px] font-bold text-rosa-profundo">
+              Ver maquiagem →
+            </p>
+          </Link>
+
         </div>
       </section>
 

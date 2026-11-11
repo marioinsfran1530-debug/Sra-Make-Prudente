@@ -1,8 +1,8 @@
 export const STOREFRONT_CONVERSION_DEFAULTS = {
   heroEyebrow: "Catálogo da",
-  heroTitle: "Maquiagem, lash e nail em Presidente Prudente",
+  heroTitle: "Lash, nail e maquiagem em Presidente Prudente",
   heroSubtitle:
-    "Veja preços e disponibilidade. Monte seu pedido e confirme retirada ou entrega pelo WhatsApp.",
+    "Cílios, colas, géis e kits para lash e nail, além de maquiagem. Veja preços e confirme retirada ou entrega pelo WhatsApp.",
   primaryCtaLabel: "Ver produtos e preços",
   primaryCtaUrl: "/categoria",
   secondaryCtaLabel: "Precisa de ajuda? Fale no WhatsApp",
@@ -34,11 +34,13 @@ const LEGACY_VALUES = {
   heroTitle: new Set([
     "Encontre o que você precisa na Sra Make.",
     "Você linda todos os dias.",
+    "Maquiagem, lash e nail em Presidente Prudente",
   ]),
   heroSubtitle: new Set([
     "Veja preços e disponibilidade. Escolha seus produtos e finalize pelo WhatsApp.",
     "Maquiagem, lash, nail e acessórios. Escolha pelo catálogo e confirme pelo WhatsApp.",
     "Maquiagem, lash, nail e acessórios. Escolha seus produtos e finalize pelo WhatsApp.",
+    "Veja preços e disponibilidade. Monte seu pedido e confirme retirada ou entrega pelo WhatsApp.",
   ]),
   primaryCtaLabel: new Set(["Ver produtos"]),
   secondaryCtaLabel: new Set(["Preciso de ajuda"]),
