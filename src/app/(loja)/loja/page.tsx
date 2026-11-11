@@ -26,11 +26,11 @@ const PAGE_URL = `${SITE_URL}/loja`;
 const STORE_NAME = "Sra Make Prudente";
 const STORE_PHONE = "+55 18 99124-8713";
 
-// Lash primeiro (é o foco da loja), depois como comprar e maquiagem.
+// Lash e nail primeiro (o foco da loja), depois como comprar.
 const FEATURED_DICAS = [
   "cilios-tufinho-para-iniciantes",
+  "unhas-em-gel-para-iniciantes",
   "como-funciona-retirada-e-99entrega",
-  "como-escolher-o-tom-de-base-e-corretivo",
 ].flatMap((slug) => {
   const dica = getDica(slug);
   return dica ? [dica] : [];

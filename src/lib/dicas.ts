@@ -25,6 +25,134 @@ export type Dica = {
 
 export const DICAS: Dica[] = [
   {
+    slug: "cilios-tufinho-para-iniciantes",
+    title: "Cílios tufinho para iniciantes: o que você precisa saber",
+    description:
+      "Entenda como escolher cílios tufinho, pinça e itens básicos para começar. Veja opções para lash na Sra Make Prudente.",
+    excerpt:
+      "Os principais pontos para quem está começando com cílios tufinho e quer montar um kit simples sem comprar itens desnecessários.",
+    category: "Lash",
+    readTime: "4 min",
+    publishedAt: "2026-09-08",
+    updatedAt: "2026-09-08",
+    intro:
+      "Cílios tufinho permitem criar efeitos diferentes conforme tamanho, curvatura, quantidade e posição de aplicação. Para quem está começando, o mais importante é entender os itens básicos antes de montar o kit.",
+    sections: [
+      {
+        heading: "1. O que são cílios tufinho",
+        paragraphs: [
+          "São pequenos grupos de fios que podem ser aplicados em pontos específicos da linha dos cílios. Eles ajudam a construir volume e alongamento de forma gradual.",
+        ],
+      },
+      {
+        heading: "2. O que observar na hora de escolher",
+        bullets: [
+          "Comprimento: tamanhos menores tendem a gerar resultado mais discreto; maiores criam mais destaque.",
+          "Espessura e quantidade de fios: influenciam diretamente no volume.",
+          "Curvatura: muda a percepção de abertura do olhar.",
+          "Conforto: bases muito pesadas podem incomodar mais em usos prolongados.",
+        ],
+      },
+      {
+        heading: "3. Itens básicos para começar",
+        bullets: [
+          "Cílios tufinho em tamanhos adequados ao efeito desejado.",
+          "Pinça com boa precisão.",
+          "Cola apropriada para o tipo de aplicação que será realizado.",
+          "Higienização e organização dos materiais.",
+        ],
+      },
+      {
+        heading: "4. Evite comprar tudo de uma vez",
+        paragraphs: [
+          "Para iniciar, faz mais sentido testar poucos tamanhos e entender qual técnica e efeito você prefere. Depois disso, você consegue ampliar o kit com mais segurança e menos desperdício.",
+        ],
+      },
+      {
+        heading: "Encontre produtos para lash em Presidente Prudente",
+        paragraphs: [
+          "A Sra Make reúne cílios, pinças e outros itens de lash. Consulte o catálogo para ver o que está disponível no momento.",
+        ],
+        links: [
+          { label: "Ver produtos de lash", href: "/categoria/lash" },
+          { label: "Ver página de cílios tufinho", href: "/categoria/lash/cilios-tufinho" },
+        ],
+      },
+    ],
+  },
+  {
+    slug: "unhas-em-gel-para-iniciantes",
+    title: "Unhas em gel para iniciantes: o que você precisa para começar",
+    description:
+      "Veja os materiais básicos para fazer unhas em gel, da preparação à cabine UV/LED, e como montar um kit inicial sem exagero. Encontre opções na Sra Make Prudente.",
+    excerpt:
+      "Quais itens realmente fazem diferença para quem está começando com unhas em gel e como organizar as primeiras compras.",
+    category: "Nail",
+    readTime: "5 min",
+    publishedAt: "2026-11-11",
+    updatedAt: "2026-11-11",
+    intro:
+      "Quem começa com unhas em gel costuma se perder entre muitos produtos. A boa notícia é que o básico é pequeno: preparar bem a unha, aplicar o gel em camadas finas, curar na cabine e finalizar. Comece por aí e amplie o kit aos poucos.",
+    sections: [
+      {
+        heading: "1. A preparação decide o resultado",
+        paragraphs: [
+          "Grande parte dos problemas de aderência vem de uma preparação apressada. A unha precisa estar limpa, sem brilho e sem oleosidade antes de receber qualquer produto.",
+        ],
+        bullets: [
+          "Lixa ou bloco para retirar o brilho da superfície e acertar o formato.",
+          "Palito de laranjeira ou empurrador para organizar a cutícula.",
+          "Desidratador para retirar a oleosidade da unha.",
+          "Primer para ajudar a fixação do gel.",
+        ],
+      },
+      {
+        heading: "2. Os géis: cada um tem uma função",
+        paragraphs: [
+          "Nem todo gel serve para tudo. Antes de comprar, leia a indicação de uso na embalagem e escolha conforme o que você pretende fazer.",
+        ],
+        bullets: [
+          "Gel construtor ou fiber gel: dá estrutura e ajuda a alongar ou reforçar a unha.",
+          "Esmalte em gel: traz a cor, aplicado em camadas finas.",
+          "Top coat: sela e protege a cor, deixando o acabamento brilhante.",
+        ],
+      },
+      {
+        heading: "3. Cabine UV/LED e tempo de cura",
+        paragraphs: [
+          "O gel só endurece de verdade quando é curado na cabine. Cada produto indica o tempo de cura e o tipo de luz (UV, LED ou ambos) no rótulo. Siga a indicação do fabricante e use camadas finas: camadas grossas curam pior e podem ficar com aparência irregular.",
+          "Se for fazer unhas em você mesma ou em poucas clientes, uma cabine compacta já permite começar. Depois você avalia se precisa de uma maior.",
+        ],
+      },
+      {
+        heading: "4. Cuidados na aplicação",
+        bullets: [
+          "Aplique o gel sem encostar na pele e na cutícula. Produto que escorre para a pele pode soltar e causar desconforto.",
+          "Use pincel próprio para gel e mantenha-o limpo e protegido da luz.",
+          "Se sentir calor forte na cura, retire a mão e aplique camadas mais finas.",
+          "Higienize alicates, palitos e demais materiais entre um uso e outro.",
+        ],
+      },
+      {
+        heading: "5. Como montar um kit inicial sem exagero",
+        paragraphs: [
+          "Para começar, concentre-se no essencial: lixa, desidratador, primer, um gel de base ou construtor, um top coat, pincel e a cabine. As cores e a decoração vêm depois, quando você já tiver segurança na técnica.",
+          "Comprar poucos itens e testar antes de ampliar evita gastar com produtos que você ainda não vai usar.",
+        ],
+      },
+      {
+        heading: "Encontre materiais para nail em Presidente Prudente",
+        paragraphs: [
+          "A Sra Make reúne géis, primer, desidratador, top coat, cabine, lixas, pincéis e acessórios para nail. A disponibilidade muda com a reposição, então consulte o catálogo ou chame a equipe no WhatsApp para confirmar o que tem no momento.",
+        ],
+        links: [
+          { label: "Ver produtos de nail", href: "/categoria/nail" },
+          { label: "Falar com a Sra Make", href: "/loja" },
+        ],
+      },
+    ],
+  },
+  {
     slug: "como-escolher-o-tom-de-base-e-corretivo",
     title: "Como escolher o tom de base e corretivo",
     description:
@@ -80,62 +208,6 @@ export const DICAS: Dica[] = [
         links: [
           { label: "Ver produtos de maquiagem", href: "/categoria/maquiagem" },
           { label: "Falar com a Sra Make", href: "/loja" },
-        ],
-      },
-    ],
-  },
-  {
-    slug: "cilios-tufinho-para-iniciantes",
-    title: "Cílios tufinho para iniciantes: o que você precisa saber",
-    description:
-      "Entenda como escolher cílios tufinho, pinça e itens básicos para começar. Veja opções para lash na Sra Make Prudente.",
-    excerpt:
-      "Os principais pontos para quem está começando com cílios tufinho e quer montar um kit simples sem comprar itens desnecessários.",
-    category: "Lash",
-    readTime: "4 min",
-    publishedAt: "2026-09-08",
-    updatedAt: "2026-09-08",
-    intro:
-      "Cílios tufinho permitem criar efeitos diferentes conforme tamanho, curvatura, quantidade e posição de aplicação. Para quem está começando, o mais importante é entender os itens básicos antes de montar o kit.",
-    sections: [
-      {
-        heading: "1. O que são cílios tufinho",
-        paragraphs: [
-          "São pequenos grupos de fios que podem ser aplicados em pontos específicos da linha dos cílios. Eles ajudam a construir volume e alongamento de forma gradual.",
-        ],
-      },
-      {
-        heading: "2. O que observar na hora de escolher",
-        bullets: [
-          "Comprimento: tamanhos menores tendem a gerar resultado mais discreto; maiores criam mais destaque.",
-          "Espessura e quantidade de fios: influenciam diretamente no volume.",
-          "Curvatura: muda a percepção de abertura do olhar.",
-          "Conforto: bases muito pesadas podem incomodar mais em usos prolongados.",
-        ],
-      },
-      {
-        heading: "3. Itens básicos para começar",
-        bullets: [
-          "Cílios tufinho em tamanhos adequados ao efeito desejado.",
-          "Pinça com boa precisão.",
-          "Cola apropriada para o tipo de aplicação que será realizado.",
-          "Higienização e organização dos materiais.",
-        ],
-      },
-      {
-        heading: "4. Evite comprar tudo de uma vez",
-        paragraphs: [
-          "Para iniciar, faz mais sentido testar poucos tamanhos e entender qual técnica e efeito você prefere. Depois disso, você consegue ampliar o kit com mais segurança e menos desperdício.",
-        ],
-      },
-      {
-        heading: "Encontre produtos para lash em Presidente Prudente",
-        paragraphs: [
-          "A Sra Make reúne cílios, pinças e outros itens de lash. Consulte o catálogo para ver o que está disponível no momento.",
-        ],
-        links: [
-          { label: "Ver produtos de lash", href: "/categoria/lash" },
-          { label: "Ver página de cílios tufinho", href: "/categoria/lash/cilios-tufinho" },
         ],
       },
     ],

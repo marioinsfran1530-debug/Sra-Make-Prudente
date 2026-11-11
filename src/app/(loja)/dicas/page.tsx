@@ -7,14 +7,14 @@ const SITE_URL = "https://www.sramakeprudente.com.br";
 const PAGE_URL = `${SITE_URL}/dicas`;
 
 export const metadata: Metadata = {
-  title: "Dicas de maquiagem, cílios e beleza | Sra Make Prudente",
+  title: "Dicas de lash, nail e maquiagem | Sra Make Prudente",
   description:
-    "Dicas práticas de maquiagem, cílios, lash, cosméticos e compras em Presidente Prudente, com links para produtos da Sra Make.",
+    "Dicas práticas de cílios, unhas em gel, maquiagem e compras em Presidente Prudente, com links para produtos da Sra Make.",
   alternates: { canonical: PAGE_URL },
   openGraph: {
     title: "Dicas da Sra Make Prudente",
     description:
-      "Conteúdos práticos para escolher produtos de maquiagem, lash e beleza e comprar com mais segurança em Presidente Prudente.",
+      "Conteúdos práticos para escolher materiais de lash e nail e produtos de beleza e comprar com mais segurança em Presidente Prudente.",
     url: PAGE_URL,
     type: "website",
   },
@@ -28,7 +28,7 @@ export default function DicasPage() {
     url: PAGE_URL,
     name: "Dicas da Sra Make Prudente",
     description:
-      "Conteúdos sobre maquiagem, cílios, lash, cosméticos e compras em Presidente Prudente.",
+      "Conteúdos sobre cílios, lash, unhas em gel, maquiagem e compras em Presidente Prudente.",
     isPartOf: { "@id": `${SITE_URL}/#website` },
     provider: { "@id": `${SITE_URL}/#store` },
     inLanguage: "pt-BR",
@@ -69,7 +69,7 @@ export default function DicasPage() {
           </div>
           <h1 className="mt-4 font-serif text-3xl font-bold">Dicas da Sra Make</h1>
           <p className="mt-3 max-w-2xl text-sm leading-relaxed text-white/85">
-            Guias curtos sobre maquiagem, cílios, beleza e compras em Presidente Prudente. O objetivo é ajudar você a escolher melhor e chegar mais rápido aos produtos certos.
+            Guias curtos sobre cílios, unhas, maquiagem e compras em Presidente Prudente. O objetivo é ajudar você a escolher melhor e chegar mais rápido aos produtos certos.
           </p>
         </div>
       </section>
