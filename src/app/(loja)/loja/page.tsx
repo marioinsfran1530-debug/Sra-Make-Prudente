@@ -65,7 +65,7 @@ const FAQS = [
 ];
 
 export const metadata: Metadata = {
-  title: "Nossa loja de lash, nail e maquiagem em Presidente Prudente | Sra Make",
+  title: "Nossa loja de lash e nail em Presidente Prudente",
   description:
     "Conheça a Sra Make Prudente no Centro de Presidente Prudente/SP, com materiais para lash e nail e maquiagem. Veja endereço, horário, mapa, retirada, 99Entrega e WhatsApp.",
   alternates: { canonical: PAGE_URL },
