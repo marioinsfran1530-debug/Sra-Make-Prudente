@@ -3,6 +3,8 @@ import { cache } from "react";
 import { productStockStatus, type StockStatus } from "@/lib/stock";
 import { productIdFromLegacySlug, productSlug } from "@/lib/product-url";
 import { searchProducts } from "@/lib/product-search";
+import { createSlugIndex } from "@/lib/slug-index";
+import { createTtlCache } from "@/lib/ttl-cache";
 
 // Camada de leitura pública. Regra do plano (seção 3): o Prisma não passa
 // pelas policies de RLS do Supabase, então TODO filtro de "ativo" precisa
@@ -99,6 +101,40 @@ export type ProductFilters = {
   maxPrice?: number;
 };
 
+function queryActiveProducts(where: Record<string, unknown>) {
+  return prisma.product.findMany({
+    where,
+    include: PRODUCT_INCLUDE,
+    orderBy: [
+      { featured: "desc" },
+      { bestSeller: "desc" },
+      { isNew: "desc" },
+      { createdAt: "desc" },
+    ],
+  });
+}
+
+// Quanto tempo (no máximo) uma alteração feita no painel leva para aparecer na home e
+// nas listas gerais. Páginas de categoria e de produto já funcionam assim (60 s).
+const CATALOG_CACHE_MS = 30_000;
+
+const activeCatalogCache = createTtlCache(
+  () => queryActiveProducts({ active: true }),
+  CATALOG_CACHE_MS
+);
+
+// Índice dos endereços dos produtos (ver src/lib/slug-index.ts).
+const productSlugIndex = createSlugIndex({
+  load: () =>
+    prisma.product.findMany({
+      where: { active: true },
+      select: { id: true, name: true, brand: true },
+    }),
+  slugOf: productSlug,
+  ttlMs: 5 * 60_000,
+  missRefreshMs: 30_000,
+});
+
 async function loadProducts(filters: ProductFilters, allowApproximate: boolean) {
   const where: Record<string, unknown> = { active: true };
 
@@ -143,16 +179,13 @@ async function loadProducts(filters: ProductFilters, allowApproximate: boolean) 
     where.price = { lte: filters.maxPrice };
   }
 
-  const products = await prisma.product.findMany({
-    where,
-    include: PRODUCT_INCLUDE,
-    orderBy: [
-      { featured: "desc" },
-      { bestSeller: "desc" },
-      { isNew: "desc" },
-      { createdAt: "desc" },
-    ],
-  });
+  // Sem filtro de banco (home, busca, lista geral) o catálogo inteiro é igual para
+  // todo mundo: reaproveita a leitura por alguns segundos em vez de reler tudo a cada
+  // visita. A busca por texto continua sendo feita aqui, em memória, como antes.
+  const hasDatabaseFilter = Object.keys(where).length > 1;
+  const products = hasDatabaseFilter
+    ? await queryActiveProducts(where)
+    : [...(await activeCatalogCache.get())];
 
   if (!filters.search) return { products, approximate: false };
 
@@ -189,11 +222,7 @@ export const getProductByIdentifier = cache(async (identifier: string) => {
   const legacyProductId = productIdFromLegacySlug(identifier);
   if (legacyProductId) return getProductById(legacyProductId);
 
-  const candidates = await prisma.product.findMany({
-    where: { active: true },
-    select: { id: true, name: true, brand: true },
-  });
-  const candidate = candidates.find((product) => productSlug(product) === identifier);
+  const candidate = await productSlugIndex.find(identifier);
   if (!candidate) return null;
 
   return getProductById(candidate.id);

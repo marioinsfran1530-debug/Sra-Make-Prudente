@@ -1,4 +1,14 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { createTtlCache } from "@/lib/ttl-cache";
+import {
+  buildPopularitySignals,
+  POPULARITY_WEIGHTS,
+  type HomePopularitySignals,
+  type PopularityRow,
+} from "@/lib/home-popularity";
+
+export type { HomePopularitySignals };
 
 export type HomeBrandSettings = {
   homeBrandOrder: string[];
@@ -20,13 +30,6 @@ export type HomeBrandCount = {
   count: number;
 };
 
-export type HomePopularitySignals = {
-  enoughData: boolean;
-  uniqueSessions: number;
-  totalSignals: number;
-  scores: Map<string, number>;
-};
-
 const EMPTY_BRAND_KEYS = new Set([
   "",
   "-",
@@ -39,12 +42,6 @@ const EMPTY_BRAND_KEYS = new Set([
   "generica",
   "genérica",
 ]);
-
-const POPULARITY_WEIGHTS: Record<string, number> = {
-  product_view: 1,
-  whatsapp_click: 3,
-  add_to_cart: 4,
-};
 
 export function cleanBrandName(value: string | null | undefined) {
   const name = (value ?? "").replace(/\s+/g, " ").trim();
@@ -207,46 +204,51 @@ export function excludeHiddenProducts<T extends { id: string }>(
   return products.filter((product) => !hidden.has(product.id));
 }
 
-export async function getHomePopularitySignals(days = 30): Promise<HomePopularitySignals> {
+async function loadHomePopularitySignals(days: number): Promise<HomePopularitySignals> {
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-  const rows = await prisma.analyticsEvent.findMany({
-    where: {
-      createdAt: { gte: since },
-      productId: { not: null },
-      event: { in: Object.keys(POPULARITY_WEIGHTS) },
-      OR: [{ origin: null }, { origin: { not: "vercel.com" } }],
-    },
-    select: {
-      productId: true,
-      sessionId: true,
-      event: true,
-    },
-  });
+  const events = Object.keys(POPULARITY_WEIGHTS);
+  // O banco devolve só uma linha por produto e tipo de evento (e um total de sessões),
+  // não os milhares de eventos individuais. Mesmo critério de antes: eventos de
+  // produto dos últimos `days` dias, sem os vindos de vercel.com.
+  const where = Prisma.sql`
+    "createdAt" >= ${since}
+    AND "productId" IS NOT NULL
+    AND "event" IN (${Prisma.join(events)})
+    AND ("origin" IS NULL OR "origin" <> 'vercel.com')
+  `;
 
-  const commercialSessions = new Set<string>();
-  const uniqueSignals = new Set<string>();
-  const scores = new Map<string, number>();
+  const [rows, totals] = await Promise.all([
+    prisma.$queryRaw<PopularityRow[]>(Prisma.sql`
+      SELECT "productId", "event", COUNT(DISTINCT "sessionId") AS "sessions"
+      FROM "AnalyticsEvent"
+      WHERE ${where}
+      GROUP BY "productId", "event"
+    `),
+    prisma.$queryRaw<Array<{ sessions: bigint | number }>>(Prisma.sql`
+      SELECT COUNT(DISTINCT "sessionId") AS "sessions"
+      FROM "AnalyticsEvent"
+      WHERE ${where}
+    `),
+  ]);
 
-  for (const row of rows) {
-    if (!row.productId) continue;
-    commercialSessions.add(row.sessionId);
-    const signalKey = `${row.productId}:${row.sessionId}:${row.event}`;
-    if (uniqueSignals.has(signalKey)) continue;
-    uniqueSignals.add(signalKey);
-    scores.set(
-      row.productId,
-      (scores.get(row.productId) ?? 0) + (POPULARITY_WEIGHTS[row.event] ?? 0)
-    );
-  }
+  return buildPopularitySignals(rows, totals[0]?.sessions ?? 0);
+}
 
-  const enoughData = commercialSessions.size >= 5 && uniqueSignals.size >= 8;
+const DEFAULT_POPULARITY_DAYS = 30;
 
-  return {
-    enoughData,
-    uniqueSessions: commercialSessions.size,
-    totalSignals: uniqueSignals.size,
-    scores,
-  };
+// A popularidade muda devagar: um minuto de atraso não aparece para o cliente e evita
+// refazer a conta a cada visita à home.
+const popularityCache = createTtlCache(
+  () => loadHomePopularitySignals(DEFAULT_POPULARITY_DAYS),
+  60_000
+);
+
+export function getHomePopularitySignals(
+  days = DEFAULT_POPULARITY_DAYS
+): Promise<HomePopularitySignals> {
+  return days === DEFAULT_POPULARITY_DAYS
+    ? popularityCache.get()
+    : loadHomePopularitySignals(days);
 }
 
 export function rankPopularProducts<T extends { id: string; bestSeller: boolean }>(
