@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { ImageIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { matchesCounterSaleQuery } from "@/lib/counter-sale-search";
 import { money } from "@/lib/money";
@@ -13,6 +14,7 @@ import {
   type EntryDraft,
 } from "@/lib/stock-entry-draft";
 import { MIN_MARGIN_PCT, priceAdvice } from "@/lib/pricing";
+import { groupByProduct, insertAfterProduct } from "@/lib/stock-entry-pick";
 import {
   ENTRY_ORIGINS,
   costDeviation,
@@ -35,7 +37,8 @@ export type EntryProduct = {
   promoPrice: number | null;
   stockQty: number;
   costPrice: number | null;
-  variants: { id: string; name: string; sku: string | null; stockQty: number }[];
+  image: string | null;
+  variants: { id: string; name: string; sku: string | null; stockQty: number; price: number | null }[];
 };
 
 // Cada produto sem variação, ou cada variação, vira um item que dá para escolher.
@@ -48,6 +51,8 @@ type Pickable = {
   brand: string;
   sku: string | null;
   active: boolean;
+  image: string | null;
+  variantPrice: number | null; // preço próprio da variação, quando tem
   price: number; // preço de venda atual do produto
   promoPrice: number | null;
   stockItem: number; // estoque do item escolhido
@@ -57,7 +62,7 @@ type Pickable = {
 
 type Line = Pickable & { qtyText: string; costText: string };
 
-const MAX_RESULTS = 8;
+const MAX_PRODUCTS = 6;
 
 const num = parseMoneyText;
 
@@ -78,6 +83,8 @@ function toPickables(product: EntryProduct): Pickable[] {
         brand: product.brand,
         sku: product.sku,
         active: product.active,
+        image: product.image,
+        variantPrice: null,
         price: product.price,
         promoPrice: product.promoPrice,
         stockItem: product.stockQty,
@@ -96,6 +103,8 @@ function toPickables(product: EntryProduct): Pickable[] {
     brand: product.brand,
     sku: variant.sku ?? product.sku,
     active: product.active,
+    image: product.image,
+    variantPrice: variant.price,
     price: product.price,
     promoPrice: product.promoPrice,
     stockItem: variant.stockQty,
@@ -133,6 +142,23 @@ function writeStoredDraft(raw: string | null) {
 }
 
 const noopSubscribe = () => () => {};
+
+// Foto do produto (a primeira da galeria) para reconhecer o item certo.
+function Thumb({ src, size = "h-12 w-12" }: { src: string | null; size?: string }) {
+  return (
+    <div
+      className={`${size} flex shrink-0 items-center justify-center overflow-hidden rounded-xl border border-rosa/10 bg-creme`}
+      aria-hidden="true"
+    >
+      {src ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={src} alt="" loading="lazy" className="h-full w-full object-cover" />
+      ) : (
+        <ImageIcon size={16} className="text-cinza/60" />
+      )}
+    </div>
+  );
+}
 
 export function StockEntryForm({
   products,
@@ -201,14 +227,22 @@ export function StockEntryForm({
       .filter((item) => matchesCounterSaleQuery([item.name, item.variantName, item.brand, item.sku], query))
       .sort((a, b) => Number(b.active) - Number(a.active));
   }, [pickables, lines, query]);
-  const results = allMatches.slice(0, MAX_RESULTS);
+  const { groups, totalProducts } = useMemo(() => groupByProduct(allMatches, MAX_PRODUCTS), [allMatches]);
 
-  function addLine(item: Pickable) {
-    setLines((current) => [...current, { ...item, qtyText: "", costText: costToText(item.costBefore) }]);
+  const toLine = (item: Pickable): Line => ({ ...item, qtyText: "", costText: costToText(item.costBefore) });
+
+  // As variações de um produto ficam juntas na lista da entrada.
+  function addLines(items: Pickable[]) {
+    if (items.length === 0) return;
+    setLines((current) => insertAfterProduct(current, items.map(toLine)));
     setQuery("");
     setError("");
     setNotice("");
-    setFocusKey(item.key);
+    setFocusKey(items[0].key);
+  }
+
+  function addLine(item: Pickable) {
+    addLines([item]);
   }
 
   function patchLine(key: string, patch: Partial<Pick<Line, "qtyText" | "costText">>) {
@@ -228,7 +262,8 @@ export function StockEntryForm({
       promoPrice: null,
       stockQty: 0,
       costPrice: null,
-      variants: product.variants,
+      image: null,
+      variants: product.variants.map((variant) => ({ ...variant, price: null })),
     };
     setCreated((current) => [...current, entryProduct]);
     setQuickOpen(false);
@@ -541,7 +576,7 @@ export function StockEntryForm({
   function onSearchKey(event: React.KeyboardEvent<HTMLInputElement>) {
     if (event.key === "Enter") {
       event.preventDefault();
-      if (results.length === 1) addLine(results[0]);
+      if (allMatches.length === 1) addLine(allMatches[0]);
     }
   }
 
@@ -666,7 +701,7 @@ export function StockEntryForm({
 
         {query.trim() && (
           <div className="mt-2 overflow-hidden rounded-xl border border-rosa/15">
-            {results.length === 0 ? (
+            {groups.length === 0 ? (
               <div className="px-3 py-4 text-center">
                 <p className="text-xs text-cinza">Nenhum produto encontrado.</p>
                 <button
@@ -680,33 +715,75 @@ export function StockEntryForm({
             ) : (
               <>
                 <div className="divide-y divide-rosa/10">
-                  {results.map((item) => (
-                    <button
-                      key={item.key}
-                      type="button"
-                      onClick={() => addLine(item)}
-                      className="flex w-full items-center justify-between gap-3 px-3 py-3 text-left hover:bg-creme"
-                    >
-                      <span className="min-w-0">
-                        <span className="block truncate text-xs font-bold text-texto">
-                          {item.name}
-                          {item.variantName ? ` · ${item.variantName}` : ""}
-                        </span>
-                        <span className="block truncate text-[10px] text-cinza">
-                          {item.brand} · estoque {item.stockItem}
-                          {!item.active ? " · rascunho/inativo" : ""}
-                        </span>
-                      </span>
-                      <span className="shrink-0 rounded-full bg-rosa-profundo px-3 py-1.5 text-[11px] font-bold text-white">
-                        Adicionar
-                      </span>
-                    </button>
-                  ))}
+                  {groups.map((group) => {
+                    const first = group.items[0];
+                    if (first.variantId === null) {
+                      return (
+                        <button
+                          key={group.productId}
+                          type="button"
+                          onClick={() => addLine(first)}
+                          className="flex w-full items-center gap-3 px-3 py-3 text-left hover:bg-creme"
+                        >
+                          <Thumb src={first.image} />
+                          <span className="min-w-0 flex-1">
+                            <span className="line-clamp-2 block text-xs font-bold text-texto">{first.name}</span>
+                            <span className="block truncate text-[10px] text-cinza">
+                              {first.brand} · estoque {first.stockItem}
+                              {!first.active ? " · rascunho/inativo" : ""}
+                            </span>
+                          </span>
+                          <span className="shrink-0 rounded-full bg-rosa-profundo px-3 py-1.5 text-[11px] font-bold text-white">
+                            Adicionar
+                          </span>
+                        </button>
+                      );
+                    }
+                    return (
+                      <div key={group.productId} className="px-3 py-3">
+                        <div className="flex items-start gap-3">
+                          <Thumb src={first.image} />
+                          <div className="min-w-0 flex-1">
+                            <p className="line-clamp-2 text-xs font-bold text-texto">{first.name}</p>
+                            <p className="truncate text-[10px] text-cinza">
+                              {first.brand} · {group.items.length} {group.items.length === 1 ? "variação" : "variações"}
+                              {!first.active ? " · rascunho/inativo" : ""}
+                            </p>
+                          </div>
+                          {group.items.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => addLines(group.items)}
+                              className="shrink-0 rounded-full border border-rosa-profundo px-3 py-1.5 text-[11px] font-bold text-rosa-profundo"
+                            >
+                              Todas ({group.items.length})
+                            </button>
+                          )}
+                        </div>
+                        <div className="mt-2 grid gap-1.5">
+                          {group.items.map((item) => (
+                            <button
+                              key={item.key}
+                              type="button"
+                              onClick={() => addLine(item)}
+                              className="flex w-full items-center justify-between gap-3 rounded-lg border border-rosa/15 bg-white px-3 py-2.5 text-left hover:bg-creme"
+                            >
+                              <span className="min-w-0">
+                                <span className="block truncate text-xs font-bold text-texto">{item.variantName}</span>
+                                <span className="block text-[10px] text-cinza">estoque {item.stockItem}</span>
+                              </span>
+                              <span className="shrink-0 text-[11px] font-bold text-rosa-profundo">+ Adicionar</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
                 <div className="flex items-center justify-between gap-2 border-t border-rosa/10 bg-creme/50 px-3 py-2 text-[10px] text-cinza">
                   <span>
-                    {allMatches.length > MAX_RESULTS
-                      ? `Mostrando ${MAX_RESULTS} de ${allMatches.length}. Refine a busca.`
+                    {totalProducts > MAX_PRODUCTS
+                      ? `Mostrando ${MAX_PRODUCTS} de ${totalProducts} produtos. Refine a busca.`
                       : "Não é nenhum destes?"}
                   </span>
                   <button type="button" onClick={() => setQuickOpen(true)} className="shrink-0 font-bold text-rosa-profundo">
@@ -730,17 +807,25 @@ export function StockEntryForm({
               const badCost = submitted && !(parsedLines[index].unitCost > 0);
               return (
                 <div key={line.key} className="py-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="line-clamp-2 text-xs font-bold text-texto">
-                        {line.name}
-                        {line.variantName ? ` · ${line.variantName}` : ""}
-                      </p>
+                  <div className="flex items-start gap-3">
+                    <Thumb src={line.image} size="h-11 w-11" />
+                    <div className="min-w-0 flex-1">
+                      <p className="line-clamp-2 text-xs font-bold text-texto">{line.name}</p>
+                      {line.variantName && (
+                        <p className="mt-1 inline-block max-w-full truncate rounded-full bg-rosa-profundo/10 px-2.5 py-0.5 text-[11px] font-bold text-rosa-profundo">
+                          {line.variantName}
+                        </p>
+                      )}
                       <p className="mt-0.5 text-[10px] text-cinza">
                         {line.brand} · estoque {line.stockItem} · custo hoje{" "}
                         {line.costBefore !== null ? money(line.costBefore) : "não cadastrado"}
                         {!line.active ? " · rascunho/inativo" : ""}
                       </p>
+                      {line.variantPrice !== null && Math.abs(line.variantPrice - line.price) >= 0.005 && (
+                        <p className="mt-0.5 text-[10px] font-semibold text-amber-800">
+                          Esta variação vende por {money(line.variantPrice)} (preço próprio). O preço de venda desta tela não muda esse valor.
+                        </p>
+                      )}
                     </div>
                     <button
                       type="button"

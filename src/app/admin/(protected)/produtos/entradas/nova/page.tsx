@@ -21,10 +21,11 @@ export default async function NewStockEntryPage() {
         promoPrice: true,
         stockQty: true,
         costPrice: true,
+        images: { orderBy: { order: "asc" }, take: 1, select: { url: true } },
         variants: {
           where: { active: true },
           orderBy: { name: "asc" },
-          select: { id: true, name: true, sku: true, stockQty: true },
+          select: { id: true, name: true, sku: true, stockQty: true, price: true },
         },
       },
     }),
@@ -45,7 +46,14 @@ export default async function NewStockEntryPage() {
     promoPrice: product.promoPrice === null ? null : Number(product.promoPrice),
     stockQty: product.stockQty,
     costPrice: product.costPrice === null ? null : Number(product.costPrice),
-    variants: product.variants,
+    image: product.images[0]?.url ?? null,
+    variants: product.variants.map((variant) => ({
+      id: variant.id,
+      name: variant.name,
+      sku: variant.sku,
+      stockQty: variant.stockQty,
+      price: variant.price === null ? null : Number(variant.price),
+    })),
   }));
 
   return (
