@@ -29,6 +29,7 @@ const productItems: Item[] = [
   { href: "/admin/produtos/custos", label: "Custos e margem" },
   { href: "/admin/produtos/compras", label: "Compras (o que repor)" },
   { href: "/admin/produtos/entradas", label: "Entradas de estoque" },
+  { href: "/admin/produtos/movimentacao", label: "Movimentação de estoque" },
   { href: "/admin/produtos/parado", label: "Estoque parado" },
   { href: "/admin/categorias", label: "Categorias e subcategorias" },
 ];
