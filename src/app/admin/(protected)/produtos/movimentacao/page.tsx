@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { matchesCounterSaleQuery } from "@/lib/counter-sale-search";
+import { MovementProductSearch, type MovementSearchProduct } from "@/components/admin/MovementProductSearch";
 import { entryOriginLabel } from "@/lib/stock-entry";
 import { salesChannelLabel } from "@/lib/sales-channel";
 import {
@@ -12,8 +12,6 @@ import {
 } from "@/lib/stock-movements";
 
 export const dynamic = "force-dynamic";
-
-const MAX_RESULTS = 15;
 
 const KIND_STYLE: Record<MovementKind, { label: string; badge: string }> = {
   ENTRADA: { label: "Entrada", badge: "bg-green-50 text-green-800" },
@@ -54,10 +52,9 @@ type EntryRow = {
 export default async function StockMovementsPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ q?: string; id?: string }>;
+  searchParams?: Promise<{ id?: string }>;
 }) {
   const params = searchParams ? await searchParams : undefined;
-  const query = params?.q?.trim() ?? "";
   const productId = params?.id?.trim() ?? "";
 
   const product = productId
@@ -76,48 +73,30 @@ export default async function StockMovementsPage({
       })
     : null;
 
-  let matches: Array<{
-    id: string;
-    name: string;
-    brand: string;
-    sku: string | null;
-    stockQty: number;
-    active: boolean;
-    image: string | null;
-  }> = [];
-  let totalMatches = 0;
-
-  if (!product && query) {
-    const catalog = await prisma.product.findMany({
-      orderBy: { name: "asc" },
-      select: {
-        id: true,
-        name: true,
-        brand: true,
-        sku: true,
-        stockQty: true,
-        active: true,
-        images: { orderBy: { order: "asc" }, take: 1, select: { url: true } },
-        variants: { select: { name: true, sku: true } },
-      },
-    });
-    const found = catalog.filter((item) =>
-      matchesCounterSaleQuery(
-        [item.name, item.brand, item.sku, ...item.variants.flatMap((variant) => [variant.name, variant.sku])],
-        query
-      )
-    );
-    totalMatches = found.length;
-    matches = found.slice(0, MAX_RESULTS).map((item) => ({
-      id: item.id,
-      name: item.name,
-      brand: item.brand,
-      sku: item.sku,
-      stockQty: item.stockQty,
-      active: item.active,
-      image: item.images[0]?.url ?? null,
-    }));
-  }
+  // Lista leve para a busca com foto (filtrada na tela, enquanto se digita).
+  const catalog = await prisma.product.findMany({
+    orderBy: { name: "asc" },
+    select: {
+      id: true,
+      name: true,
+      brand: true,
+      sku: true,
+      stockQty: true,
+      active: true,
+      images: { orderBy: { order: "asc" }, take: 1, select: { url: true } },
+      variants: { select: { name: true, sku: true } },
+    },
+  });
+  const searchProducts: MovementSearchProduct[] = catalog.map((item) => ({
+    id: item.id,
+    name: item.name,
+    brand: item.brand,
+    sku: item.sku,
+    stockQty: item.stockQty,
+    active: item.active,
+    image: item.images[0]?.url ?? null,
+    variantTerms: item.variants.flatMap((variant) => [variant.name, variant.sku ?? ""]).filter(Boolean),
+  }));
 
   let movements: ReturnType<typeof buildMovements> = [];
   if (product) {
@@ -182,74 +161,12 @@ export default async function StockMovementsPage({
         </p>
       </div>
 
-      <form method="get" className="mb-4 flex gap-2" role="search">
-        <input
-          name="q"
-          defaultValue={query}
-          placeholder="Nome, marca ou código do produto"
-          aria-label="Pesquisar produto"
-          className="input min-h-[44px] flex-1"
-          autoComplete="off"
-        />
-        <button type="submit" className="shrink-0 rounded-xl bg-rosa-profundo px-4 text-sm font-extrabold text-white">
-          Buscar
-        </button>
-      </form>
+      <MovementProductSearch products={searchProducts} />
 
-      {!product && !query && (
+      {!product && !productId && (
         <div className="rounded-2xl border border-dashed border-rosa/20 bg-white p-8 text-center">
           <p className="text-sm font-bold text-texto">Digite o nome do produto para ver o histórico.</p>
-          <p className="mt-1 text-xs text-cinza">Ex.: “alicate de cutícula”.</p>
-        </div>
-      )}
-
-      {!product && query && matches.length === 0 && (
-        <p className="rounded-2xl bg-white p-6 text-center text-sm text-cinza shadow-sm">
-          Nenhum produto encontrado para “{query}”.
-        </p>
-      )}
-
-      {!product && matches.length > 0 && (
-        <div>
-          <p className="mb-2 text-[11px] text-cinza">
-            {totalMatches > MAX_RESULTS
-              ? `Mostrando ${MAX_RESULTS} de ${totalMatches} produtos. Digite mais letras para refinar.`
-              : `${totalMatches} produto(s) encontrado(s). Toque no certo para ver o histórico.`}
-          </p>
-          <ul className="grid gap-2">
-            {matches.map((item) => (
-              <li key={item.id}>
-                <Link
-                  href={`/admin/produtos/movimentacao?id=${item.id}&q=${encodeURIComponent(query)}`}
-                  className="flex items-center gap-3 rounded-2xl bg-white p-3 shadow-sm transition hover:shadow-md"
-                >
-                  {item.image ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={item.image}
-                      alt=""
-                      loading="lazy"
-                      className="h-12 w-12 shrink-0 rounded-xl border border-rosa/10 object-cover"
-                    />
-                  ) : (
-                    <span className="h-12 w-12 shrink-0 rounded-xl bg-rosa/10" aria-hidden="true" />
-                  )}
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-bold text-texto">{item.name}</span>
-                    <span className="block truncate text-[11px] text-cinza">
-                      {item.brand}
-                      {item.sku ? ` · ${item.sku}` : ""}
-                      {item.active ? "" : " · inativo"}
-                    </span>
-                  </span>
-                  <span className="shrink-0 text-right text-[11px] text-cinza">
-                    estoque
-                    <span className="block text-sm font-extrabold text-texto">{item.stockQty}</span>
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
+          <p className="mt-1 text-xs text-cinza">Ex.: “alicate de cutícula”. Os produtos aparecem com foto.</p>
         </div>
       )}
 
@@ -277,11 +194,8 @@ export default async function StockMovementsPage({
                 {product.sku ? ` · ${product.sku}` : ""}
                 {product.active ? "" : " · inativo"}
               </p>
-              <Link
-                href={`/admin/produtos/movimentacao${query ? `?q=${encodeURIComponent(query)}` : ""}`}
-                className="mt-1 inline-block text-[11px] font-bold text-rosa-profundo"
-              >
-                {query ? "← Voltar à busca" : "← Nova busca"}
+              <Link href="/admin/produtos/movimentacao" className="mt-1 inline-block text-[11px] font-bold text-rosa-profundo">
+                ← Nova busca
               </Link>
             </div>
           </div>
