@@ -154,7 +154,7 @@ export type MovementSummary = {
 // `entered` e `sold` já descontam os estornos; vendas só contam pedidos que baixaram.
 export function summarizeMovements(
   movements: readonly StockMovement[],
-  now: number,
+  now: number = Date.now(),
   days = 30
 ): MovementSummary {
   const since = now - days * 24 * 60 * 60 * 1000;

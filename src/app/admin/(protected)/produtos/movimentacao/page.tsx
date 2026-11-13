@@ -169,7 +169,7 @@ export default async function StockMovementsPage({
     movements = buildMovements(entries, sales, entryOriginLabel);
   }
 
-  const summary = summarizeMovements(movements, Date.now());
+  const summary = summarizeMovements(movements);
   const variantStock = product?.variants ?? [];
 
   return (
