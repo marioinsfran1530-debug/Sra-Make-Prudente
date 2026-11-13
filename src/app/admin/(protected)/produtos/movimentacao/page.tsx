@@ -6,6 +6,7 @@ import { salesChannelLabel } from "@/lib/sales-channel";
 import {
   buildMovements,
   summarizeMovements,
+  type AdjustmentMovementInput,
   type EntryMovementInput,
   type MovementKind,
   type SaleMovementInput,
@@ -19,6 +20,8 @@ const KIND_STYLE: Record<MovementKind, { label: string; badge: string }> = {
   VENDA: { label: "Saída", badge: "bg-rose-50 text-rose-800" },
   CANCELADA: { label: "Cancelado", badge: "bg-gray-100 text-gray-600" },
   PENDENTE: { label: "Aguardando", badge: "bg-gray-100 text-gray-600" },
+  AJUSTE: { label: "Ajuste", badge: "bg-amber-50 text-amber-800" },
+  CADASTRO: { label: "Cadastro", badge: "bg-blue-50 text-blue-800" },
 };
 
 function brDateTime(iso: string) {
@@ -48,6 +51,48 @@ type EntryRow = {
   qty: number;
   variantName: string | null;
 };
+
+type LedgerRow = {
+  id: string;
+  createdAt: Date;
+  reason: string;
+  delta: number;
+  stockBefore: number;
+  stockAfter: number;
+  variantName: string | null;
+  actorId: string | null;
+};
+
+// Ajustes, cadastros e exclusões registrados pelo banco. Se a tabela ainda não existir
+// (migration não aplicada), a tela continua mostrando entradas e vendas.
+async function loadLedger(productId: string): Promise<AdjustmentMovementInput[]> {
+  try {
+    const rows = await prisma.$queryRaw<LedgerRow[]>`
+      SELECT "id", "createdAt", "reason", "delta", "stockBefore", "stockAfter", "variantName", "actorId"
+      FROM app_security."StockMovement"
+      WHERE "productId" = ${productId} AND "reason" IN ('AJUSTE_MANUAL', 'CADASTRO', 'EXCLUIDO')
+      ORDER BY "createdAt" DESC
+      LIMIT 500
+    `;
+    const actorIds = Array.from(new Set(rows.map((row) => row.actorId).filter((id): id is string => Boolean(id))));
+    const actors = actorIds.length
+      ? await prisma.adminProfile.findMany({ where: { id: { in: actorIds } }, select: { id: true, name: true, email: true } })
+      : [];
+    const names = new Map(actors.map((actor) => [actor.id, actor.name?.trim() || actor.email]));
+    return rows.map((row) => ({
+      id: row.id,
+      createdAt: new Date(row.createdAt).toISOString(),
+      reason: row.reason,
+      delta: Number(row.delta),
+      stockBefore: Number(row.stockBefore),
+      stockAfter: Number(row.stockAfter),
+      variantName: row.variantName,
+      actorName: row.actorId ? names.get(row.actorId) ?? null : null,
+    }));
+  } catch {
+    return [];
+  }
+}
 
 export default async function StockMovementsPage({
   searchParams,
@@ -100,7 +145,7 @@ export default async function StockMovementsPage({
 
   let movements: ReturnType<typeof buildMovements> = [];
   if (product) {
-    const [entryRows, orderItems] = await Promise.all([
+    const [entryRows, orderItems, adjustments] = await Promise.all([
       prisma.$queryRaw<EntryRow[]>`
         SELECT e."id" AS "entryId", e."createdAt", e."status", e."reversedAt", e."origin", e."supplier",
                i."qty", i."variantName"
@@ -123,6 +168,7 @@ export default async function StockMovementsPage({
           },
         },
       }),
+      loadLedger(product.id),
     ]);
 
     const entries: EntryMovementInput[] = entryRows.map((row) => ({
@@ -145,7 +191,7 @@ export default async function StockMovementsPage({
       variantName: item.variantName,
       unitPrice: Number(item.unitPrice),
     }));
-    movements = buildMovements(entries, sales, entryOriginLabel);
+    movements = buildMovements(entries, sales, entryOriginLabel, adjustments);
   }
 
   const summary = summarizeMovements(movements);
@@ -281,8 +327,8 @@ export default async function StockMovementsPage({
           )}
 
           <p className="mt-4 rounded-xl bg-rosa/5 px-3 py-2 text-[11px] text-cinza">
-            Aqui aparecem as entradas de estoque e os pedidos. Se o estoque for alterado direto no cadastro do produto,
-            essa mudança não fica registrada neste histórico.
+            Aqui aparecem as entradas de estoque, os pedidos e os ajustes feitos no cadastro do produto. O registro dos
+            ajustes começou em 13/11/2026; mudanças anteriores a essa data não aparecem.
           </p>
         </section>
       )}

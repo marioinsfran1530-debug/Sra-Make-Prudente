@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { tagStockChanges } from "@/lib/stock-ledger";
 import { stockWasDecremented } from "@/lib/order-rules";
 import type { OrderCancelReasonCode, RefundStatus } from "@/lib/order-cancellation";
 
@@ -18,6 +19,7 @@ type CancelOrderAudit = {
 // nunca vender duas vezes a última unidade em pedidos concorrentes.
 export async function confirmOrder(orderId: string) {
   return prisma.$transaction(async (tx) => {
+    await tagStockChanges(tx, "PEDIDO_CONFIRMADO");
     const order = await tx.order.findUnique({
       where: { id: orderId },
       include: { items: true },
@@ -83,6 +85,7 @@ export async function confirmOrder(orderId: string) {
 // FINALIZADA), devolve a quantidade e grava a auditoria na mesma transação.
 export async function cancelOrder(orderId: string, audit?: CancelOrderAudit) {
   return prisma.$transaction(async (tx) => {
+    await tagStockChanges(tx, "PEDIDO_CANCELADO");
     const order = await tx.order.findUnique({
       where: { id: orderId },
       include: { items: true },

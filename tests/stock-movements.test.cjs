@@ -74,3 +74,25 @@ test("sem movimentos e rótulo de status desconhecido", () => {
   assert.deepEqual(summary, { entered: 0, sold: 0, soldLastDays: 0, lastSaleAt: null, lastEntryAt: null });
   assert.equal(orderStatusLabel("XYZ"), "XYZ");
 });
+
+test("ajuste manual e cadastro entram na linha do tempo; motivos automáticos não duplicam", () => {
+  const adjustments = [
+    { id: "a1", createdAt: "2026-11-14T10:00:00.000Z", reason: "AJUSTE_MANUAL", delta: 1, stockBefore: 2, stockAfter: 3, variantName: null, actorName: "Maria" },
+    { id: "a2", createdAt: "2026-11-13T20:03:00.000Z", reason: "CADASTRO", delta: 3, stockBefore: 0, stockAfter: 3, variantName: null, actorName: null },
+    { id: "a3", createdAt: "2026-11-13T21:00:00.000Z", reason: "VENDA", delta: -1, stockBefore: 3, stockAfter: 2, variantName: null, actorName: null },
+    { id: "a4", createdAt: "2026-11-13T22:00:00.000Z", reason: "ENTRADA", delta: 5, stockBefore: 2, stockAfter: 7, variantName: null, actorName: null },
+  ];
+  const list = buildMovements([], [], origin, adjustments);
+  assert.deepEqual(list.map((m) => m.kind), ["AJUSTE", "CADASTRO"]);
+  assert.equal(list[0].delta, 1);
+  assert.equal(list[0].detail, "de 2 para 3 · por Maria");
+  assert.equal(list[1].title, "Estoque informado no cadastro");
+  assert.equal(list[1].detail, "de 0 para 3");
+});
+
+test("ajuste não entra nas contas de entradas e vendas", () => {
+  const adjustments = [{ id: "a1", createdAt: "2026-11-14T10:00:00.000Z", reason: "AJUSTE_MANUAL", delta: -2, stockBefore: 5, stockAfter: 3, variantName: null, actorName: null }];
+  const summary = summarizeMovements(buildMovements([], [], origin, adjustments), Date.parse("2026-11-15T00:00:00.000Z"));
+  assert.equal(summary.entered, 0);
+  assert.equal(summary.sold, 0);
+});

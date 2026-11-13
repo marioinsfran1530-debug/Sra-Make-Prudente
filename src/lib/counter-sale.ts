@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { tagStockChanges } from "@/lib/stock-ledger";
 import { findPaymentRule, normalizePaymentSettings } from "@/lib/payment-settings";
 import { stockWasDecremented } from "@/lib/order-rules";
 import { normalizeCounterSaleChannel } from "@/lib/sales-channel";
@@ -101,6 +102,7 @@ export async function createCounterSale(input: CreateCounterSaleInput) {
   const miscDescription = input.miscDescription?.trim().slice(0, 120) || "Diversos";
 
   return prisma.$transaction(async (tx) => {
+    await tagStockChanges(tx, "VENDA", input.createdById);
     await tx.$queryRaw<Array<{ locked: number }>>`
       SELECT 1::int AS locked
       FROM (

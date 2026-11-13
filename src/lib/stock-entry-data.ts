@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { tagStockChanges } from "@/lib/stock-ledger";
 import {
   allocateFreight,
   canReverseLine,
@@ -49,6 +50,7 @@ export async function createStockEntry(input: NormalizedEntry, createdById: stri
   const priceApplied = new Set<string>(); // o preço é do produto: muda uma vez só
 
   return prisma.$transaction(async (tx) => {
+    await tagStockChanges(tx, "ENTRADA", createdById);
     await advisoryLock(tx, `stock-entry:${input.idempotencyKey}`);
 
     const existing = await tx.$queryRaw<{ id: string }[]>`
@@ -171,6 +173,7 @@ type ItemRow = {
 
 export async function reverseStockEntry(entryId: string, reversedById: string, note: string) {
   return prisma.$transaction(async (tx) => {
+    await tagStockChanges(tx, "ESTORNO_ENTRADA", reversedById);
     await advisoryLock(tx, `stock-entry-reverse:${entryId}`);
 
     const entries = await tx.$queryRaw<{ id: string; status: string }[]>`

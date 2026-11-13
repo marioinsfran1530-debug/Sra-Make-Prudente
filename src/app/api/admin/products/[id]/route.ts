@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin-auth";
+import { tagStockChanges } from "@/lib/stock-ledger";
 import { markAiSuggestionUsed } from "@/lib/ai-metrics";
 import { indexNowPaths, notifyIndexNow } from "@/lib/indexnow";
 import { validateProductInput } from "@/lib/product-input";
@@ -159,7 +160,10 @@ export async function PUT(
     );
   }
 
+  const actorId = auth.session.id;
   const product = await prisma.$transaction(async (tx) => {
+    // Mudança de estoque feita no cadastro do produto: fica registrada com quem salvou.
+    await tagStockChanges(tx, "AJUSTE_MANUAL", actorId);
     const updatedProduct = await tx.product.update({
       where: { id },
       data: {

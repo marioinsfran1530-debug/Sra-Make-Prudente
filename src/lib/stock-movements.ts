@@ -1,9 +1,10 @@
 // Histórico de movimentação de estoque de um produto (lógica pura, para ser testada).
 //
-// Junta as entradas de estoque (compras recebidas) e as vendas/pedidos numa linha do
-// tempo única, dizendo o que mexeu no estoque e o que não mexeu (pedido aguardando
-// confirmação, cancelado). Ajustes feitos direto no cadastro do produto não deixam
-// rastro no banco e, por isso, não aparecem aqui.
+// Junta as entradas de estoque (compras recebidas), as vendas/pedidos e os ajustes
+// manuais (estoque mudado no cadastro do produto, registrado pelo banco a partir da
+// migration 20261113230000) numa linha do tempo única, dizendo o que mexeu no estoque
+// e o que não mexeu (pedido aguardando confirmação, cancelado). Ajustes anteriores a
+// essa migration não têm registro.
 
 import { stockWasDecremented } from "./order-rules";
 
@@ -29,7 +30,26 @@ export type SaleMovementInput = {
   unitPrice: number;
 };
 
-export type MovementKind = "ENTRADA" | "ESTORNO" | "VENDA" | "CANCELADA" | "PENDENTE";
+// Mudança de estoque que não veio de venda nem de entrada, gravada pelo banco.
+export type AdjustmentMovementInput = {
+  id: string;
+  createdAt: string;
+  reason: string; // AJUSTE_MANUAL | CADASTRO | EXCLUIDO (os demais motivos já aparecem como venda/entrada)
+  delta: number;
+  stockBefore: number;
+  stockAfter: number;
+  variantName: string | null;
+  actorName: string | null;
+};
+
+export type MovementKind =
+  | "ENTRADA"
+  | "ESTORNO"
+  | "VENDA"
+  | "CANCELADA"
+  | "PENDENTE"
+  | "AJUSTE"
+  | "CADASTRO";
 
 export type StockMovement = {
   key: string;
@@ -68,7 +88,8 @@ function time(iso: string) {
 export function buildMovements(
   entries: readonly EntryMovementInput[],
   sales: readonly SaleMovementInput[],
-  entryOriginLabel: (origin: string) => string
+  entryOriginLabel: (origin: string) => string,
+  adjustments: readonly AdjustmentMovementInput[] = []
 ): StockMovement[] {
   const movements: StockMovement[] = [];
 
@@ -138,6 +159,31 @@ export function buildMovements(
         detail: `${where} · ${orderStatusLabel(sale.status)} · ainda não baixou o estoque`,
       });
     }
+  }
+
+  for (const adjustment of adjustments) {
+    const isRegistration = adjustment.reason === "CADASTRO";
+    const isManual = adjustment.reason === "AJUSTE_MANUAL";
+    const isDeletion = adjustment.reason === "EXCLUIDO";
+    if (!isRegistration && !isManual && !isDeletion) continue; // já aparece como venda/entrada
+
+    const change = `de ${adjustment.stockBefore} para ${adjustment.stockAfter}`;
+    movements.push({
+      key: `adjust:${adjustment.id}`,
+      at: adjustment.createdAt,
+      kind: isRegistration ? "CADASTRO" : "AJUSTE",
+      delta: adjustment.delta,
+      qty: Math.abs(adjustment.delta),
+      variantName: adjustment.variantName,
+      title: isRegistration
+        ? "Estoque informado no cadastro"
+        : isDeletion
+          ? "Produto excluído"
+          : "Ajuste manual do estoque",
+      detail: [change, adjustment.actorName ? `por ${adjustment.actorName}` : ""].filter(Boolean).join(" · "),
+      orderId: null,
+      entryId: null,
+    });
   }
 
   return movements.sort((a, b) => time(b.at) - time(a.at) || a.key.localeCompare(b.key));
