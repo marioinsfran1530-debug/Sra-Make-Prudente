@@ -198,6 +198,7 @@ export function StockEntryForm({
 
   const errorRef = useRef<HTMLParagraphElement>(null);
   const draftRef = useRef<HTMLElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   const allProducts = useMemo(() => [...products, ...created], [products, created]);
 
@@ -234,11 +235,18 @@ export function StockEntryForm({
   // As variações de um produto ficam juntas na lista da entrada.
   function addLines(items: Pickable[]) {
     if (items.length === 0) return;
-    setLines((current) => insertAfterProduct(current, items.map(toLine)));
+    const added = items.filter((item) => !lines.some((line) => line.key === item.key));
+    if (added.length === 0) return;
+    setLines((current) => insertAfterProduct(current, added.map(toLine)));
     setQuery("");
     setError("");
-    setNotice("");
-    setFocusKey(items[0].key);
+    const label = added.length === 1 ? `“${added[0].name}” adicionado` : `${added.length} itens de “${added[0].name}” adicionados`;
+    setNotice(`${label}. A nota tem ${lines.length + added.length} item(ns): preencha abaixo e busque o próximo.`);
+    setFocusKey(added[0].key);
+    // O item novo aparece logo abaixo da busca; mantém a busca à vista para o próximo.
+    window.setTimeout(() => {
+      searchRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+    }, 50);
   }
 
   function addLine(item: Pickable) {
@@ -682,6 +690,8 @@ export function StockEntryForm({
 
         <div className="relative mt-3">
           <input
+            ref={searchRef}
+            id="entry-search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             onKeyDown={onSearchKey}
@@ -689,7 +699,7 @@ export function StockEntryForm({
             aria-label="Buscar produto para adicionar à entrada"
             autoComplete="off"
             enterKeyHint="search"
-            className={inputClass}
+            className={`${inputClass} scroll-mt-4`}
           />
         </div>
 

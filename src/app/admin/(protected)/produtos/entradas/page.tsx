@@ -50,18 +50,18 @@ export default async function StockEntriesPage({
           <p className="mt-1 text-xs text-cinza">Toque em “Nova entrada” quando chegar a próxima compra.</p>
         </div>
       ) : (
-        <div className="grid gap-3">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-3">
           {entries.map((entry) => {
             const totals = entryTotals(entry.lines, entry.freight);
             const reversed = entry.status === "ESTORNADA";
             return (
               <article
                 key={entry.id}
-                className={`rounded-2xl bg-white p-4 shadow-sm ${reversed ? "opacity-70" : ""}`}
+                className={`min-w-0 overflow-hidden rounded-2xl bg-white p-4 shadow-sm ${reversed ? "opacity-70" : ""}`}
               >
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="text-sm font-bold text-texto">
+                    <p className="break-words text-sm font-bold text-texto">
                       {brDate(entry.entryDate)} · {entryOriginLabel(entry.origin)}
                       {entry.supplier ? ` · ${entry.supplier}` : ""}
                     </p>
@@ -82,12 +82,12 @@ export default async function StockEntriesPage({
 
                 <ul className="mt-3 divide-y divide-rosa/10 text-xs">
                   {entry.lines.map((line, index) => (
-                    <li key={index} className="flex items-baseline justify-between gap-3 py-1.5">
-                      <span className="min-w-0 truncate text-texto">
+                    <li key={index} className="flex items-start justify-between gap-3 py-1.5">
+                      <span className="min-w-0 flex-1 break-words text-texto">
                         {line.qty}× {line.productName}
                         {line.variantName ? ` · ${line.variantName}` : ""}
                       </span>
-                      <span className="shrink-0 text-right text-cinza">
+                      <span className="max-w-[48%] shrink-0 text-right text-cinza">
                         {money(line.unitCost)}
                         {line.landedUnitCost !== line.unitCost ? ` (com frete ${money(line.landedUnitCost)})` : ""}
                         {line.priceBefore !== null && line.priceAfter !== null && (

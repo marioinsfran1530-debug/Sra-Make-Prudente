@@ -35,7 +35,8 @@ export function groupByProduct<T extends { productId: string }>(
 
 // Coloca novas linhas logo depois da última linha do mesmo produto (para as variações
 // de um produto ficarem juntas e o preço de venda aparecer no primeiro item dele).
-// Se o produto ainda não está na entrada, vai para o fim.
+// Se o produto ainda não está na entrada, vai para o começo da lista: fica logo abaixo
+// da busca, à vista, e a pessoa adiciona o próximo item sem rolar a tela de volta.
 export function insertAfterProduct<T extends { productId: string }>(
   lines: readonly T[],
   added: readonly T[]
@@ -46,6 +47,6 @@ export function insertAfterProduct<T extends { productId: string }>(
   lines.forEach((line, index) => {
     if (line.productId === productId) last = index;
   });
-  if (last === -1) return [...lines, ...added];
+  if (last === -1) return [...added, ...lines];
   return [...lines.slice(0, last + 1), ...added, ...lines.slice(last + 1)];
 }

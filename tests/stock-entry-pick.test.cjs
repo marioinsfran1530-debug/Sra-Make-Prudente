@@ -34,10 +34,10 @@ test("nova variação entra depois da última linha do mesmo produto", () => {
   assert.deepEqual(result.map((line) => line.key), ["a:1", "b:base", "a:2", "a:3", "c:base"]);
 });
 
-test("produto novo na entrada vai para o fim; várias linhas mantêm a ordem", () => {
+test("produto novo na entrada vai para o começo (perto da busca); várias linhas mantêm a ordem", () => {
   const lines = [item("a", "1")];
   const result = insertAfterProduct(lines, [item("b", "1"), item("b", "2")]);
-  assert.deepEqual(result.map((line) => line.key), ["a:1", "b:1", "b:2"]);
+  assert.deepEqual(result.map((line) => line.key), ["b:1", "b:2", "a:1"]);
 });
 
 test("não altera a lista original e aceita nada a adicionar", () => {
