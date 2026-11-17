@@ -63,6 +63,7 @@ export function ProductGallery({
         <ProductImage
           name={name}
           imageUrl={currentImage}
+          fit="contain"
           className="w-full aspect-square lg:h-[calc(100vh-150px)] lg:max-h-[620px]"
         />
 

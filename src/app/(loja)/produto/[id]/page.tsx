@@ -156,16 +156,16 @@ export default async function ProdutoPage({ params }: { params: ProductParams })
               )}
             </div>
             <StockLabel stock={product.stock} />
+            <p className="mt-2 rounded-xl border border-rosa/10 bg-white px-3 py-2 text-[11px] leading-relaxed text-cinza">
+              Retirada no Centro ou entrega por 99Entrega somente em Presidente Prudente. A loja confirma os detalhes pelo WhatsApp.
+            </p>
             <div className="mt-3 rounded-2xl bg-creme/60 px-3 py-2.5">
               <p className="text-[11px] font-bold uppercase tracking-wide text-cinza">Sobre o produto</p>
-              <p className={`mt-1 text-sm leading-relaxed ${savedDescription ? "text-texto" : "text-cinza"}`}>
+              <p className={`mt-1 whitespace-pre-line text-sm leading-relaxed ${savedDescription ? "text-texto" : "text-cinza"}`}>
                 {displayDescription}
               </p>
             </div>
-            <div className="mt-4 border-t border-rosa/10 pt-4"><AddToCartBox product={product} /></div>
-            <p className="mt-3 rounded-xl border border-rosa/10 bg-white px-3 py-2 text-[11px] leading-relaxed text-cinza">
-              Retirada no Centro ou entrega por 99Entrega somente em Presidente Prudente. A loja confirma os detalhes pelo WhatsApp.
-            </p>
+            <AddToCartBox product={product} />
             <div className="mt-4 rounded-2xl p-3 bg-creme">
               <p className="text-xs font-bold mb-1 text-texto">Precisa de ajuda?</p>
               <p className="text-xs mb-3 text-cinza">Ficou em dúvida sobre qual escolher? Fale com a gente.</p>

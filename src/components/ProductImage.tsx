@@ -8,11 +8,14 @@ export function ProductImage({
   imageUrl,
   className = "",
   loading = "eager",
+  fit = "cover",
 }: {
   name: string;
   imageUrl?: string | null;
   className?: string;
   loading?: "eager" | "lazy";
+  // "contain" mostra a foto inteira (artes e fotos não quadradas); "cover" preenche o quadro.
+  fit?: "cover" | "contain";
 }) {
   const [failed, setFailed] = useState(false);
 
@@ -33,7 +36,7 @@ export function ProductImage({
         decoding="async"
         fetchPriority={loading === "lazy" ? "low" : "auto"}
         onError={() => setFailed(true)}
-        className={`object-cover bg-white ${className}`}
+        className={`${fit === "contain" ? "object-contain" : "object-cover"} bg-white ${className}`}
       />
     );
   }

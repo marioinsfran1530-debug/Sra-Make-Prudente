@@ -46,8 +46,11 @@ export function AddToCartBox({ product }: { product: PublicProduct }) {
     setTimeout(() => setJustAdded(false), 1500);
   }
 
+  // Fragmento: os blocos ficam direto no cartão da página, para a barra de compra poder
+  // acompanhar a rolagem por todo o cartão (um sticky só se move dentro do seu pai).
   return (
-    <div>
+    <>
+      <div className="mt-4 border-t border-rosa/10" />
       {hasVariants && (
         <div className="mt-4">
           <p className="text-xs font-bold mb-2 text-texto">Variantes</p>
@@ -75,7 +78,8 @@ export function AddToCartBox({ product }: { product: PublicProduct }) {
         </div>
       )}
 
-      <div className="mt-5 flex items-center gap-3">
+      {/* No celular a barra de compra acompanha a rolagem, logo acima do menu inferior. */}
+      <div className="sticky bottom-16 z-20 -mx-5 mt-5 flex items-center gap-3 border-t border-rosa/10 bg-white/95 px-5 py-3 backdrop-blur lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:px-0 lg:py-0 lg:backdrop-blur-none">
         <div className="flex items-center rounded-full border border-rosa/20">
           <button
             onClick={() => setQty((q) => Math.max(1, q - 1))}
@@ -114,6 +118,6 @@ export function AddToCartBox({ product }: { product: PublicProduct }) {
           Ver carrinho
         </button>
       )}
-    </div>
+    </>
   );
 }
