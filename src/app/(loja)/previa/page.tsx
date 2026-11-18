@@ -421,9 +421,17 @@ export default async function PreviewHomePage() {
               </div>
             ))}
           </div>
-          <p className="mt-3 text-[11px] leading-relaxed text-cinza">
-            A entrega é feita por 99Entrega somente em Presidente Prudente. A loja confirma os itens e os detalhes antes de solicitar a corrida.
-          </p>
+          <ul className="mt-3 space-y-1.5 text-[11px] leading-relaxed text-cinza">
+            <li>
+              <strong className="text-texto">Pagamento:</strong> Pix, cartão de débito, crédito em até 3x sem juros ou dinheiro na retirada.
+            </li>
+            <li>
+              <strong className="text-texto">Retirada:</strong> grátis, no Centro.
+            </li>
+            <li>
+              <strong className="text-texto">Entrega:</strong> por 99Entrega, somente em Presidente Prudente e sem pedido mínimo. O valor da corrida varia com a distância e o horário, e a loja informa no WhatsApp antes de fechar. A loja também confirma os itens antes de solicitar a corrida.
+            </li>
+          </ul>
         </div>
       </section>
 
