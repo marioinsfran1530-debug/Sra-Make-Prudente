@@ -100,10 +100,18 @@ export function filterProducts<T extends FilterableProduct>(products: T[], state
 // Ordenação estável: a ordem original do servidor (destaques, mais vendidos,
 // novidades) desempata e é a "Relevância".
 export function sortProducts<T extends FilterableProduct>(products: T[], sort: SortKey): T[] {
-  if (sort === "relevance") return products;
-
   const indexed = products.map((product, index) => ({ product, index }));
   const flag = (value: boolean) => (value ? 1 : 0);
+
+  // Relevância: mantém a ordem do servidor, mas empurra os indisponíveis para o fim.
+  if (sort === "relevance") {
+    if (products.every((product) => isAvailable(product))) return products;
+    indexed.sort((a, b) => {
+      const availability = flag(isAvailable(b.product)) - flag(isAvailable(a.product));
+      return availability || a.index - b.index;
+    });
+    return indexed.map(({ product }) => product);
+  }
 
   indexed.sort((a, b) => {
     // Indisponíveis sempre por último, em qualquer ordenação.

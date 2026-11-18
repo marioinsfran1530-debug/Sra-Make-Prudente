@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import {
   Camera,
+  CreditCard,
   MapPin,
   MessageCircle,
   Package,
@@ -123,7 +124,8 @@ export default async function PreviewHomePage() {
   const conversion = resolveStorefrontConversion(settings);
   const location = resolveStoreLocation(settings);
   const whatsappNumber = location.whatsapp;
-  const heroHighlights = [conversion.highlight1, conversion.highlight2].filter(Boolean);
+  const heroHighlights = [conversion.highlight1, conversion.highlight2, conversion.highlight3].filter(Boolean);
+  const heroHighlightIcons = [MapPin, Truck, CreditCard];
   const secondaryHref =
     conversion.secondaryCtaUrl ||
     waLink(
@@ -216,12 +218,15 @@ export default async function PreviewHomePage() {
 
               {heroHighlights.length > 0 && (
                 <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[9px] font-semibold text-white/90 sm:text-[10px]">
-                  {heroHighlights.map((highlight, index) => (
-                    <span key={highlight} className="inline-flex items-center gap-1">
-                      {index === 0 ? <MapPin size={10} /> : <Truck size={10} />}
-                      {highlight}
-                    </span>
-                  ))}
+                  {heroHighlights.map((highlight, index) => {
+                    const HighlightIcon = heroHighlightIcons[index] ?? Truck;
+                    return (
+                      <span key={highlight} className="inline-flex items-center gap-1">
+                        <HighlightIcon size={10} />
+                        {highlight}
+                      </span>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -421,9 +426,17 @@ export default async function PreviewHomePage() {
               </div>
             ))}
           </div>
-          <p className="mt-3 text-[11px] leading-relaxed text-cinza">
-            A entrega é feita por 99Entrega somente em Presidente Prudente. A loja confirma os itens e os detalhes antes de solicitar a corrida.
-          </p>
+          <ul className="mt-3 space-y-1.5 text-[11px] leading-relaxed text-cinza">
+            <li>
+              <strong className="text-texto">Pagamento:</strong> Pix, cartão de débito, crédito em até 3x sem juros ou dinheiro na retirada.
+            </li>
+            <li>
+              <strong className="text-texto">Retirada:</strong> grátis, no Centro.
+            </li>
+            <li>
+              <strong className="text-texto">Entrega:</strong> por 99Entrega, somente em Presidente Prudente e sem pedido mínimo. O valor da corrida varia com a distância e o horário, e a loja informa no WhatsApp antes de fechar. A loja também confirma os itens antes de solicitar a corrida.
+            </li>
+          </ul>
         </div>
       </section>
 
