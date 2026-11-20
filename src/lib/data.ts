@@ -5,6 +5,7 @@ import { productIdFromLegacySlug, productSlug } from "@/lib/product-url";
 import { searchProducts } from "@/lib/product-search";
 import { createSlugIndex } from "@/lib/slug-index";
 import { createTtlCache } from "@/lib/ttl-cache";
+import { pickRelated } from "@/lib/related-products";
 
 // Camada de leitura pública. Regra do plano (seção 3): o Prisma não passa
 // pelas policies de RLS do Supabase, então TODO filtro de "ativo" precisa
@@ -227,6 +228,53 @@ export const getProductByIdentifier = cache(async (identifier: string) => {
 
   return getProductById(candidate.id);
 });
+
+// Só vale como "comprou junto" o que aconteceu em pelo menos 2 pedidos: com 1 só pode ser
+// coincidência (ex.: um kit de cílios e um adesivo de espinhas na mesma sacola).
+const CO_PURCHASE_MIN_ORDERS = 2;
+
+// Produtos que aparecem nos mesmos pedidos que `productId` (balcão e site, pedidos não
+// cancelados). Pedido grande pesa menos: uma cesta de 26 itens não diz que um item
+// "combina" com outro, já um pedido de 2 itens diz.
+async function coPurchasedProductIds(productId: string): Promise<string[]> {
+  const rows = await prisma.$queryRaw<Array<{ productId: string }>>`
+    with mine as (
+      select distinct oi."orderId"
+      from "OrderItem" oi
+      join "Order" o on o."id" = oi."orderId"
+      where oi."productId" = ${productId} and o."status"::text <> 'CANCELADO'
+    ),
+    sizes as (
+      select oi."orderId", count(distinct oi."productId") as n
+      from "OrderItem" oi
+      where oi."orderId" in (select "orderId" from mine)
+      group by oi."orderId"
+    )
+    select oi."productId" as "productId"
+    from "OrderItem" oi
+    join sizes s on s."orderId" = oi."orderId"
+    where oi."productId" <> ${productId}
+    group by oi."productId"
+    having count(distinct oi."orderId") >= ${CO_PURCHASE_MIN_ORDERS}::int
+    order by sum(1.0 / (s.n - 1)) desc, count(distinct oi."orderId") desc
+    limit 20
+  `;
+  return rows.map((row) => row.productId);
+}
+
+// Sugestões da página do produto. Nunca derruba a página: se algo falhar, não mostra.
+export async function getRelatedProducts(product: PublicProduct) {
+  try {
+    const [coPurchased, catalog] = await Promise.all([
+      coPurchasedProductIds(product.id),
+      activeCatalogCache.get(),
+    ]);
+    return pickRelated(product, coPurchased, catalog.map(mapProduct));
+  } catch (error) {
+    console.error("getRelatedProducts", error);
+    return { together: [], similar: [] };
+  }
+}
 
 export const getStoreSettings = cache(async () => {
   return prisma.storeSettings.findFirst();

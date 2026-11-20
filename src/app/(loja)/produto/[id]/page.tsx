@@ -1,12 +1,13 @@
 import { notFound, permanentRedirect } from "next/navigation";
 import type { Metadata } from "next";
 import { MessageCircle } from "lucide-react";
-import { getProductByIdentifier } from "@/lib/data";
+import { getProductByIdentifier, getRelatedProducts } from "@/lib/data";
 import { productPath, productSlug } from "@/lib/product-url";
 import { ProductGallery } from "@/components/ProductGallery";
 import { ProductShareButton } from "@/components/ProductShareButton";
 import { Badge, StockLabel } from "@/components/Badges";
 import { AddToCartBox } from "@/components/AddToCartBox";
+import { RelatedProducts } from "@/components/RelatedProducts";
 import { ProductViewTracker } from "@/components/ViewTrackers";
 import { WhatsAppLink } from "@/components/TrackedLink";
 import { money } from "@/lib/money";
@@ -64,6 +65,7 @@ export default async function ProdutoPage({ params }: { params: ProductParams })
     permanentRedirect(friendlyPath);
   }
 
+  const related = await getRelatedProducts(product);
   const productUrl = `${SITE_URL}${friendlyPath}`;
   const categoryUrl = `${SITE_URL}/categoria/${product.category.slug}`;
   const currentPrice = product.promoPrice ?? product.price;
@@ -181,6 +183,7 @@ export default async function ProdutoPage({ params }: { params: ProductParams })
             </div>
           </div>
         </div>
+        <RelatedProducts together={related.together} similar={related.similar} />
       </div>
     </main>
   );
