@@ -1,3 +1,4 @@
+import { BlackFridayBanner } from "@/components/BlackFridayBanner";
 import { BottomNav } from "@/components/BottomNav";
 import { CartProvider } from "@/components/CartProvider";
 import { DesktopStoreNav } from "@/components/DesktopStoreNav";
@@ -5,6 +6,7 @@ import { MetaPixel } from "@/components/MetaPixel";
 import { StoreFooter } from "@/components/StoreFooter";
 import { StoreScrollReveal } from "@/components/StoreScrollReveal";
 import { TrackingInit } from "@/components/TrackingInit";
+import { BLACK_FRIDAY_ENDS_AT, isBlackFridayActive } from "@/lib/black-friday";
 import { getStoreSettings } from "@/lib/data";
 import { resolveStoreLocation } from "@/lib/store-location";
 
@@ -117,6 +119,9 @@ export default async function LojaLayout({
       />
 
       <div className="min-h-screen bg-creme">
+        {isBlackFridayActive() && (
+          <BlackFridayBanner endsAt={BLACK_FRIDAY_ENDS_AT} />
+        )}
         <div className="mx-auto min-h-screen w-full max-w-7xl bg-creme relative">
           <DesktopStoreNav
             storeName={storeName}
