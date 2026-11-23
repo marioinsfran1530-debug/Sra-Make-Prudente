@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { MessageCircle, Search, Truck } from "lucide-react";
 import { BlackFridayCountdown } from "@/components/BlackFridayCountdown";
@@ -75,52 +76,83 @@ export default async function BlackFridayPage() {
     <main>
       <div className="pt-0 md:px-4 md:pt-4">
         <section
-          className="px-4 py-8 text-center text-white md:rounded-3xl md:py-12"
-          style={{
-            background:
-              "linear-gradient(135deg, #131B33 0%, #4A1250 55%, #A6157A 100%)",
-          }}
+          className="relative overflow-hidden text-white md:rounded-3xl"
+          style={{ backgroundColor: "#04081B" }}
         >
-          <p
-            className="text-[11px] font-extrabold uppercase tracking-[0.2em]"
-            style={{ color: "#C9972E" }}
-          >
-            Black Friday
-          </p>
+          <div className="mx-auto grid max-w-6xl md:grid-cols-2 md:items-center">
+            <div className="px-4 pb-2 pt-8 text-center md:px-10 md:py-14 md:text-left">
+              <p
+                className="text-[11px] font-extrabold uppercase tracking-[0.2em]"
+                style={{ color: "#C9972E" }}
+              >
+                Black Friday
+              </p>
 
-          <h1 className="mx-auto mt-2 max-w-xl font-serif text-2xl font-bold leading-tight sm:text-3xl">
-            {active
-              ? "Ofertas Black da Sra Make"
-              : "A Black Friday da Sra Make terminou"}
-          </h1>
+              <h1 className="mt-2 font-serif text-2xl font-bold leading-tight sm:text-3xl md:text-4xl">
+                {active
+                  ? "Ofertas Black da Sra Make"
+                  : "A Black Friday da Sra Make terminou"}
+              </h1>
 
-          <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-white/85">
-            {active
-              ? `Combos e preços especiais até ${BLACK_FRIDAY_ENDS_LABEL}, ou enquanto durar o estoque.`
-              : "Obrigada por comprar com a gente. Veja o catálogo completo e fale com a loja pelo WhatsApp."}
-          </p>
+              <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-white/85 md:mx-0">
+                {active
+                  ? `Combos e preços especiais até ${BLACK_FRIDAY_ENDS_LABEL}, ou enquanto durar o estoque.`
+                  : "Obrigada por comprar com a gente. Veja o catálogo completo e fale com a loja pelo WhatsApp."}
+              </p>
 
-          {active && (
-            <BlackFridayCountdown
-              endsAt={BLACK_FRIDAY_ENDS_AT}
-              className="mt-4 justify-center"
-            />
-          )}
+              {active && (
+                <BlackFridayCountdown
+                  endsAt={BLACK_FRIDAY_ENDS_AT}
+                  className="mt-4 justify-center md:justify-start"
+                />
+              )}
 
-          <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
-            <Link
-              href="/categoria"
-              className="rounded-full bg-white px-5 py-2.5 text-sm font-bold text-rosa-profundo"
-            >
-              Ver todos os produtos
-            </Link>
-            <WhatsAppLink
-              href={helpHref}
-              context="black_friday_hero"
-              className="inline-flex items-center gap-1.5 rounded-full border border-white/70 px-5 py-2.5 text-sm font-bold text-white"
-            >
-              <MessageCircle size={15} /> Falar no WhatsApp
-            </WhatsAppLink>
+              <div className="mt-5 flex flex-wrap items-center justify-center gap-2 md:justify-start">
+                <Link
+                  href="/categoria"
+                  className="rounded-full bg-white px-5 py-2.5 text-sm font-bold text-rosa-profundo"
+                >
+                  Ver todos os produtos
+                </Link>
+                <WhatsAppLink
+                  href={helpHref}
+                  context="black_friday_hero"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-white/70 px-5 py-2.5 text-sm font-bold text-white"
+                >
+                  <MessageCircle size={15} /> Falar no WhatsApp
+                </WhatsAppLink>
+              </div>
+            </div>
+
+            {/* Imagem decorativa: o texto fica no site, nunca dentro da imagem. */}
+            <div className="relative h-[290px] md:h-full md:min-h-[420px]">
+              <Image
+                src="/black-friday/hero.webp"
+                alt=""
+                fill
+                unoptimized
+                loading="eager"
+                fetchPriority="high"
+                sizes="(min-width: 768px) 50vw, 100vw"
+                className="object-cover object-[center_80%] md:object-[center_75%]"
+              />
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-x-0 top-0 h-20 md:hidden"
+                style={{
+                  background:
+                    "linear-gradient(to bottom, #04081B 0%, rgba(4,8,27,0) 100%)",
+                }}
+              />
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-y-0 left-0 hidden w-28 md:block"
+                style={{
+                  background:
+                    "linear-gradient(to right, #04081B 0%, rgba(4,8,27,0) 100%)",
+                }}
+              />
+            </div>
           </div>
         </section>
       </div>
