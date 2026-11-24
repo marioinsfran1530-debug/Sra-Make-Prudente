@@ -98,9 +98,9 @@ export default async function PreviewHomePage() {
 
   const firstSectionProducts =
     featured.length > 0
-      ? featured.slice(0, 5)
+      ? featured.slice(0, 12)
       : offers.length >= 2
-        ? offers.slice(0, 8)
+        ? offers.slice(0, 12)
         : bestSellers.slice(0, 8);
   const firstSectionTitle =
     featured.length > 0
@@ -261,7 +261,7 @@ export default async function PreviewHomePage() {
         <ProductSection
           title="Ofertas para aproveitar"
           eyebrow="Preços especiais"
-          products={offers.slice(0, 8)}
+          products={offers.slice(0, 12)}
         />
       )}
 

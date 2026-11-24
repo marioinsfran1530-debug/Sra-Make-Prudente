@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Image from "next/image";
-import Link from "next/link";
 import { MessageCircle, Search, Truck } from "lucide-react";
 import { BlackFridayCountdown } from "@/components/BlackFridayCountdown";
 import { ProductCard } from "@/components/ProductCard";
@@ -23,11 +22,37 @@ const SITE_URL = "https://www.sramakeprudente.com.br";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+const SOCIAL_TITLE = "Black da Sra Make Prudente | Ofertas até 29/11";
+const SOCIAL_DESCRIPTION =
+  "Produtos e kits com preços especiais em maquiagem, lash, nail e acessórios. Escolha no catálogo e confirme pelo WhatsApp.";
+const SOCIAL_IMAGE = `${SITE_URL}/black-friday/og.jpg`;
+
 export const metadata: Metadata = {
-  title: "Black Friday",
-  description:
-    "Ofertas de Black Friday da Sra Make Prudente: combos e produtos com preço especial em maquiagem, lash, nail e acessórios. Escolha no catálogo e confirme pelo WhatsApp.",
+  title: SOCIAL_TITLE,
+  description: SOCIAL_DESCRIPTION,
   alternates: { canonical: `${SITE_URL}${BLACK_FRIDAY_PATH}` },
+  openGraph: {
+    title: SOCIAL_TITLE,
+    description: SOCIAL_DESCRIPTION,
+    url: `${SITE_URL}${BLACK_FRIDAY_PATH}`,
+    siteName: "Sra Make Prudente",
+    locale: "pt_BR",
+    type: "website",
+    images: [
+      {
+        url: SOCIAL_IMAGE,
+        width: 1200,
+        height: 630,
+        alt: "Black Friday Sra Make Prudente",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: SOCIAL_TITLE,
+    description: SOCIAL_DESCRIPTION,
+    images: [SOCIAL_IMAGE],
+  },
 };
 
 function OfferGrid({ products }: { products: PublicProduct[] }) {
@@ -96,9 +121,18 @@ export default async function BlackFridayPage() {
 
               <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-white/85 md:mx-0">
                 {active
-                  ? `Combos e preços especiais até ${BLACK_FRIDAY_ENDS_LABEL}, ou enquanto durar o estoque.`
+                  ? `Produtos e kits com preços especiais até ${BLACK_FRIDAY_ENDS_LABEL}, ou enquanto durar o estoque.`
                   : "Obrigada por comprar com a gente. Veja o catálogo completo e fale com a loja pelo WhatsApp."}
               </p>
+
+              {active && (
+                <p className="mx-auto mt-3 max-w-md text-xs leading-relaxed text-white/70 md:mx-0">
+                  Retirada no Centro de Presidente Prudente. Entrega por
+                  99Entrega somente em Presidente Prudente; consulte as
+                  condições pelo WhatsApp. Aos domingos, atendimento somente
+                  online.
+                </p>
+              )}
 
               {active && (
                 <BlackFridayCountdown
@@ -108,12 +142,12 @@ export default async function BlackFridayPage() {
               )}
 
               <div className="mt-5 flex flex-wrap items-center justify-center gap-2 md:justify-start">
-                <Link
-                  href="/categoria"
+                <a
+                  href={hasProducts && active ? "#ofertas" : "/categoria"}
                   className="rounded-full bg-white px-5 py-2.5 text-sm font-bold text-rosa-profundo"
                 >
-                  Ver todos os produtos
-                </Link>
+                  {hasProducts && active ? "Ver ofertas da Black" : "Ver catálogo"}
+                </a>
                 <WhatsAppLink
                   href={helpHref}
                   context="black_friday_hero"
@@ -125,7 +159,7 @@ export default async function BlackFridayPage() {
             </div>
 
             {/* Imagem decorativa: o texto fica no site, nunca dentro da imagem. */}
-            <div className="relative h-[290px] md:h-full md:min-h-[420px]">
+            <div className="relative h-[200px] md:h-full md:min-h-[420px]">
               <Image
                 src="/black-friday/hero.webp"
                 alt=""
@@ -158,7 +192,7 @@ export default async function BlackFridayPage() {
       </div>
 
       {active && combos.length > 0 && (
-        <section className="mt-8">
+        <section id="combos" className="mt-8 scroll-mt-20">
           <h2 className="px-4 font-serif text-lg font-bold text-texto">
             Combos Black
           </h2>
@@ -170,7 +204,7 @@ export default async function BlackFridayPage() {
       )}
 
       {active && offers.length > 0 && (
-        <section className="mt-8">
+        <section id="ofertas" className="mt-8 scroll-mt-20">
           <h2 className="px-4 font-serif text-lg font-bold text-texto">
             Produtos em oferta
           </h2>

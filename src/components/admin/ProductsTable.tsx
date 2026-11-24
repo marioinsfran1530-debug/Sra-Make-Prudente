@@ -106,7 +106,8 @@ export function ProductsTable({
         !tag ||
         (tag === "featured" && product.featured) ||
         (tag === "new" && product.isNew) ||
-        (tag === "bestSeller" && product.bestSeller);
+        (tag === "bestSeller" && product.bestSeller) ||
+        (tag === "offer" && product.promoPrice !== null && product.promoPrice > 0 && product.promoPrice < product.price);
 
       return matchesQuery && matchesCategory && matchesStatus && matchesTag;
     });
@@ -283,6 +284,7 @@ export function ProductsTable({
             <option value="featured">Destaques</option>
             <option value="new">Novidades</option>
             <option value="bestSeller">Mais procurados</option>
+            <option value="offer">Em oferta</option>
           </select>
 
           <div className="flex gap-2">
